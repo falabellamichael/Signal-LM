@@ -39,11 +39,14 @@ html[data-theme="dark"] {
 }
 
 html, body {
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100svh;
+  overflow-y: auto;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top left, rgba(245,243,239,0.85), transparent 34rem),
     var(--bg-color);
