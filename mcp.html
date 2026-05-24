@@ -2,25 +2,1158 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LM Studio Lite · MCP</title>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --sidebar-bg: #f5f3ef;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --accent: #2d2d2d;
+      --accent-soft: #e9e4db;
+      --border-color: #e0e0e0;
+      --danger: #9f1d1d;
+      --success: #197a42;
+      --warning: #a06400;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    html, body { min-height: 100%; }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(245,243,239,0.85), transparent 34rem),
+        var(--bg-color);
+      color: var(--text-primary);
+      display: flex;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .sidebar {
+      width: 290px;
+      min-height: 100vh;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+    }
+
+    .brand {
+      font-weight: 750;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      background: #333;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    .nav-stack {
+      display: grid;
+      gap: 0.45rem;
+      margin-bottom: 1rem;
+    }
+
+    .nav-link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid transparent;
+      padding: 0.65rem 0.75rem;
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-weight: 650;
+      font-size: 0.92rem;
+    }
+
+    .nav-link.active,
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.7);
+      border-color: var(--border-color);
+    }
+
+    .sidebar-note {
+      margin-top: auto;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 0.9rem;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      padding: clamp(1rem, 4vw, 3rem);
+    }
+
+    .page-header { margin-bottom: 1.25rem; }
+
+    .page-header h1 {
+      font-size: clamp(2rem, 6vw, 4rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+      margin-bottom: 0.7rem;
+    }
+
+    .page-header p {
+      color: var(--text-secondary);
+      line-height: 1.55;
+      max-width: 760px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.84);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 1.1rem;
+    }
+
+    .card + .card { margin-top: 1rem; }
+
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 0.85rem;
+      letter-spacing: -0.02em;
+    }
+
+    .input-group { margin-bottom: 1rem; }
+    .input-group:last-child { margin-bottom: 0; }
+
+    .input-group label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.74rem;
+      font-weight: 750;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .input-group input,
+    .input-group textarea,
+    .input-group select {
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      font-size: 0.95rem;
+      outline: none;
+      background: #fff;
+      color: var(--text-primary);
+    }
+
+    .input-group textarea {
+      min-height: 86px;
+      resize: vertical;
+      line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.84rem;
+    }
+
+    .hint {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      margin-top: 0.4rem;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 1rem;
+    }
+
+    button {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 11px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: opacity 0.2s, transform 0.2s, background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 42px;
+    }
+
+    button:hover { opacity: 0.92; transform: translateY(-1px); }
+    button:disabled { background-color: #c7c7c7; cursor: not-allowed; transform: none; opacity: 1; }
+
+    .ghost-btn { background: #fff; color: var(--accent); border: 1px solid var(--border-color); }
+    .danger-btn { background: #fff; color: var(--danger); border: 1px solid rgba(159, 29, 29, 0.25); }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem;
+      padding: 0.85rem;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      background: #fff;
+      margin-bottom: 1rem;
+    }
+
+    .switch-row strong { display: block; margin-bottom: 0.2rem; }
+    .switch-row p { color: var(--text-secondary); font-size: 0.82rem; line-height: 1.35; }
+    input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); flex: 0 0 auto; }
+
+    .server-list { display: grid; gap: 0.8rem; }
+
+    .server-card {
+      border: 1px solid var(--border-color);
+      background: #fff;
+      border-radius: 18px;
+      padding: 0.9rem;
+      display: grid;
+      gap: 0.7rem;
+    }
+
+    .server-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .server-head strong { word-break: break-word; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 750;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .badge.on { color: var(--success); border-color: rgba(25,122,66,0.24); }
+    .badge.off { color: var(--text-secondary); }
+    .badge.warn { color: var(--warning); border-color: rgba(160,100,0,0.24); }
+    .badge.error { color: var(--danger); border-color: rgba(159,29,29,0.24); }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.7rem;
+    }
+
+    .preview {
+      background: #1f1f1f;
+      color: #f5f5f5;
+      border-radius: 16px;
+      padding: 0.85rem;
+      overflow: auto;
+      max-height: 480px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .status-box {
+      border-radius: 18px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      padding: 0.9rem;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .toast {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      max-width: min(420px, calc(100vw - 2rem));
+      background: #1f1f1f;
+      color: #fff;
+      padding: 0.85rem 1rem;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      transform: translateY(16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s ease;
+      z-index: 30;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+
+
+
+    /* WebView/browser overflow guard: prevents long paths, buttons, and cards from widening the page. */
+    main,
+    section,
+    aside,
+    .main-chat,
+    .sidebar,
+    .grid,
+    .card,
+    .status-card,
+    .status-box,
+    .empty-state,
+    .toolbar,
+    .button-row,
+    .input-group,
+    .switch-row,
+    .model-option,
+    .server-card,
+    .server-head,
+    .workspace-list,
+    .file-row,
+    .change-item,
+    .change-item-head,
+    .editor-shell,
+    .preview,
+    .bubble,
+    .composer-stack,
+    .composer-shell,
+    .workspace-strip,
+    .pending-edits-panel,
+    .context-debug-panel,
+    .attachment-tray {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .card,
+    .status-card,
+    .status-box,
+    .empty-state,
+    .server-card,
+    .change-item,
+    .model-option,
+    .bubble,
+    .preview {
+      overflow-wrap: anywhere;
+    }
+
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    pre,
+    .nav-link,
+    .chip,
+    .meta-btn,
+    .ghost-btn,
+    .danger-btn,
+    .mini-btn,
+    .file-chip,
+    .edit-chip,
+    .workspace-file-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    button,
+    .chip,
+    .meta-btn,
+    .ghost-btn,
+    .danger-btn,
+    .mini-btn,
+    .nav-link {
+      white-space: normal;
+    }
+
+    .file-row,
+    .change-item,
+    .model-option,
+    .server-card,
+    .status-box {
+      overflow: hidden;
+    }
+
+    .file-row > *,
+    .change-item > *,
+    .model-option > *,
+    .server-card > *,
+    .status-box > *,
+    .server-head > *,
+    .change-item-head > * {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .file-row > span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      display: block;
+    }
+
+    .file-row > span:last-child {
+      flex: 0 0 auto;
+    }
+
+    .file-path,
+    .change-path,
+    .server-head strong,
+    .model-option strong,
+    .file-title strong,
+    .file-title span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .file-path {
+      display: block;
+    }
+
+    @media (max-width: 880px) {
+      body { display: block; }
+      .sidebar { width: 100%; min-height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border-color); }
+      .sidebar-note { margin-top: 1rem; }
+      .grid, .two-col { grid-template-columns: 1fr; }
+      main { padding: 1rem; }
+      .page-header h1 { font-size: 2.35rem; }
+    }
+  </style>
 
   <script>
     (function () {
-      const SETTINGS_KEY = 'lmStudioLite.settings.v1';
-      const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+      if (window.__lmStudioLiteNativeFetchPatch) return;
+      window.__lmStudioLiteNativeFetchPatch = true;
+      const originalFetch = window.fetch ? window.fetch.bind(window) : null;
 
-      function readSettings() {
-        try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
-        catch { return {}; }
+      function getBridge() {
+        return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
       }
 
-      function writeSettings(next) {
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+      function bridgeCanRequest(url) {
+        const bridge = getBridge();
+        return Boolean(bridge && /^https?:\/\//i.test(String(url || '')) && (bridge.httpRequest || bridge.request || bridge.fetchJson));
       }
 
-      function resolveTheme(preference) {
-        const pref = preference || readSettings().theme || 'system';
-        if (pref === 'dark' || pref === 'light') return pref;
-        return media && media.matches ? 'dark' : 'light';
+      function mergeHeaders(inputHeaders, initHeaders) {
+        const headers = {};
+        const add = source => {
+          if (!source) return;
+          if (typeof Headers !== 'undefined' && source instanceof Headers) {
+            source.forEach((value, key) => { headers[key] = value; });
+          } else if (Array.isArray(source)) {
+            source.forEach(pair => { if (pair && pair.length >= 2) headers[pair[0]] = pair[1]; });
+          } else if (typeof source === 'object') {
+            Object.keys(source).forEach(key => { headers[key] = source[key]; });
+          }
+        };
+        add(inputHeaders);
+        add(initHeaders);
+        return headers;
       }
+
+      async function nativeFetch(input, init) {
+        const options = init || {};
+        const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
+        const method = options.method || (input && input.method) || 'GET';
+        const headers = mergeHeaders(input && input.headers, options.headers);
+        let body = options.body || null;
+        if (body && typeof body !== 'string') body = String(body);
+
+        const payload = JSON.stringify({ url, method, headers, body });
+        const bridge = getBridge();
+        const raw = await (bridge.httpRequest
+          ? bridge.httpRequest(payload)
+          : bridge.request
+            ? bridge.request(payload)
+            : bridge.fetchJson(payload));
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!parsed || typeof parsed !== 'object') throw new Error('Native HTTP bridge returned an empty response.');
+        if (parsed.error) throw new Error(parsed.error);
+
+        const responseHeaders = new Headers(parsed.headers || {});
+        if (!responseHeaders.has('content-type')) responseHeaders.set('content-type', parsed.contentType || 'application/json');
+        return new Response(parsed.body || '', {
+          status: parsed.status || 200,
+          statusText: parsed.statusText || 'OK',
+          headers: responseHeaders
+        });
+      }
+
+      if (originalFetch) {
+        window.fetch = function (input, init) {
+          const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
+          if (bridgeCanRequest(url)) return nativeFetch(input, init);
+          return originalFetch(input, init);
+        };
+      }
+    })();
+  </script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">LM Studio<span>Lite</span></div>
+
+    <nav class="nav-stack">
+      <a class="nav-link" href="index.html">Chat <span>←</span></a>
+      <a class="nav-link" href="editor.html">Folders <span>▣</span></a>
+      <a class="nav-link active" href="mcp.html">MCP <span>⌁</span></a>
+      <a class="nav-link" href="settings.html">Settings <span>⚙</span></a>
+    </nav>
+
+    <div class="sidebar-note">
+      MCP runs through LM Studio’s native REST API at <strong>/api/v1/chat</strong>. Remote or proxied MCP servers can be supplied per request. Local command-based MCP servers should be configured in LM Studio’s <strong>mcp.json</strong> and referenced here as plugins.
+    </div>
+  </aside>
+
+  <main>
+    <header class="page-header">
+      <h1>MCP</h1>
+      <p>Add Model Context Protocol integrations for tool use. Enabled integrations are injected into chat requests only when MCP is turned on.</p>
+    </header>
+
+    <section class="grid">
+      <div>
+        <section class="card">
+          <h2>MCP Control</h2>
+
+          <div class="switch-row">
+            <div>
+              <strong>Enable MCP in chat</strong>
+              <p>When enabled, the chat page uses LM Studio’s native REST chat endpoint and sends the integrations below.</p>
+            </div>
+            <input id="mcp-enabled" type="checkbox" />
+          </div>
+
+          <div class="input-group">
+            <label for="context-length">Context Length</label>
+            <input id="context-length" type="number" min="1024" step="512" />
+            <p class="hint">Higher context is recommended when MCP tools return larger payloads.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveMcpSettings()">Save MCP Settings</button>
+            <button class="ghost-btn" type="button" onclick="resetNativeThread()">Reset MCP Chat Thread</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Add Integration</h2>
+
+          <div class="two-col">
+            <div class="input-group">
+              <label for="new-type">Type</label>
+              <select id="new-type" onchange="syncNewTypeFields()">
+                <option value="ephemeral_mcp">Remote / Ephemeral MCP</option>
+                <option value="plugin">LM Studio mcp.json Plugin</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label for="new-label">Label</label>
+              <input id="new-label" placeholder="huggingface" />
+            </div>
+          </div>
+
+          <div class="input-group" id="new-url-group">
+            <label for="new-url">Server URL</label>
+            <input id="new-url" placeholder="https://huggingface.co/mcp" />
+            <p class="hint">LM Studio will connect to this URL, not the browser.</p>
+          </div>
+
+          <div class="input-group" id="new-plugin-group" style="display:none;">
+            <label for="new-plugin-id">Plugin ID</label>
+            <input id="new-plugin-id" placeholder="mcp/playwright" />
+            <p class="hint">Use the ID configured in LM Studio’s mcp.json, usually <strong>mcp/&lt;server_label&gt;</strong>.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="new-tools">Allowed Tools</label>
+            <input id="new-tools" placeholder="model_search, browser_navigate" />
+            <p class="hint">Optional. Leave blank to allow all tools from the integration.</p>
+          </div>
+
+          <div class="input-group" id="new-headers-group">
+            <label for="new-headers">Headers JSON</label>
+            <textarea id="new-headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
+            <p class="hint">Optional. Only used for remote / ephemeral MCP servers.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="addIntegration()">Add Integration</button>
+            <button class="ghost-btn" type="button" onclick="addHuggingFaceExample()">Add Hugging Face Example</button>
+            <button class="ghost-btn" type="button" onclick="addPlaywrightExample()">Add Playwright Plugin Example</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Configured Integrations</h2>
+          <div class="server-list" id="server-list"></div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Status</h2>
+          <div class="status-box">
+            <span class="badge warn" id="status-badge">Not tested</span>
+            <p class="hint" id="status-detail">Save an integration, then test the native REST endpoint or run a smoke test.</p>
+          </div>
+          <div class="button-row">
+            <button class="ghost-btn" type="button" onclick="testNativeModels()">Test REST API</button>
+            <button class="ghost-btn" type="button" onclick="testMcpChat()">MCP Smoke Test</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Request Preview</h2>
+          <pre class="preview" id="request-preview"></pre>
+          <div class="button-row">
+            <button class="ghost-btn" type="button" onclick="copyPreview()">Copy JSON</button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const STORAGE_KEYS = {
+      settings: 'lmStudioLite.settings.v1',
+      messages: 'lmStudioLite.messages.v1',
+      nativeResponseId: 'lmStudioLite.nativeResponseId.v1'
+    };
+
+    const DEFAULT_SETTINGS = {
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: '',
+      model: '',
+      temperature: 0.7,
+      topP: 1,
+      maxTokens: 500,
+      systemPrompt: 'You are a concise, helpful local assistant.',
+      persistChat: true,
+      speechVoice: '',
+      speechRate: 1,
+      speechPitch: 1,
+      autoSpeak: false,
+      mcpEnabled: false,
+      mcpContextLength: 8000,
+      mcpServers: []
+    };
+
+    let settings = loadSettings();
+
+    const els = {
+      enabled: document.getElementById('mcp-enabled'),
+      contextLength: document.getElementById('context-length'),
+      newType: document.getElementById('new-type'),
+      newLabel: document.getElementById('new-label'),
+      newUrl: document.getElementById('new-url'),
+      newPluginId: document.getElementById('new-plugin-id'),
+      newTools: document.getElementById('new-tools'),
+      newHeaders: document.getElementById('new-headers'),
+      newUrlGroup: document.getElementById('new-url-group'),
+      newPluginGroup: document.getElementById('new-plugin-group'),
+      newHeadersGroup: document.getElementById('new-headers-group'),
+      serverList: document.getElementById('server-list'),
+      preview: document.getElementById('request-preview'),
+      statusBadge: document.getElementById('status-badge'),
+      statusDetail: document.getElementById('status-detail'),
+      toast: document.getElementById('toast')
+    };
+
+    function loadSettings() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
+        return { ...DEFAULT_SETTINGS, ...loaded, mcpServers: Array.isArray(loaded.mcpServers) ? loaded.mcpServers : [] };
+      } catch {
+        return { ...DEFAULT_SETTINGS };
+      }
+    }
+
+    function saveSettings() {
+      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+    }
+
+    function normalizeBaseUrl(url) {
+      return (url || DEFAULT_SETTINGS.baseUrl).trim().replace(/\/+$/, '');
+    }
+
+    function nativeApiBaseUrl() {
+      const base = normalizeBaseUrl(settings.baseUrl);
+      if (/\/api\/v1$/i.test(base)) return base;
+      if (/\/v1$/i.test(base)) return base.replace(/\/v1$/i, '/api/v1');
+      return base + '/api/v1';
+    }
+
+    function nativeEndpoint(path) {
+      return nativeApiBaseUrl() + path;
+    }
+
+    function getHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+      return headers;
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add('show');
+      setTimeout(() => els.toast.classList.remove('show'), 2800);
+    }
+
+    function setStatus(kind, text, detail) {
+      els.statusBadge.className = `badge ${kind}`;
+      els.statusBadge.textContent = text;
+      els.statusDetail.textContent = detail;
+    }
+
+    function parseTools(value) {
+      return String(value || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function parseHeaders(value) {
+      const text = String(value || '').trim();
+      if (!text) return {};
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Headers JSON must be an object.');
+      }
+      return parsed;
+    }
+
+    function getEnabledMcpServers() {
+      return Array.isArray(settings.mcpServers)
+        ? settings.mcpServers.filter(server => server && server.enabled !== false)
+        : [];
+    }
+
+    function buildMcpIntegrations() {
+      return getEnabledMcpServers().map(server => {
+        const allowedTools = Array.isArray(server.allowedTools)
+          ? server.allowedTools.map(tool => String(tool).trim()).filter(Boolean)
+          : [];
+
+        if (server.type === 'plugin') {
+          if (!server.id) return null;
+          return allowedTools.length
+            ? { type: 'plugin', id: server.id, allowed_tools: allowedTools }
+            : server.id;
+        }
+
+        const integration = {
+          type: 'ephemeral_mcp',
+          server_label: server.serverLabel || server.label || 'remote-mcp',
+          server_url: server.serverUrl || ''
+        };
+
+        if (!integration.server_url) return null;
+        if (allowedTools.length) integration.allowed_tools = allowedTools;
+        if (server.headers && typeof server.headers === 'object' && Object.keys(server.headers).length) {
+          integration.headers = server.headers;
+        }
+
+        return integration;
+      }).filter(Boolean);
+    }
+
+    function buildPreviewRequest() {
+      const body = {
+        model: settings.model || '<select-model-in-settings>',
+        input: 'Your message here',
+        integrations: buildMcpIntegrations(),
+        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
+        temperature: Number(settings.temperature) || 0.7,
+        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
+        store: true
+      };
+
+      const systemPrompt = (settings.systemPrompt || '').trim();
+      if (systemPrompt) body.system_prompt = systemPrompt;
+      return body;
+    }
+
+    function saveMcpSettings() {
+      settings.mcpEnabled = els.enabled.checked;
+      settings.mcpContextLength = Math.max(1024, parseInt(els.contextLength.value, 10) || 8000);
+      saveSettings();
+      renderAll();
+      showToast('MCP settings saved.');
+    }
+
+    function syncNewTypeFields() {
+      const isPlugin = els.newType.value === 'plugin';
+      els.newUrlGroup.style.display = isPlugin ? 'none' : 'block';
+      els.newPluginGroup.style.display = isPlugin ? 'block' : 'none';
+      els.newHeadersGroup.style.display = isPlugin ? 'none' : 'block';
+    }
+
+    function addIntegration() {
+      try {
+        const type = els.newType.value;
+        const label = els.newLabel.value.trim();
+        const allowedTools = parseTools(els.newTools.value);
+        let server;
+
+        if (type === 'plugin') {
+          const id = els.newPluginId.value.trim();
+          if (!id) throw new Error('Plugin ID is required.');
+          server = { type, label: label || id, id, allowedTools, enabled: true };
+        } else {
+          const serverUrl = els.newUrl.value.trim();
+          if (!serverUrl) throw new Error('Server URL is required.');
+          server = {
+            type: 'ephemeral_mcp',
+            label: label || 'remote-mcp',
+            serverLabel: (label || 'remote-mcp').replace(/\s+/g, '-').toLowerCase(),
+            serverUrl,
+            allowedTools,
+            headers: parseHeaders(els.newHeaders.value),
+            enabled: true
+          };
+        }
+
+        settings.mcpServers.push(server);
+        saveSettings();
+        clearNewForm();
+        renderAll();
+        showToast('MCP integration added.');
+      } catch (error) {
+        showToast(error.message || 'Could not add integration.');
+      }
+    }
+
+    function clearNewForm() {
+      els.newLabel.value = '';
+      els.newUrl.value = '';
+      els.newPluginId.value = '';
+      els.newTools.value = '';
+      els.newHeaders.value = '';
+      els.newType.value = 'ephemeral_mcp';
+      syncNewTypeFields();
+    }
+
+    function addHuggingFaceExample() {
+      settings.mcpServers.push({
+        type: 'ephemeral_mcp',
+        label: 'Hugging Face',
+        serverLabel: 'huggingface',
+        serverUrl: 'https://huggingface.co/mcp',
+        allowedTools: ['model_search'],
+        headers: {},
+        enabled: true
+      });
+      settings.mcpEnabled = true;
+      saveSettings();
+      renderAll();
+      showToast('Hugging Face MCP example added.');
+    }
+
+    function addPlaywrightExample() {
+      settings.mcpServers.push({
+        type: 'plugin',
+        label: 'Playwright',
+        id: 'mcp/playwright',
+        allowedTools: ['browser_navigate'],
+        enabled: true
+      });
+      settings.mcpEnabled = true;
+      saveSettings();
+      renderAll();
+      showToast('Playwright plugin example added.');
+    }
+
+    function updateServer(index, key, value) {
+      const server = settings.mcpServers[index];
+      if (!server) return;
+
+      if (key === 'enabled') server.enabled = Boolean(value);
+      else if (key === 'allowedTools') server.allowedTools = parseTools(value);
+      else if (key === 'headers') {
+        try {
+          server.headers = parseHeaders(value);
+        } catch (error) {
+          showToast(error.message);
+          return;
+        }
+      } else server[key] = value;
+
+      saveSettings();
+      renderPreview();
+    }
+
+    function deleteServer(index) {
+      settings.mcpServers.splice(index, 1);
+      saveSettings();
+      renderAll();
+      showToast('Integration removed.');
+    }
+
+    function duplicateServer(index) {
+      const server = settings.mcpServers[index];
+      if (!server) return;
+      settings.mcpServers.splice(index + 1, 0, JSON.parse(JSON.stringify({ ...server, label: `${server.label || 'MCP'} Copy` })));
+      saveSettings();
+      renderAll();
+      showToast('Integration duplicated.');
+    }
+
+    function renderServers() {
+      if (!settings.mcpServers.length) {
+        els.serverList.innerHTML = '<p class="hint">No MCP integrations configured yet.</p>';
+        return;
+      }
+
+      els.serverList.innerHTML = '';
+      settings.mcpServers.forEach((server, index) => {
+        const isPlugin = server.type === 'plugin';
+        const card = document.createElement('div');
+        card.className = 'server-card';
+
+        const title = server.label || server.serverLabel || server.id || 'MCP Integration';
+        const target = isPlugin ? (server.id || '') : (server.serverUrl || '');
+        const tools = Array.isArray(server.allowedTools) ? server.allowedTools.join(', ') : '';
+        const headers = !isPlugin && server.headers && Object.keys(server.headers).length ? JSON.stringify(server.headers, null, 2) : '';
+
+        card.innerHTML = `
+          <div class="server-head">
+            <div>
+              <strong>${escapeHtml(title)}</strong>
+              <p class="hint">${escapeHtml(isPlugin ? 'mcp.json plugin' : 'remote / ephemeral MCP')}</p>
+            </div>
+            <span class="badge ${server.enabled === false ? 'off' : 'on'}">${server.enabled === false ? 'Disabled' : 'Enabled'}</span>
+          </div>
+
+          <div class="switch-row" style="margin:0;">
+            <div>
+              <strong>Use in chat</strong>
+              <p>Include this integration when MCP is enabled.</p>
+            </div>
+            <input type="checkbox" ${server.enabled === false ? '' : 'checked'} data-action="enabled" />
+          </div>
+
+          <div class="two-col">
+            <div class="input-group">
+              <label>Label</label>
+              <input value="${escapeHtml(server.label || '')}" data-field="label" />
+            </div>
+            <div class="input-group">
+              <label>${isPlugin ? 'Plugin ID' : 'Server Label'}</label>
+              <input value="${escapeHtml(isPlugin ? (server.id || '') : (server.serverLabel || ''))}" data-field="${isPlugin ? 'id' : 'serverLabel'}" />
+            </div>
+          </div>
+
+          ${isPlugin ? '' : `
+            <div class="input-group">
+              <label>Server URL</label>
+              <input value="${escapeHtml(server.serverUrl || '')}" data-field="serverUrl" />
+            </div>
+          `}
+
+          <div class="input-group">
+            <label>Allowed Tools</label>
+            <input value="${escapeHtml(tools)}" data-field="allowedTools" />
+            <p class="hint">Comma-separated. Leave blank to allow all tools.</p>
+          </div>
+
+          ${isPlugin ? '' : `
+            <div class="input-group">
+              <label>Headers JSON</label>
+              <textarea data-field="headers">${escapeHtml(headers)}</textarea>
+            </div>
+          `}
+
+          <div class="button-row" style="margin-top:0;">
+            <button class="ghost-btn" type="button" data-action="duplicate">Duplicate</button>
+            <button class="danger-btn" type="button" data-action="delete">Delete</button>
+          </div>
+        `;
+
+        card.querySelector('[data-action="enabled"]').addEventListener('change', event => {
+          updateServer(index, 'enabled', event.target.checked);
+          renderAll();
+        });
+
+        card.querySelectorAll('[data-field]').forEach(input => {
+          input.addEventListener('change', event => updateServer(index, event.target.dataset.field, event.target.value));
+        });
+
+        card.querySelector('[data-action="duplicate"]').addEventListener('click', () => duplicateServer(index));
+        card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteServer(index));
+
+        els.serverList.appendChild(card);
+      });
+    }
+
+    function renderPreview() {
+      const body = buildPreviewRequest();
+      els.preview.textContent = JSON.stringify({
+        url: nativeEndpoint('/chat'),
+        method: 'POST',
+        body
+      }, null, 2);
+    }
+
+    function renderAll() {
+      settings = loadSettings();
+      els.enabled.checked = Boolean(settings.mcpEnabled);
+      els.contextLength.value = settings.mcpContextLength || 8000;
+      renderServers();
+      renderPreview();
+    }
+
+    async function copyText(value, successMessage = 'Copied.') {
+      const text = String(value || '');
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.left = '-9999px';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+        showToast(successMessage);
+      } catch (error) {
+        showToast('Copy failed. Select the text manually.');
+      }
+    }
+
+    function copyPreview() {
+      copyText(els.preview.textContent, 'Copied request JSON.');
+    }
+
+    function resetNativeThread() {
+      localStorage.removeItem(STORAGE_KEYS.nativeResponseId);
+      showToast('MCP chat thread reset.');
+    }
+
+    async function testNativeModels() {
+      setStatus('warn', 'Checking', `Testing ${nativeEndpoint('/models')}`);
+      try {
+        const response = await fetch(nativeEndpoint('/models'), { headers: getHeaders() });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        const models = Array.isArray(payload.data) ? payload.data.length : Array.isArray(payload.models) ? payload.models.length : 0;
+        setStatus('on', 'Connected', `Native REST API responded. ${models} model${models === 1 ? '' : 's'} returned.`);
+      } catch (error) {
+        setStatus('error', 'Failed', error.message || 'Could not reach native REST API.');
+      }
+    }
+
+    async function testMcpChat() {
+      saveMcpSettings();
+      const integrations = buildMcpIntegrations();
+      if (!settings.model) {
+        showToast('Choose a model in Settings first.');
+        return;
+      }
+      if (!integrations.length) {
+        showToast('Add and enable at least one MCP integration first.');
+        return;
+      }
+
+      setStatus('warn', 'Testing', 'Sending a short /api/v1/chat request with MCP integrations.');
+      try {
+        const response = await fetch(nativeEndpoint('/chat'), {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({
+            model: settings.model,
+            input: 'Reply with exactly: MCP ready',
+            integrations,
+            context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
+            temperature: 0,
+            max_output_tokens: 32,
+            store: false
+          })
+        });
+
+        if (!response.ok) {
+          const text = await response.text().catch(() => '');
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const finalMessage = extractMessage(payload) || 'No message returned.';
+        setStatus('on', 'MCP request sent', finalMessage.slice(0, 180));
+      } catch (error) {
+        setStatus('error', 'MCP failed', error.message || 'Could not complete MCP smoke test.');
+      }
+    }
+
+    function extractMessage(result) {
+      if (!result || !Array.isArray(result.output)) return '';
+      return result.output
+        .filter(item => item.type === 'message' && item.content)
+        .map(item => item.content)
+        .join('\n\n')
+        .trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    syncNewTypeFields();
+    renderAll();
+  </script>
+</body>
+</html>

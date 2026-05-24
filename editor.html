@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-  <title>LM Studio Lite · Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LM Studio Lite · Folders</title>
 
   <script>
     (function () {
@@ -24,3 +24,1320 @@
         if (pref === 'dark' || pref === 'light') return pref;
         return media && media.matches ? 'dark' : 'light';
       }
+
+      function applyTheme(preference) {
+        const settings = readSettings();
+        const pref = preference || settings.theme || 'system';
+        const resolved = resolveTheme(pref);
+        document.documentElement.dataset.themePreference = pref;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+        document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = pref; });
+        document.querySelectorAll('[data-theme-label]').forEach(label => { label.textContent = resolved === 'dark' ? 'Dark' : 'Light'; });
+        return resolved;
+      }
+
+      function setTheme(preference) {
+        const settings = readSettings();
+        settings.theme = preference || 'system';
+        writeSettings(settings);
+        applyTheme(settings.theme);
+      }
+
+      function toggleTheme() {
+        const current = applyTheme();
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      }
+
+      window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, applyTheme, setTheme, toggleTheme };
+      applyTheme();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => applyTheme());
+      } else {
+        applyTheme();
+      }
+      if (media && media.addEventListener) media.addEventListener('change', () => applyTheme());
+      window.addEventListener('storage', event => { if (event.key === SETTINGS_KEY) applyTheme(); });
+    })();
+  </script>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --sidebar-bg: #f5f3ef;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --accent: #2d2d2d;
+      --accent-soft: #e9e4db;
+      --border-color: #e0e0e0;
+      --danger: #9f1d1d;
+      --success: #197a42;
+      --warning: #a06400;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+      --radius: 18px;
+    }
+
+    html[data-theme="light"] { color-scheme: light; }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg-color: #0f0f11;
+      --sidebar-bg: #171719;
+      --text-primary: #f4f1ea;
+      --text-secondary: #aaa39a;
+      --accent: #efe7d8;
+      --accent-soft: #2b2823;
+      --border-color: #333337;
+      --user-msg-bg: #2a2722;
+      --ai-msg-bg: #1d1d20;
+      --danger: #ff7c7c;
+      --success: #65d790;
+      --warning: #f0b85c;
+      --shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+    }
+
+    html[data-theme="dark"] body {
+      background:
+        radial-gradient(circle at top left, rgba(60, 55, 48, 0.42), transparent 34rem),
+        var(--bg-color);
+      color: var(--text-primary);
+    }
+
+    html[data-theme="dark"] .main-chat,
+    html[data-theme="dark"] #messages {
+      background-color: var(--bg-color);
+    }
+
+    html[data-theme="dark"] #messages {
+      background:
+        radial-gradient(circle at top left, rgba(60, 55, 48, 0.38), transparent 34rem),
+        var(--bg-color);
+    }
+
+    html[data-theme="dark"] .sidebar,
+    html[data-theme="dark"] .chat-header,
+    html[data-theme="dark"] .input-area,
+    html[data-theme="dark"] .editor-topbar {
+      background: rgba(23, 23, 25, 0.94);
+      border-color: var(--border-color);
+    }
+
+    html[data-theme="dark"] .card,
+    html[data-theme="dark"] .status-card,
+    html[data-theme="dark"] .empty-state,
+    html[data-theme="dark"] .sidebar-note,
+    html[data-theme="dark"] .workspace-strip,
+    html[data-theme="dark"] .context-debug-panel,
+    html[data-theme="dark"] .pending-edits-panel,
+    html[data-theme="dark"] .attachment-item,
+    html[data-theme="dark"] .editor-shell,
+    html[data-theme="dark"] .server-card,
+    html[data-theme="dark"] .status-box,
+    html[data-theme="dark"] .status-card,
+    html[data-theme="dark"] .model-option,
+    html[data-theme="dark"] .switch-row {
+      background: rgba(29, 29, 32, 0.9);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    html[data-theme="dark"] .brand span {
+      background: var(--text-primary);
+      color: #111113;
+    }
+
+    html[data-theme="dark"] .nav-link.active,
+    html[data-theme="dark"] .nav-link:hover,
+    html[data-theme="dark"] .chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-color);
+    }
+
+    html[data-theme="dark"] .status-pill,
+    html[data-theme="dark"] .badge,
+    html[data-theme="dark"] .chip,
+    html[data-theme="dark"] .meta-btn,
+    html[data-theme="dark"] .ghost-btn,
+    html[data-theme="dark"] .composer-shell,
+    html[data-theme="dark"] input,
+    html[data-theme="dark"] textarea,
+    html[data-theme="dark"] select {
+      background: #171719;
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    html[data-theme="dark"] input::placeholder,
+    html[data-theme="dark"] textarea::placeholder {
+      color: #77706a;
+    }
+
+    html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle),
+    html[data-theme="dark"] .file-label {
+      background: var(--accent);
+      color: #111113;
+    }
+
+    html[data-theme="dark"] .danger-btn {
+      background: #211719;
+      color: var(--danger);
+      border-color: rgba(255, 124, 124, 0.28);
+    }
+
+    html[data-theme="dark"] .user .bubble,
+    html[data-theme="dark"] .ai .bubble,
+    html[data-theme="dark"] .bubble {
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    html[data-theme="dark"] .user .bubble { background: var(--user-msg-bg); }
+    html[data-theme="dark"] .ai .bubble { background: var(--ai-msg-bg); }
+
+    html[data-theme="dark"] .bubble pre,
+    html[data-theme="dark"] .preview,
+    html[data-theme="dark"] .context-preview {
+      background: #0a0a0b;
+      color: #f4f1ea;
+      border-color: var(--border-color);
+    }
+
+    html[data-theme="dark"] .toast {
+      background: #efe7d8;
+      color: #111113;
+    }
+
+    html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #44444a; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    html, body { min-height: 100%; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      color: var(--text-primary);
+      background: radial-gradient(circle at top left, rgba(245,243,239,0.9), transparent 34rem), var(--bg-color);
+    }
+    a { color: inherit; text-decoration: none; }
+
+    .sidebar {
+      width: 290px;
+      min-height: 100vh;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+    }
+    .brand { font-weight: 750; font-size: 1.2rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; letter-spacing: -0.02em; }
+    .brand span { background: #333; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+    .nav-stack { display: grid; gap: 0.45rem; margin-bottom: 1rem; }
+    .nav-link { display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; padding: 0.65rem 0.75rem; border-radius: 12px; font-weight: 650; font-size: 0.92rem; }
+    .nav-link.active, .nav-link:hover { background: rgba(255, 255, 255, 0.7); border-color: var(--border-color); }
+    .sidebar-note { margin-top: auto; background: rgba(255,255,255,0.72); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 0.9rem; color: var(--text-secondary); font-size: 0.82rem; line-height: 1.45; }
+
+    main { width: min(1220px, 100%); margin: 0 auto; padding: clamp(1rem, 4vw, 3rem); }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.2rem; }
+    .page-header h1 { font-size: clamp(2rem, 6vw, 4rem); letter-spacing: -0.06em; line-height: 0.95; margin-bottom: 0.7rem; }
+    .page-header p { color: var(--text-secondary); line-height: 1.55; max-width: 780px; }
+
+    .status-pill, .badge { display: inline-flex; align-items: center; width: fit-content; gap: 6px; font-size: 0.78rem; font-weight: 700; padding: 5px 9px; border-radius: 999px; border: 1px solid var(--border-color); background: #fff; color: var(--text-secondary); white-space: nowrap; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+    .connected .status-dot { background: var(--success); }
+    .fallback .status-dot { background: var(--warning); }
+    .error .status-dot { background: var(--danger); }
+    .badge.on { color: var(--success); border-color: rgba(25,122,66,0.24); }
+    .badge.warn { color: var(--warning); border-color: rgba(160,100,0,0.24); }
+    .badge.error { color: var(--danger); border-color: rgba(159,29,29,0.24); }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(330px, 0.95fr); gap: 1rem; align-items: start; }
+    .card { background: rgba(255,255,255,0.86); border: 1px solid var(--border-color); border-radius: 24px; box-shadow: var(--shadow); padding: 1rem; }
+    .card + .card { margin-top: 1rem; }
+    .card h2 { font-size: 1rem; margin-bottom: 0.85rem; letter-spacing: -0.02em; }
+    .toolbar, .button-row { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; margin-bottom: 0.8rem; }
+
+    button { background-color: var(--accent); color: white; border: none; padding: 11px 16px; border-radius: 999px; cursor: pointer; font-weight: 700; transition: opacity 0.2s, transform 0.2s, background 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; font-size: 0.92rem; }
+    button:hover { opacity: 0.92; transform: translateY(-1px); }
+    button:disabled { background-color: #c7c7c7; cursor: not-allowed; transform: none; opacity: 1; }
+    .ghost-btn { background: #fff; color: var(--accent); border: 1px solid var(--border-color); }
+    .danger-btn { background: #fff; color: var(--danger); border: 1px solid rgba(159, 29, 29, 0.25); }
+    .mini-btn { min-height: 32px; padding: 7px 10px; font-size: 0.78rem; }
+    .hidden { display: none !important; }
+
+    .input-group { margin-bottom: 1rem; }
+    .input-group label { display: block; font-size: 0.74rem; font-weight: 750; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .input-group input, .input-group textarea { width: 100%; padding: 10px 11px; border-radius: 12px; border: 1px solid #ccc; font-size: 0.95rem; outline: none; background: #fff; color: var(--text-primary); }
+    .input-group textarea { min-height: 96px; resize: vertical; line-height: 1.45; }
+    .hint { color: var(--text-secondary); font-size: 0.82rem; line-height: 1.45; margin-top: 0.4rem; }
+
+    .meta-list { display: grid; gap: 0.55rem; color: var(--text-secondary); font-size: 0.88rem; }
+    .meta-row { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgba(224,224,224,0.7); padding-bottom: 0.5rem; }
+    .meta-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .meta-row strong { color: var(--text-primary); text-align: right; overflow-wrap: anywhere; }
+
+    .workspace-list { display: grid; gap: 0.45rem; max-height: 460px; overflow: auto; padding-right: 2px; }
+    .file-row { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 14px; padding: 0.7rem; min-height: 0; }
+    .file-row:hover, .file-row.active { background: var(--accent-soft); transform: none; opacity: 1; }
+    .file-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 740; }
+    .file-mini { color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.16rem; }
+    .empty-box { border: 1px dashed var(--border-color); border-radius: 18px; padding: 1rem; color: var(--text-secondary); background: rgba(255,255,255,0.72); line-height: 1.45; }
+
+    .editor-shell { border: 1px solid var(--border-color); background: #fff; border-radius: 20px; overflow: hidden; }
+    .editor-topbar { display: flex; justify-content: space-between; align-items: center; gap: 0.7rem; padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--border-color); background: #fbfaf8; }
+    .file-title { min-width: 0; }
+    .file-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem; }
+    .file-title span { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.12rem; }
+    textarea.code-editor { display: block; width: 100%; min-height: min(52vh, 640px); border: none; resize: vertical; outline: none; padding: 1rem; line-height: 1.55; font-size: 0.92rem; color: var(--text-primary); background: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; tab-size: 2; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+
+    .change-list { display: grid; gap: 0.55rem; }
+    .change-item { border: 1px solid var(--border-color); border-radius: 16px; padding: 0.75rem; background: #fff; }
+    .change-item-head { display: flex; justify-content: space-between; gap: 0.8rem; align-items: center; }
+    .change-path { font-weight: 760; word-break: break-word; }
+    .change-mini { color: var(--text-secondary); font-size: 0.76rem; margin-top: 0.18rem; }
+
+    .toast { position: fixed; right: 1rem; bottom: 1rem; max-width: min(440px, calc(100vw - 2rem)); background: #1f1f1f; color: #fff; padding: 0.85rem 1rem; border-radius: 14px; box-shadow: var(--shadow); transform: translateY(16px); opacity: 0; pointer-events: none; transition: 0.2s ease; z-index: 30; font-size: 0.9rem; line-height: 1.4; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+
+
+    /* WebView/browser overflow guard: prevents long paths, buttons, and cards from widening the page. */
+    main,
+    section,
+    aside,
+    .main-chat,
+    .sidebar,
+    .grid,
+    .card,
+    .status-card,
+    .status-box,
+    .empty-state,
+    .toolbar,
+    .button-row,
+    .input-group,
+    .switch-row,
+    .model-option,
+    .server-card,
+    .server-head,
+    .workspace-list,
+    .file-row,
+    .change-item,
+    .change-item-head,
+    .editor-shell,
+    .preview,
+    .bubble,
+    .composer-stack,
+    .composer-shell,
+    .workspace-strip,
+    .pending-edits-panel,
+    .context-debug-panel,
+    .attachment-tray {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .card,
+    .status-card,
+    .status-box,
+    .empty-state,
+    .server-card,
+    .change-item,
+    .model-option,
+    .bubble,
+    .preview {
+      overflow-wrap: anywhere;
+    }
+
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    pre,
+    .nav-link,
+    .chip,
+    .meta-btn,
+    .ghost-btn,
+    .danger-btn,
+    .mini-btn,
+    .file-chip,
+    .edit-chip,
+    .workspace-file-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    button,
+    .chip,
+    .meta-btn,
+    .ghost-btn,
+    .danger-btn,
+    .mini-btn,
+    .nav-link {
+      white-space: normal;
+    }
+
+    .file-row,
+    .change-item,
+    .model-option,
+    .server-card,
+    .status-box {
+      overflow: hidden;
+    }
+
+    .file-row > *,
+    .change-item > *,
+    .model-option > *,
+    .server-card > *,
+    .status-box > *,
+    .server-head > *,
+    .change-item-head > * {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .file-row > span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      display: block;
+    }
+
+    .file-row > span:last-child {
+      flex: 0 0 auto;
+    }
+
+    .file-path,
+    .change-path,
+    .server-head strong,
+    .model-option strong,
+    .file-title strong,
+    .file-title span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .file-path {
+      display: block;
+    }
+
+    @media (max-width: 920px) {
+      body { display: block; }
+      .sidebar { width: 100%; min-height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border-color); }
+      .sidebar-note { margin-top: 1rem; }
+      main { padding: 1rem; }
+      .grid { grid-template-columns: 1fr; }
+      .page-header { display: block; }
+      .page-header h1 { font-size: 2.35rem; }
+      .toolbar, .button-row { display: grid; grid-template-columns: 1fr 1fr; }
+      .toolbar button, .button-row button { width: 100%; }
+      .editor-topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+
+  <script>
+    (function () {
+      if (window.__lmStudioLiteNativeFetchPatch) return;
+      window.__lmStudioLiteNativeFetchPatch = true;
+      const originalFetch = window.fetch ? window.fetch.bind(window) : null;
+
+      function getBridge() {
+        return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+      }
+
+      function bridgeCanRequest(url) {
+        const bridge = getBridge();
+        return Boolean(bridge && /^https?:\/\//i.test(String(url || '')) && (bridge.httpRequest || bridge.request || bridge.fetchJson));
+      }
+
+      function mergeHeaders(inputHeaders, initHeaders) {
+        const headers = {};
+        const add = source => {
+          if (!source) return;
+          if (typeof Headers !== 'undefined' && source instanceof Headers) {
+            source.forEach((value, key) => { headers[key] = value; });
+          } else if (Array.isArray(source)) {
+            source.forEach(pair => { if (pair && pair.length >= 2) headers[pair[0]] = pair[1]; });
+          } else if (typeof source === 'object') {
+            Object.keys(source).forEach(key => { headers[key] = source[key]; });
+          }
+        };
+        add(inputHeaders);
+        add(initHeaders);
+        return headers;
+      }
+
+      async function nativeFetch(input, init) {
+        const options = init || {};
+        const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
+        const method = options.method || (input && input.method) || 'GET';
+        const headers = mergeHeaders(input && input.headers, options.headers);
+        let body = options.body || null;
+        if (body && typeof body !== 'string') body = String(body);
+
+        const payload = JSON.stringify({ url, method, headers, body });
+        const bridge = getBridge();
+        const raw = await (bridge.httpRequest
+          ? bridge.httpRequest(payload)
+          : bridge.request
+            ? bridge.request(payload)
+            : bridge.fetchJson(payload));
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!parsed || typeof parsed !== 'object') throw new Error('Native HTTP bridge returned an empty response.');
+        if (parsed.error) throw new Error(parsed.error);
+
+        const responseHeaders = new Headers(parsed.headers || {});
+        if (!responseHeaders.has('content-type')) responseHeaders.set('content-type', parsed.contentType || 'application/json');
+        return new Response(parsed.body || '', {
+          status: parsed.status || 200,
+          statusText: parsed.statusText || 'OK',
+          headers: responseHeaders
+        });
+      }
+
+      if (originalFetch) {
+        window.fetch = function (input, init) {
+          const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
+          if (bridgeCanRequest(url)) return nativeFetch(input, init);
+          return originalFetch(input, init);
+        };
+      }
+    })();
+  </script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">LM Studio<span>Lite</span></div>
+    <nav class="nav-stack">
+      <a class="nav-link" href="index.html">Chat <span>←</span></a>
+      <a class="nav-link active" href="editor.html">Folders <span>▣</span></a>
+      <a class="nav-link" href="mcp.html">MCP <span>⌁</span></a>
+      <a class="nav-link" href="settings.html">Settings <span>⚙</span></a>
+    </nav>
+    <div class="sidebar-note">
+      Individual files and images now attach directly in Chat. Use this page only for folder workspaces, folder-wide context, and reviewed AI edits across compatible text/code files.
+    </div>
+  </aside>
+
+  <main>
+    <header class="page-header">
+      <div>
+        <h1>Folders</h1>
+        <p>Select a folder workspace of compatible text/code files. Send the folder to chat as context, preview AI-generated edits, then apply reviewed changes to writable folders.</p>
+      </div>
+      <span class="status-pill fallback" id="capability-pill"><span class="status-dot"></span><span id="capability-text">Checking support</span></span>
+    </header>
+
+    <section class="grid">
+      <div>
+        <section class="card">
+          <h2>Folder Workspace</h2>
+          <div class="toolbar">
+            <button type="button" onclick="selectFolder()">Select Folder</button>
+            <button type="button" class="ghost-btn" onclick="selectFilesFallback()">Select Files</button>
+            <button type="button" class="ghost-btn" onclick="rescanFolder()" id="rescan-folder-btn" disabled>Rescan</button>
+            <button type="button" class="ghost-btn" onclick="sendWorkspaceToChat()" id="send-workspace-btn" disabled>Send Folder to Chat</button>
+          </div>
+          <input class="hidden" id="fallback-folder" type="file" multiple webkitdirectory directory accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
+          <input class="hidden" id="fallback-files" type="file" multiple accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
+          <div class="input-group">
+            <label for="workspace-search">Filter files</label>
+            <input id="workspace-search" placeholder="Search by path, for example .css or index" />
+          </div>
+          <div class="meta-list" style="margin-bottom:0.9rem;">
+            <div class="meta-row"><span>Folder</span><strong id="workspace-folder-meta">None</strong></div>
+            <div class="meta-row"><span>Compatible files</span><strong id="workspace-count-meta">0</strong></div>
+            <div class="meta-row"><span>Access</span><strong id="workspace-access-meta">Not selected</strong></div>
+          </div>
+          <div class="workspace-list" id="workspace-list"><div class="empty-box">Select a folder to scan compatible text and code files.</div></div>
+        </section>
+
+        <section class="card">
+          <h2>Selected File Preview</h2>
+          <div class="toolbar">
+            <button type="button" onclick="saveSelectedFile()" id="save-selected-btn" disabled>Save Selected</button>
+            <button type="button" class="ghost-btn" onclick="downloadSelectedFile()" id="download-selected-btn" disabled>Download Copy</button>
+          </div>
+          <div class="editor-shell">
+            <div class="editor-topbar">
+              <div class="file-title">
+                <strong id="file-name">No file selected</strong>
+                <span id="file-status">Select a file from the folder list.</span>
+              </div>
+              <span class="status-pill connected" id="dirty-pill"><span class="status-dot"></span><span id="dirty-text">Clean</span></span>
+            </div>
+            <textarea class="code-editor" id="editor" spellcheck="false" placeholder="Select a compatible file from the folder list to preview or edit it."></textarea>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>AI Folder Edits</h2>
+          <div class="input-group">
+            <label for="ai-instruction">Edit instruction</label>
+            <textarea id="ai-instruction" placeholder="Example: Add more beige to the chat background CSS, preserving the current layout."></textarea>
+            <p class="hint">The model must return complete replacement contents for changed files. Nothing is written until you apply reviewed edits.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" onclick="previewAiFolderEdits()" id="ai-preview-btn" disabled>Preview AI Edits</button>
+            <button type="button" class="ghost-btn" onclick="applyAiFolderEdits()" id="ai-apply-btn" disabled>Apply Reviewed Edits</button>
+          </div>
+          <div class="change-list" id="change-list"><div class="empty-box">No pending AI edits.</div></div>
+        </section>
+
+        <section class="card">
+          <h2>How this should be used</h2>
+          <p class="hint">Use Chat’s + button for single files and images. Use Folders when you want the assistant to understand or edit multiple compatible files inside a project folder.</p>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const STORAGE_KEYS = {
+      settings: 'lmStudioLite.settings.v1',
+      fileContext: 'lmStudioLite.fileContext.v1',
+      workspaceInfo: 'lmStudioLite.workspaceInfo.v1'
+    };
+
+    const HANDLE_DB = 'lmStudioLite.filesystem.v1';
+    const HANDLE_STORE = 'handles';
+    const WORKSPACE_HANDLE_KEY = 'workspaceHandle';
+
+    const DEFAULT_SETTINGS = {
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: '',
+      model: '',
+      temperature: 0.7,
+      topP: 1,
+      maxTokens: 500,
+      systemPrompt: 'You are a concise, helpful local assistant.',
+      theme: 'system',
+      persistChat: true
+    };
+
+    const COMPATIBLE_EXTENSIONS = new Set([
+      '.txt', '.md', '.markdown', '.csv', '.log', '.html', '.htm', '.css', '.js', '.mjs', '.json', '.xml',
+      '.yml', '.yaml', '.py', '.ts', '.tsx', '.jsx', '.php', '.rb', '.go', '.rs', '.java', '.c', '.cpp', '.h',
+      '.hpp', '.cs', '.swift', '.sql', '.sh', '.zsh', '.bash', '.env', '.gitignore'
+    ]);
+    const COMPATIBLE_MIME_TYPES = new Set(['text/plain', 'text/html', 'text/css', 'text/javascript', 'application/javascript', 'application/json', 'text/markdown', 'text/csv', 'application/xml', 'text/xml']);
+    const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'build', '.next', '.cache', 'vendor']);
+    const MAX_FILE_BYTES = 2 * 1024 * 1024;
+    const MAX_WORKSPACE_FILES = 220;
+    const AI_TOTAL_CONTEXT_CHARS = 120000;
+    const AI_FILE_CONTEXT_CHARS = 30000;
+    const CHAT_TOTAL_CONTEXT_CHARS = 70000;
+    const CHAT_FILE_CONTEXT_CHARS = 18000;
+
+    let workspaceHandle = null;
+    let workspaceFiles = [];
+    let nativeWorkspace = null;
+    let directFolderMode = false;
+    let workspaceLabel = '';
+    let selectedFile = null;
+    let dirty = false;
+    let pendingAiChanges = [];
+    let pendingAiSummary = '';
+    let isAiEditing = false;
+
+    const els = {
+      fallbackFolder: document.getElementById('fallback-folder'),
+      fallbackFiles: document.getElementById('fallback-files'),
+      capabilityPill: document.getElementById('capability-pill'),
+      capabilityText: document.getElementById('capability-text'),
+      workspaceSearch: document.getElementById('workspace-search'),
+      workspaceList: document.getElementById('workspace-list'),
+      workspaceFolderMeta: document.getElementById('workspace-folder-meta'),
+      workspaceCountMeta: document.getElementById('workspace-count-meta'),
+      workspaceAccessMeta: document.getElementById('workspace-access-meta'),
+      rescanFolderBtn: document.getElementById('rescan-folder-btn'),
+      sendWorkspaceBtn: document.getElementById('send-workspace-btn'),
+      editor: document.getElementById('editor'),
+      fileName: document.getElementById('file-name'),
+      fileStatus: document.getElementById('file-status'),
+      dirtyPill: document.getElementById('dirty-pill'),
+      dirtyText: document.getElementById('dirty-text'),
+      saveSelectedBtn: document.getElementById('save-selected-btn'),
+      downloadSelectedBtn: document.getElementById('download-selected-btn'),
+      aiInstruction: document.getElementById('ai-instruction'),
+      aiPreviewBtn: document.getElementById('ai-preview-btn'),
+      aiApplyBtn: document.getElementById('ai-apply-btn'),
+      changeList: document.getElementById('change-list'),
+      toast: document.getElementById('toast')
+    };
+
+    function hasDirectFolderAccess() {
+      return 'showDirectoryPicker' in window && window.isSecureContext;
+    }
+    function supportsFolderFileInput() { return 'webkitdirectory' in document.createElement('input'); }
+    function getNativeFileBridge() { return window.lmStudioLiteNative || window.NativeFileBridge || null; }
+    async function asPromise(value) { return value && typeof value.then === 'function' ? await value : value; }
+    function setCapabilityStatus() {
+      if (getNativeFileBridge()?.selectFolder) {
+        els.capabilityPill.className = 'status-pill connected';
+        els.capabilityText.textContent = 'App folder bridge available';
+      } else if (hasDirectFolderAccess()) {
+        els.capabilityPill.className = 'status-pill connected';
+        els.capabilityText.textContent = 'Writable folders supported';
+      } else {
+        els.capabilityPill.className = 'status-pill fallback';
+        els.capabilityText.textContent = 'Folder/file picker fallback';
+      }
+    }
+    function showToast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 3200); }
+    function basename(path) { return String(path || '').split('/').filter(Boolean).pop() || ''; }
+    function normalizePath(path) { return String(path || '').replace(/\\/g, '/').replace(/^\/+/, ''); }
+    function extensionOf(path) {
+      const clean = basename(path).toLowerCase();
+      if (clean === '.env' || clean === '.gitignore') return clean;
+      const dot = clean.lastIndexOf('.');
+      return dot >= 0 ? clean.slice(dot) : '';
+    }
+    function isCompatibleFile(path, file = null) { return COMPATIBLE_EXTENSIONS.has(extensionOf(path)) || Boolean(file && COMPATIBLE_MIME_TYPES.has(file.type)); }
+    function fileSizeLabel(bytes) { const value = Number(bytes) || 0; if (value < 1024) return `${value} B`; if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`; return `${(value / (1024 * 1024)).toFixed(2)} MB`; }
+    function readFileText(file) {
+      if (!file) return Promise.resolve('');
+      if (typeof file.text === 'function') return file.text().catch(() => readFileTextWithReader(file));
+      return readFileTextWithReader(file);
+    }
+
+    function readFileTextWithReader(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('Could not read text file.'));
+        reader.readAsText(file);
+      });
+    }
+    function escapeHtml(value) { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+    function loadSettings() { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; } }
+    function normalizeBaseUrl(url) { return (url || DEFAULT_SETTINGS.baseUrl).trim().replace(/\/+$/, ''); }
+    function endpoint(path, settings = loadSettings()) { return normalizeBaseUrl(settings.baseUrl) + path; }
+    function getHeaders(settings = loadSettings()) { const headers = { 'Content-Type': 'application/json' }; if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`; return headers; }
+
+    async function verifyPermission(handle, mode = 'readwrite') {
+      const options = { mode };
+      if (!handle.queryPermission || !handle.requestPermission) return true;
+      if ((await handle.queryPermission(options)) === 'granted') return true;
+      return (await handle.requestPermission(options)) === 'granted';
+    }
+
+    function setDirty(value) {
+      dirty = value;
+      els.dirtyPill.className = value ? 'status-pill fallback' : 'status-pill connected';
+      els.dirtyText.textContent = value ? 'Unsaved' : 'Clean';
+      updateSelectedMeta();
+    }
+
+
+
+    function openHandleDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(HANDLE_DB, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('Could not open browser workspace storage.'));
+      });
+    }
+
+    async function idbSet(key, value) {
+      const db = await openHandleDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(HANDLE_STORE, 'readwrite');
+        tx.objectStore(HANDLE_STORE).put(value, key);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error || new Error('Could not save workspace handle.'));
+      });
+    }
+
+    async function rememberWorkspaceHandle() {
+      if (!workspaceHandle?.kind || workspaceHandle.kind !== 'directory') return;
+      try {
+        await idbSet(WORKSPACE_HANDLE_KEY, workspaceHandle);
+        localStorage.setItem(STORAGE_KEYS.workspaceInfo, JSON.stringify({
+          name: workspaceLabel || workspaceHandle.name || 'Selected folder',
+          updatedAt: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    function rememberFallbackWorkspace() {
+      if (!workspaceLabel) return;
+      localStorage.setItem(STORAGE_KEYS.workspaceInfo, JSON.stringify({
+        name: workspaceLabel,
+        mode: 'context-only',
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    function updateWorkspaceMeta() {
+      els.workspaceFolderMeta.textContent = workspaceLabel || 'None';
+      els.workspaceCountMeta.textContent = String(workspaceFiles.length);
+      els.workspaceAccessMeta.textContent = workspaceFiles.length ? (nativeWorkspace?.writable ? 'App writable workspace' : directFolderMode ? 'Writable folder handle' : 'Browser fallback picker') : 'Not selected';
+      els.rescanFolderBtn.disabled = !workspaceHandle;
+      els.sendWorkspaceBtn.disabled = !workspaceFiles.length;
+      els.aiPreviewBtn.disabled = isAiEditing || !workspaceFiles.length;
+      els.aiApplyBtn.disabled = isAiEditing || !pendingAiChanges.length;
+      els.aiApplyBtn.textContent = (nativeWorkspace?.writable || directFolderMode) ? 'Apply Reviewed Edits' : 'Download Reviewed Edits';
+    }
+
+    function updateSelectedMeta() {
+      els.fileName.textContent = selectedFile?.path || 'No file selected';
+      els.fileStatus.textContent = selectedFile ? (dirty ? 'Selected folder file · unsaved changes' : 'Selected folder file') : 'Select a file from the folder list.';
+      els.saveSelectedBtn.disabled = !selectedFile || !dirty;
+      els.downloadSelectedBtn.disabled = !selectedFile;
+    }
+
+    async function selectFolder() {
+      if (dirty && !confirm('Discard unsaved selected-file changes?')) return;
+
+      const bridge = getNativeFileBridge();
+      if (bridge?.selectFolder) {
+        try {
+          const result = await asPromise(bridge.selectFolder());
+          const data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (data) {
+            loadNativeWorkspace(data);
+            showToast(`Selected ${workspaceLabel}. App Apply is enabled for this workspace.`);
+            return;
+          }
+        } catch (error) {
+          console.error(error);
+          showToast('Native folder picker failed. Opening browser fallback.');
+        }
+      }
+
+      if (hasDirectFolderAccess()) {
+        try {
+          workspaceHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+          nativeWorkspace = null;
+          workspaceLabel = workspaceHandle.name || 'Selected folder';
+          directFolderMode = await verifyPermission(workspaceHandle, 'readwrite');
+          await rememberWorkspaceHandle();
+          await scanWorkspaceFolder();
+          showToast(`Selected ${workspaceLabel}. Chat Apply is enabled for this workspace.`);
+          return;
+        } catch (error) {
+          if (error.name === 'AbortError') return;
+          console.error(error);
+          showToast('Writable folder picker failed. Opening the file/folder fallback instead.');
+        }
+      }
+
+      if (supportsFolderFileInput()) els.fallbackFolder.click();
+      else els.fallbackFiles.click();
+    }
+
+    function selectFilesFallback() { els.fallbackFiles.click(); }
+
+    function loadNativeWorkspace(data) {
+      nativeWorkspace = data || {};
+      workspaceHandle = null;
+      directFolderMode = Boolean(data?.writable !== false);
+      workspaceLabel = data?.name || 'Native workspace';
+      const files = Array.isArray(data?.files) ? data.files : [];
+      workspaceFiles = files
+        .map(file => ({
+          path: normalizePath(file.path || file.name),
+          name: file.name || basename(file.path),
+          size: Number(file.size) || new Blob([String(file.content || '')]).size,
+          lastModified: file.lastModified || Date.now(),
+          handle: null,
+          file: null,
+          content: typeof file.content === 'string' ? file.content : ''
+        }))
+        .filter(entry => entry.path && isCompatibleFile(entry.path) && entry.size <= MAX_FILE_BYTES)
+        .slice(0, MAX_WORKSPACE_FILES)
+        .sort((a, b) => a.path.localeCompare(b.path));
+      rememberFallbackWorkspace();
+      selectedFile = null;
+      els.editor.value = '';
+      setDirty(false);
+      pendingAiChanges = [];
+      pendingAiSummary = '';
+      renderWorkspaceList();
+      renderAiChanges();
+      updateWorkspaceMeta();
+      updateSelectedMeta();
+    }
+
+    async function rescanFolder() {
+      if (!workspaceHandle) return;
+      if (dirty && !confirm('Discard unsaved selected-file changes before rescanning?')) return;
+      await scanWorkspaceFolder();
+      showToast('Folder rescanned.');
+    }
+
+    async function scanWorkspaceFolder() {
+      workspaceFiles = [];
+      selectedFile = null;
+      els.editor.value = '';
+      setDirty(false);
+      pendingAiChanges = [];
+      pendingAiSummary = '';
+
+      try {
+        if (workspaceHandle?.kind === 'directory') {
+          await scanDirectDirectory(workspaceHandle, '');
+        } else if (Array.isArray(workspaceHandle)) {
+          await scanFallbackFiles(workspaceHandle);
+        }
+        workspaceFiles.sort((a, b) => a.path.localeCompare(b.path));
+        renderWorkspaceList();
+        renderAiChanges();
+        updateWorkspaceMeta();
+        updateSelectedMeta();
+      } catch (error) {
+        console.error(error);
+        showToast('Could not scan the selected folder.');
+      }
+    }
+
+    async function scanDirectDirectory(directoryHandle, prefix) {
+      for await (const [name, handle] of directoryHandle.entries()) {
+        if (workspaceFiles.length >= MAX_WORKSPACE_FILES) return;
+        if (handle.kind === 'directory') {
+          if (SKIP_DIRECTORIES.has(name)) continue;
+          await scanDirectDirectory(handle, `${prefix}${name}/`);
+          continue;
+        }
+        const path = normalizePath(`${prefix}${name}`);
+        if (!isCompatibleFile(path)) continue;
+        const file = await handle.getFile();
+        if (file.size > MAX_FILE_BYTES) continue;
+        workspaceFiles.push({ path, name, size: file.size, lastModified: file.lastModified, handle, file: null });
+      }
+    }
+
+    async function scanFallbackFiles(files) {
+      workspaceFiles = [];
+      const selected = files
+        .map(file => ({ path: normalizePath(file.webkitRelativePath || file.name), name: file.name, size: file.size, lastModified: file.lastModified, handle: null, file }))
+        .filter(entry => isCompatibleFile(entry.path, entry.file) && entry.size <= MAX_FILE_BYTES)
+        .slice(0, MAX_WORKSPACE_FILES);
+
+      for (const entry of selected) {
+        try {
+          entry.content = await readFileText(entry.file);
+          entry.readable = true;
+        } catch {
+          entry.content = '';
+          entry.readable = false;
+        }
+        workspaceFiles.push(entry);
+      }
+      const root = workspaceFiles[0]?.path?.split('/')?.[0];
+      workspaceLabel = root || 'Selected folder';
+      directFolderMode = false;
+      rememberFallbackWorkspace();
+    }
+
+    function renderWorkspaceList() {
+      const query = els.workspaceSearch.value.trim().toLowerCase();
+      const files = query ? workspaceFiles.filter(file => file.path.toLowerCase().includes(query)) : workspaceFiles;
+      if (!workspaceFiles.length) {
+        els.workspaceList.innerHTML = '<div class="empty-box">Select a folder to scan compatible text and code files.</div>';
+        return;
+      }
+      if (!files.length) {
+        els.workspaceList.innerHTML = '<div class="empty-box">No compatible files match that filter.</div>';
+        return;
+      }
+      els.workspaceList.innerHTML = '';
+      files.forEach(file => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = `file-row ${selectedFile?.path === file.path ? 'active' : ''}`;
+        row.innerHTML = `<span style="min-width:0;"><span class="file-path">${escapeHtml(file.path)}</span><span class="file-mini">${fileSizeLabel(file.size)}</span></span><span>Open</span>`;
+        row.addEventListener('click', () => openWorkspaceFile(file.path));
+        els.workspaceList.appendChild(row);
+      });
+    }
+
+    async function readWorkspaceFile(entry) {
+      if (typeof entry?.content === 'string') return entry.content;
+      if (entry.handle) return readFileText(await entry.handle.getFile());
+      if (entry.file) return readFileText(entry.file);
+      return '';
+    }
+
+    async function openWorkspaceFile(path) {
+      if (dirty && !confirm('Discard unsaved selected-file changes?')) return;
+      const entry = workspaceFiles.find(file => file.path === path);
+      if (!entry) return;
+      try {
+        selectedFile = entry;
+        els.editor.value = await readWorkspaceFile(entry);
+        setDirty(false);
+        renderWorkspaceList();
+        updateSelectedMeta();
+      } catch (error) {
+        console.error(error);
+        showToast('Could not read that file.');
+      }
+    }
+
+    async function saveSelectedFile() {
+      if (!selectedFile) return;
+      if (selectedFile.handle && directFolderMode && typeof selectedFile.handle.createWritable === 'function') {
+        try {
+          const permitted = await verifyPermission(workspaceHandle, 'readwrite');
+          if (!permitted) throw new Error('Folder write permission was denied.');
+          const writable = await selectedFile.handle.createWritable();
+          await writable.write(els.editor.value);
+          await writable.close();
+          selectedFile.size = new Blob([els.editor.value]).size;
+          setDirty(false);
+          renderWorkspaceList();
+          showToast(`Saved ${selectedFile.path}.`);
+          return;
+        } catch (error) {
+          console.error(error);
+          showToast(error.message || 'Direct save failed. Download a copy instead.');
+          return;
+        }
+      }
+      downloadSelectedFile();
+      setDirty(false);
+    }
+
+    function downloadSelectedFile() {
+      if (!selectedFile) return;
+      const blob = new Blob([els.editor.value], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = basename(selectedFile.path) || 'edited-file.txt';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${basename(selectedFile.path)}.`);
+    }
+
+    async function collectWorkspaceContents(totalLimit, perFileLimit) {
+      const files = [];
+      const skipped = [];
+      let used = 0;
+      for (const entry of workspaceFiles) {
+        if (used >= totalLimit) { skipped.push(`${entry.path} (context limit reached)`); continue; }
+        try {
+          let content = await readWorkspaceFile(entry);
+          if (content.length > perFileLimit) {
+            content = content.slice(0, perFileLimit) + '\n\n[File clipped for context length.]';
+            skipped.push(`${entry.path} (clipped)`);
+          }
+          const remaining = totalLimit - used;
+          if (content.length > remaining) {
+            files.push({ path: entry.path, content: content.slice(0, remaining) + '\n\n[Workspace context limit reached.]' });
+            used = totalLimit;
+          } else {
+            files.push({ path: entry.path, content });
+            used += content.length;
+          }
+        } catch {
+          skipped.push(`${entry.path} (read failed)`);
+        }
+      }
+      return { files, skipped };
+    }
+
+    async function sendWorkspaceToChat() {
+      if (!workspaceFiles.length) { showToast('Select a folder first.'); return; }
+      try {
+        const { files, skipped } = await collectWorkspaceContents(CHAT_TOTAL_CONTEXT_CHARS, CHAT_FILE_CONTEXT_CHARS);
+        const blocks = files.map(file => `--- FILE: ${file.path}\n${file.content}\n--- END FILE: ${file.path}`).join('\n\n');
+        const skippedNote = skipped.length ? `\n\nSkipped or clipped:\n${skipped.map(item => `- ${item}`).join('\n')}` : '';
+        localStorage.setItem(STORAGE_KEYS.fileContext, JSON.stringify({
+          kind: 'folder',
+          name: workspaceLabel || 'selected folder',
+          files,
+          skipped,
+          content: `Folder: ${workspaceLabel || 'selected folder'}\n\n${blocks}${skippedNote}`,
+          updatedAt: new Date().toISOString()
+        }));
+        window.location.href = 'index.html';
+      } catch (error) {
+        console.error(error);
+        showToast('Could not send folder context to chat.');
+      }
+    }
+
+    function buildAiPrompt(task, files, skipped) {
+      const fileBlocks = files.map(file => `--- FILE: ${file.path}\n${file.content}\n--- END FILE: ${file.path}`).join('\n\n');
+      const skippedNote = skipped.length ? `\n\nSome files were omitted or clipped because of context limits. Do not edit omitted files unless their full contents are provided.\n${skipped.map(item => `- ${item}`).join('\n')}` : '';
+      return `Task:\n${task}\n\nReturn JSON only. The JSON must match this schema exactly:\n{\n  "summary": "short summary of changes",\n  "files": [\n    { "path": "relative/path/from/workspace", "content": "complete replacement content for the changed file" }\n  ]\n}\n\nRules:\n- Only include files that need changes.\n- Use only paths from the provided workspace files.\n- Each content value must be the complete final file content, not a patch.\n- Preserve unrelated content exactly.\n- Do not include markdown fences, commentary, or extra keys.\n\nWorkspace files:\n${fileBlocks}${skippedNote}`;
+    }
+
+    async function previewAiFolderEdits() {
+      if (!workspaceFiles.length) { showToast('Select a folder first.'); return; }
+      const task = els.aiInstruction.value.trim();
+      if (!task) { showToast('Describe what should change first.'); els.aiInstruction.focus(); return; }
+      if (dirty) { showToast('Save or discard the selected-file changes before running folder edits.'); return; }
+      const settings = loadSettings();
+      if (!settings.model) { showToast('Choose a model in Settings before running AI folder edits.'); return; }
+
+      setAiEditing(true);
+      pendingAiChanges = [];
+      pendingAiSummary = '';
+      renderAiChanges();
+      try {
+        const { files, skipped } = await collectWorkspaceContents(AI_TOTAL_CONTEXT_CHARS, AI_FILE_CONTEXT_CHARS);
+        if (!files.length) throw new Error('No readable compatible files found in the workspace.');
+        const response = await fetch(endpoint('/chat/completions', settings), {
+          method: 'POST',
+          headers: getHeaders(settings),
+          body: JSON.stringify({
+            model: settings.model,
+            messages: [
+              { role: 'system', content: 'You are a precise code editor. Return only strict JSON that follows the requested schema.' },
+              { role: 'user', content: buildAiPrompt(task, files, skipped) }
+            ],
+            stream: false,
+            temperature: 0.2,
+            top_p: Number(settings.topP),
+            max_tokens: Math.max(4096, parseInt(settings.maxTokens, 10) || 4096)
+          })
+        });
+        if (!response.ok) throw new Error(await response.text().catch(() => `HTTP ${response.status}`));
+        const payload = await response.json();
+        const parsed = parseAiJson(extractAssistantText(payload));
+        pendingAiChanges = normalizeAiChanges(parsed.files || []);
+        pendingAiSummary = parsed.summary || '';
+        renderAiChanges();
+        if (!pendingAiChanges.length) showToast('AI returned no applicable file changes.');
+        else if (!(nativeWorkspace?.writable || directFolderMode)) showToast(`AI proposed ${pendingAiChanges.length} change(s). Review, then download the edited files.`);
+        else showToast(`AI proposed ${pendingAiChanges.length} change(s). Review, then apply.`);
+      } catch (error) {
+        console.error(error);
+        renderAiChanges(error.message || 'Could not generate AI edits.');
+        showToast(error.message || 'Could not generate AI edits.');
+      } finally {
+        setAiEditing(false);
+      }
+    }
+
+    function extractAssistantText(payload) { return payload?.choices?.[0]?.message?.content ?? payload?.choices?.[0]?.text ?? payload?.output_text ?? ''; }
+    function parseAiJson(raw) {
+      const cleaned = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
+      try { return JSON.parse(cleaned); } catch {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('AI response was not valid JSON.');
+        return JSON.parse(match[0]);
+      }
+    }
+    function normalizeAiChanges(files) {
+      if (!Array.isArray(files)) return [];
+      const knownPaths = new Set(workspaceFiles.map(entry => entry.path));
+      const byPath = new Map();
+      for (const item of files) {
+        const path = normalizePath(item?.path);
+        const content = item?.content;
+        if (!path || !knownPaths.has(path) || typeof content !== 'string') continue;
+        byPath.set(path, { path, content });
+      }
+      return [...byPath.values()];
+    }
+    function setAiEditing(value) { isAiEditing = value; els.aiPreviewBtn.textContent = value ? 'Generating...' : 'Preview AI Edits'; updateWorkspaceMeta(); }
+    function renderAiChanges(errorMessage = '') {
+      updateWorkspaceMeta();
+      if (isAiEditing) { els.changeList.innerHTML = '<div class="empty-box">Generating reviewed edits from the selected model...</div>'; return; }
+      if (errorMessage) { els.changeList.innerHTML = `<div class="empty-box">${escapeHtml(errorMessage)}</div>`; return; }
+      if (!pendingAiChanges.length) { els.changeList.innerHTML = '<div class="empty-box">No pending AI edits.</div>'; return; }
+      els.changeList.innerHTML = '';
+      if (pendingAiSummary) {
+        const summary = document.createElement('div');
+        summary.className = 'empty-box';
+        summary.textContent = pendingAiSummary;
+        els.changeList.appendChild(summary);
+      }
+      pendingAiChanges.forEach(change => {
+        const entry = workspaceFiles.find(file => file.path === change.path);
+        const item = document.createElement('div');
+        item.className = 'change-item';
+        item.innerHTML = `<div class="change-item-head"><div><div class="change-path">${escapeHtml(change.path)}</div><div class="change-mini">Original ${fileSizeLabel(entry?.size || 0)} · replacement ${change.content.length.toLocaleString()} characters</div></div><button class="mini-btn ghost-btn" type="button">Open</button></div>`;
+        item.querySelector('button').addEventListener('click', () => previewPendingChange(change.path));
+        els.changeList.appendChild(item);
+      });
+    }
+    async function previewPendingChange(path) {
+      const change = pendingAiChanges.find(item => item.path === path);
+      if (!change) return;
+      if (dirty && !confirm('Discard unsaved selected-file changes and preview the AI replacement?')) return;
+      selectedFile = workspaceFiles.find(item => item.path === path) || null;
+      els.editor.value = change.content;
+      setDirty(true);
+      renderWorkspaceList();
+      updateSelectedMeta();
+      showToast(`Previewing pending replacement for ${path}. Apply Reviewed Edits writes all changes.`);
+    }
+    async function applyAiFolderEdits() {
+      if (!pendingAiChanges.length) { showToast('No pending AI edits to apply.'); return; }
+      const directApply = Boolean(nativeWorkspace?.writable || (directFolderMode && workspaceHandle));
+      const verb = directApply ? 'Apply' : 'Download';
+      if (!confirm(`${verb} ${pendingAiChanges.length} AI-edited file${pendingAiChanges.length === 1 ? '' : 's'}?`)) return;
+      try {
+        if (nativeWorkspace?.writable) {
+          await applyEditsWithNativeBridge(pendingAiChanges);
+          const changedCount = pendingAiChanges.length;
+          pendingAiChanges = [];
+          pendingAiSummary = '';
+          renderAiChanges();
+          showToast(`Applied ${changedCount} AI-edited file${changedCount === 1 ? '' : 's'} through the app workspace.`);
+          return;
+        }
+
+        if (directFolderMode && workspaceHandle) {
+          const permitted = await verifyPermission(workspaceHandle, 'readwrite');
+          if (!permitted) throw new Error('Folder write permission was denied.');
+          for (const change of pendingAiChanges) {
+            const entry = workspaceFiles.find(file => file.path === change.path);
+            if (!entry?.handle || typeof entry.handle.createWritable !== 'function') continue;
+            const writable = await entry.handle.createWritable();
+            await writable.write(change.content);
+            await writable.close();
+            if (selectedFile?.path === change.path) {
+              els.editor.value = change.content;
+              setDirty(false);
+            }
+          }
+          const changedCount = pendingAiChanges.length;
+          pendingAiChanges = [];
+          pendingAiSummary = '';
+          await scanWorkspaceFolder();
+          renderAiChanges();
+          showToast(`Applied ${changedCount} AI-edited file${changedCount === 1 ? '' : 's'} to the folder.`);
+          return;
+        }
+
+        await downloadEditsZip(pendingAiChanges);
+        showToast('Downloaded reviewed edits as a ZIP browser fallback.');
+      } catch (error) {
+        console.error(error);
+        showToast(error.message || 'Could not apply AI edits.');
+      }
+    }
+
+    async function applyEditsWithNativeBridge(edits) {
+      const bridge = getNativeFileBridge();
+      if (!bridge) throw new Error('No app file bridge is available.');
+      if (bridge.writeFiles) { await asPromise(bridge.writeFiles(edits)); return; }
+      if (bridge.writeFile) {
+        for (const edit of edits) await asPromise(bridge.writeFile(edit.path, edit.content));
+        return;
+      }
+      throw new Error('The app file bridge does not expose writeFiles or writeFile.');
+    }
+
+    function makeCrcTable() {
+      const table = [];
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c >>> 0;
+      }
+      return table;
+    }
+    const CRC_TABLE = makeCrcTable();
+    function crc32Bytes(bytes) {
+      let crc = 0xffffffff;
+      for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+    function dosDateTime(date = new Date()) {
+      const year = Math.max(1980, date.getFullYear());
+      return {
+        dosTime: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+        dosDate: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+      };
+    }
+    function pushU16(parts, value) { parts.push(value & 0xff, (value >>> 8) & 0xff); }
+    function pushU32(parts, value) { parts.push(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff); }
+    async function createZipBlob(files) {
+      const encoder = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+      const { dosTime, dosDate } = dosDateTime();
+      for (const file of files) {
+        const safeName = normalizePath(file.path || 'edited-file.txt') || 'edited-file.txt';
+        const nameBytes = encoder.encode(safeName);
+        const data = encoder.encode(String(file.content || ''));
+        const crc = crc32Bytes(data);
+        const local = [];
+        pushU32(local, 0x04034b50); pushU16(local, 20); pushU16(local, 0); pushU16(local, 0);
+        pushU16(local, dosTime); pushU16(local, dosDate); pushU32(local, crc); pushU32(local, data.length); pushU32(local, data.length);
+        pushU16(local, nameBytes.length); pushU16(local, 0);
+        localParts.push(new Uint8Array(local), nameBytes, data);
+        const central = [];
+        pushU32(central, 0x02014b50); pushU16(central, 20); pushU16(central, 20); pushU16(central, 0); pushU16(central, 0);
+        pushU16(central, dosTime); pushU16(central, dosDate); pushU32(central, crc); pushU32(central, data.length); pushU32(central, data.length);
+        pushU16(central, nameBytes.length); pushU16(central, 0); pushU16(central, 0); pushU16(central, 0); pushU16(central, 0); pushU32(central, 0); pushU32(central, offset);
+        centralParts.push(new Uint8Array(central), nameBytes);
+        offset += local.length + nameBytes.length + data.length;
+      }
+      const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+      const end = [];
+      pushU32(end, 0x06054b50); pushU16(end, 0); pushU16(end, 0); pushU16(end, files.length); pushU16(end, files.length);
+      pushU32(end, centralSize); pushU32(end, offset); pushU16(end, 0);
+      return new Blob([...localParts, ...centralParts, new Uint8Array(end)], { type: 'application/zip' });
+    }
+    async function downloadEditsZip(edits) {
+      const blob = await createZipBlob(edits);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `lm-studio-lite-edits-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function bindEvents() {
+      els.fallbackFolder.addEventListener('change', () => {
+        const files = Array.from(els.fallbackFolder.files || []);
+        if (!files.length) return;
+        nativeWorkspace = null;
+        workspaceHandle = files;
+        scanWorkspaceFolder();
+        els.fallbackFolder.value = '';
+      });
+      els.fallbackFiles.addEventListener('change', () => {
+        const files = Array.from(els.fallbackFiles.files || []);
+        if (!files.length) return;
+        nativeWorkspace = null;
+        workspaceHandle = files;
+        scanWorkspaceFolder();
+        els.fallbackFiles.value = '';
+      });
+      els.workspaceSearch.addEventListener('input', renderWorkspaceList);
+      els.editor.addEventListener('input', () => { if (selectedFile) setDirty(true); });
+      els.editor.addEventListener('keydown', event => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveSelectedFile(); }
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          const start = els.editor.selectionStart;
+          const end = els.editor.selectionEnd;
+          els.editor.setRangeText('  ', start, end, 'end');
+          if (selectedFile) setDirty(true);
+        }
+      });
+      window.addEventListener('beforeunload', event => { if (!dirty) return; event.preventDefault(); event.returnValue = ''; });
+    }
+
+    function init() {
+      setCapabilityStatus();
+      bindEvents();
+      updateWorkspaceMeta();
+      updateSelectedMeta();
+    }
+    init();
+  </script>
+</body>
+</html>
