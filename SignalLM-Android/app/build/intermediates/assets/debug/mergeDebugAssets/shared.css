@@ -548,3 +548,40 @@ button,
   }
 }
 
+/* --- Android WebView Scroll Fix --- */
+html, body {
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+
+body {
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+.sidebar {
+  flex-shrink: 0 !important;
+  overflow-y: auto !important;
+}
+
+main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+@media (max-width: 920px) {
+  body {
+    flex-direction: column !important;
+  }
+  .sidebar {
+    width: 100% !important;
+    min-height: 0 !important;
+    max-height: 35vh !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    position: static !important;
+  }
+}

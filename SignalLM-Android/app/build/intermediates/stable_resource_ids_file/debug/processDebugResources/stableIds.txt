@@ -1,0 +1,3 @@
+com.signallm.app:xml/network_security_config = 0x7f030000
+com.signallm.app:style/AppTheme = 0x7f020000
+com.signallm.app:string/app_name = 0x7f010000

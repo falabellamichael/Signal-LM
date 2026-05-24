@@ -1,0 +1,51 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.signallm.app"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:3:5-67
+11-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:3:22-64
+12
+13    <application
+13-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:5:5-20:19
+14        android:allowBackup="true"
+14-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:6:9-35
+15        android:debuggable="true"
+16        android:extractNativeLibs="false"
+17        android:label="Signal LM"
+17-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:7:9-34
+18        android:networkSecurityConfig="@xml/network_security_config"
+18-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:10:9-69
+19        android:testOnly="true"
+20        android:theme="@style/AppTheme"
+20-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:8:9-40
+21        android:usesCleartextTraffic="true" >
+21-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:9:9-44
+22        <activity
+22-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:11:9-19:20
+23            android:name="com.signallm.app.MainActivity"
+23-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:12:13-41
+24            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+24-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:13:13-122
+25            android:exported="true" >
+25-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:14:13-36
+26            <intent-filter>
+26-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:15:13-18:29
+27                <action android:name="android.intent.action.MAIN" />
+27-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:16:17-69
+27-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:16:25-66
+28
+29                <category android:name="android.intent.category.LAUNCHER" />
+29-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:17:17-77
+29-->D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\AndroidManifest.xml:17:27-74
+30            </intent-filter>
+31        </activity>
+32    </application>
+33
+34</manifest>

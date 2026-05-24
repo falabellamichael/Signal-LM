@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LM Studio Lite · Settings</title>
+
+  <script>
+    (function () {
+      const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+      const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+      function readSettings() {
+        try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
+        catch { return {}; }
+      }
+
+      function writeSettings(next) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+      }
+
+      function resolveTheme(preference) {
+        const pref = preference || readSettings().theme || 'system';
+        if (pref === 'dark' || pref === 'light') return pref;
+        return media && media.matches ? 'dark' : 'light';
+      }
+
+      function applyTheme(preference) {
+        const settings = readSettings();
+        const pref = preference || settings.theme || 'system';
+        const resolved = resolveTheme(pref);
+        document.documentElement.dataset.themePreference = pref;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+        document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = pref; });
+        document.querySelectorAll('[data-theme-label]').forEach(label => { label.textContent = resolved === 'dark' ? 'Dark' : 'Light'; });
+        return resolved;
+      }
+
+      function setTheme(preference) {
+        const settings = readSettings();
+        settings.theme = preference || 'system';
+        writeSettings(settings);
+        applyTheme(settings.theme);
+      }
+
+      function toggleTheme() {
+        const current = applyTheme();
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      }
+
+      window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, applyTheme, setTheme, toggleTheme };
+      applyTheme();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => applyTheme());
+      } else {
+        applyTheme();
+      }
+      if (media && media.addEventListener) media.addEventListener('change', () => applyTheme());
+      window.addEventListener('storage', event => { if (event.key === SETTINGS_KEY) applyTheme(); });
+    })();
+  </script>
+  <link rel="stylesheet" href="shared.css">
+  <link rel="stylesheet" href="settings.css">
+
+  
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">LM Studio<span>Lite</span></div>
+
+    <nav class="nav-stack">
+      <a class="nav-link" href="index.html">Chat <span>←</span></a>
+      <a class="nav-link" href="editor.html">Folders <span>▣</span></a>
+      <a class="nav-link" href="mcp.html">MCP <span>⌁</span></a>
+      <a class="nav-link active" href="settings.html">Settings <span>⚙</span></a>
+    </nav>
+
+    <div class="sidebar-note">
+      For another phone, tablet, or laptop on your Wi-Fi, use your LM Studio computer’s LAN address, for example <strong>http://192.168.1.42:1234/v1</strong>. Make sure LM Studio is serving on the network, not only localhost.
+    </div>
+  </aside>
+
+  <main>
+    <header class="page-header">
+      <h1>Settings</h1>
+      <p>Configure the server, model defaults, and local chat behavior. These values are saved in this browser and shared with the chat page.</p>
+    </header>
+
+    <section class="grid">
+      <div>
+
+        <section class="card">
+          <h2>Appearance</h2>
+          <div class="input-group">
+            <label for="theme-select">Theme</label>
+            <select id="theme-select" data-theme-select onchange="saveAppearance()">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <p class="hint">System follows the Android or desktop app theme. Light and Dark force the app appearance on every page.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" onclick="saveAppearance()">Save Appearance</button>
+            <button class="ghost-btn" type="button" onclick="LmStudioLiteTheme.toggleTheme()">Toggle Now</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Connection</h2>
+
+          <div class="input-group">
+            <label for="base-url">Base URL</label>
+            <input id="base-url" type="url" placeholder="http://localhost:1234/v1" />
+            <p class="hint">Use <strong>localhost</strong> only when this page is opened on the same computer as LM Studio. For mobile devices, use the server computer’s local network IP.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="api-key">API Key / Bearer Token</label>
+            <input id="api-key" type="password" placeholder="Optional" autocomplete="off" />
+            <p class="hint">Leave blank unless you enabled authentication in LM Studio.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveConnection()">Save Connection</button>
+            <button class="ghost-btn" type="button" onclick="testConnection()">Test + Load Models</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Android Runtime</h2>
+          <div class="input-group">
+            <label for="runtime-mode">Runtime Mode</label>
+            <select id="runtime-mode">
+              <option value="server">LM Studio server</option>
+              <option value="hybrid">Hybrid boost · PC primary + Android support</option>
+              <option value="android-vulkan">Android Vulkan local only</option>
+            </select>
+            <p class="hint">Hybrid uses the PC server first and can use the phone as a fallback or parallel helper through the native Android bridge. It does not combine PC and phone VRAM into one model.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="hybrid-strategy">Hybrid Strategy</label>
+            <select id="hybrid-strategy">
+              <option value="fallback">PC first, phone fallback on slow/fail</option>
+              <option value="race">Run PC + phone in parallel, use first reply</option>
+            </select>
+            <p class="hint">Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="hybrid-fallback-ms">PC Timeout Before Phone Fallback (ms)</label>
+            <input id="hybrid-fallback-ms" type="number" min="1000" max="120000" step="500" />
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="android-threads">CPU Threads</label>
+              <input id="android-threads" type="number" min="1" max="16" step="1" />
+            </div>
+            <div class="input-group">
+              <label for="android-gpu-layers">GPU Layers</label>
+              <input id="android-gpu-layers" type="number" min="0" max="999" step="1" />
+            </div>
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="android-context-length">Context Length</label>
+              <input id="android-context-length" type="number" min="1024" max="32768" step="512" />
+            </div>
+            <div class="input-group">
+              <label for="android-batch-size">Batch Size</label>
+              <input id="android-batch-size" type="number" min="32" max="2048" step="32" />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveRuntimeSettings()">Save Runtime</button>
+            <button class="ghost-btn" type="button" onclick="testNativeRuntime()">Test Android Runtime</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Silent Helper</h2>
+
+          <div class="switch-row">
+            <div>
+              <strong>Enable silent context helper</strong>
+              <p>Before the model runs, the app searches selected workspace files and sends compact relevant snippets instead of dumping the whole folder.</p>
+            </div>
+            <input id="context-helper-enabled" type="checkbox" />
+          </div>
+
+          <div class="input-group">
+            <label for="context-helper-mode">Context Mode</label>
+            <select id="context-helper-mode">
+              <option value="smart">Smart snippets</option>
+              <option value="full">Full selected files</option>
+            </select>
+            <p class="hint">Smart snippets usually lowers prompt size and KV-cache pressure. Full selected files is better when a small exact file must be rewritten.</p>
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="context-helper-max-snippets">Max Files/Snippet Groups</label>
+              <input id="context-helper-max-snippets" type="number" min="4" max="40" step="1" />
+            </div>
+            <div class="input-group">
+              <label for="context-helper-max-chars">Max Context Characters</label>
+              <input id="context-helper-max-chars" type="number" min="12000" max="150000" step="1000" />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveHelperSettings()">Save Helper</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Defaults</h2>
+
+          <div class="input-group">
+            <label for="default-model">Default Model</label>
+            <input id="default-model" placeholder="Load models or type a model id" />
+          </div>
+
+          <div class="input-group">
+            <label for="temperature">Temperature</label>
+            <input id="temperature" type="number" min="0" max="2" step="0.1" />
+          </div>
+
+          <div class="input-group">
+            <label for="top-p">Top P</label>
+            <input id="top-p" type="number" min="0" max="1" step="0.05" />
+          </div>
+
+          <div class="input-group">
+            <label for="max-tokens">Max Tokens</label>
+            <input id="max-tokens" type="number" min="1" step="1" />
+          </div>
+
+          <div class="input-group">
+            <label for="system-prompt">System Prompt</label>
+            <textarea id="system-prompt"></textarea>
+          </div>
+
+          <div class="switch-row">
+            <div>
+              <strong>Persist chat history</strong>
+              <p>Keep the conversation in this browser after refresh.</p>
+            </div>
+            <input id="persist-chat" type="checkbox" />
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveDefaults()">Save Defaults</button>
+            <button class="ghost-btn" type="button" onclick="restoreDefaults()">Restore Defaults</button>
+            <button class="danger-btn" type="button" onclick="clearSavedChat()">Clear Saved Chat</button>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Runtime Status</h2>
+          <div class="status-card">
+            <span class="status-pill checking" id="status-pill"><span class="status-dot"></span><span id="status-text">Not tested</span></span>
+            <p class="hint" id="status-detail">Run a test to check the selected server or Android runtime.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Available Models</h2>
+          <p class="hint">Testing lists models visible to the selected runtime. Click Use to make one the default.</p>
+          <div class="model-list" id="model-list"></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="shared.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
