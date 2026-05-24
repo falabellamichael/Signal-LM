@@ -552,8 +552,3 @@ button,
   }
 }
 
-
-/* Fix for Android WebView Scrolling */
-main { height: 100vh; overflow-y: auto; }
-.sidebar { height: 100vh; overflow-y: auto; }
-@media (max-width: 880px) { body { height: 100vh; overflow-y: auto; overflow-x: hidden; } main, .sidebar { height: auto; overflow-y: visible; } }
