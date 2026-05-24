@@ -14,14 +14,13 @@
   }
 })();
 
-// Promise-based Native Fetch CORS Bypass Proxy
 (function () {
   if (window.__lmStudioLiteNativeFetchPatch) return;
   window.__lmStudioLiteNativeFetchPatch = true;
   const originalFetch = window.fetch ? window.fetch.bind(window) : null;
 
   function getBridge() {
-    return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+    return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
   }
 
   function bridgeCanRequest(url) {
@@ -81,4 +80,14 @@
       return originalFetch(input, init);
     };
   }
+})();
+
+(function () {
+  if (window.__signalLmRuntimePatchLoader) return;
+  window.__signalLmRuntimePatchLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-runtime-fix.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM runtime restore patch was not found.'); };
+  document.head.appendChild(script);
 })();
