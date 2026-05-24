@@ -137,7 +137,7 @@
     if (typeof window.buildWorkspaceEditInstruction === 'function' && !window.__signalLmInstructionPatched) {
       var oldInstruction = window.buildWorkspaceEditInstruction;
       window.buildWorkspaceEditInstruction = function () {
-        return oldInstruction() + '\n\nSignal-LM edit tool contract: for file edits, output exactly one fenced JSON block: {"files":[{"path":"relative/path","content":"complete replacement content"}]}. The app will parse it and show Apply.';
+        return oldInstruction() + '\n\nSignal-LM edit tool contract: when asked to output file edits as a JSON block, output exactly one fenced JSON block: {"files":[{"path":"relative/path","content":"complete replacement content"}]}. The app will parse it and show Apply. Otherwise, edit files directly as requested.';
       };
       window.__signalLmInstructionPatched = true;
     }
