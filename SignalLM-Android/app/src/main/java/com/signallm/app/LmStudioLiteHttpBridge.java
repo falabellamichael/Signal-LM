@@ -113,7 +113,6 @@ public class LmStudioLiteHttpBridge {
         }
     }
 
-    @JavascriptInterface
     public String httpRequest(String payloadJson) {
         HttpURLConnection connection = null;
         try {
@@ -186,12 +185,10 @@ public class LmStudioLiteHttpBridge {
         }
     }
 
-    @JavascriptInterface
     public String request(String payloadJson) {
         return httpRequest(payloadJson);
     }
 
-    @JavascriptInterface
     public String fetchJson(String payloadJson) {
         return httpRequest(payloadJson);
     }
