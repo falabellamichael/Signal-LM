@@ -85,9 +85,11 @@
 (function () {
   if (window.__signalLmRuntimePatchLoader) return;
   window.__signalLmRuntimePatchLoader = true;
-  var script = document.createElement('script');
-  script.src = 'signal-lm-runtime-fix.js';
-  script.defer = true;
-  script.onerror = function () { console.warn('Signal-LM runtime restore patch was not found.'); };
-  document.head.appendChild(script);
+  ['signal-lm-runtime-fix.js', 'signal-lm-edit-mode-fix.js'].forEach(function (src) {
+    var script = document.createElement('script');
+    script.src = src;
+    script.defer = true;
+    script.onerror = function () { console.warn('Signal-LM patch was not found: ' + src); };
+    document.head.appendChild(script);
+  });
 })();
