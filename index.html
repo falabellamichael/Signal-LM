@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <title>LM Studio Lite · Chat</title>
+
+  <script>
+    (function () {
+      const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+      const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+      function readSettings() {
+        try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
+        catch { return {}; }
+      }
+
+      function writeSettings(next) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+      }
+
+      function resolveTheme(preference) {
+        const pref = preference || readSettings().theme || 'system';
+        if (pref === 'dark' || pref === 'light') return pref;
+        return media && media.matches ? 'dark' : 'light';
+      }
