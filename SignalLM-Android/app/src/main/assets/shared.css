@@ -38,15 +38,12 @@ html[data-theme="dark"] {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-html {
-  height: 100%;
-  overflow: hidden;
+html, body {
+  min-height: 100%;
 }
 
 body {
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-height: 100vh;
   background:
     radial-gradient(circle at top left, rgba(245,243,239,0.85), transparent 34rem),
     var(--bg-color);
@@ -147,7 +144,6 @@ main {
   width: min(1100px, 100%);
   margin: 0 auto;
   padding: clamp(1rem, 4vw, 3rem);
-  flex-shrink: 0;
 }
 
 .page-header {
@@ -552,3 +548,40 @@ button,
   }
 }
 
+/* --- Android WebView Scroll Fix --- */
+html, body {
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+
+body {
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+.sidebar {
+  flex-shrink: 0 !important;
+  overflow-y: auto !important;
+}
+
+main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+@media (max-width: 920px) {
+  body {
+    flex-direction: column !important;
+  }
+  .sidebar {
+    width: 100% !important;
+    min-height: 0 !important;
+    max-height: 35vh !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    position: static !important;
+  }
+}
