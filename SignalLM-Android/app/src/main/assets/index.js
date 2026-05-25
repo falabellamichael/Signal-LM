@@ -638,12 +638,39 @@ const STORAGE_KEYS = {
         .replaceAll("'", '&#039;');
     }
 
+    function applyInlineFormatting(text) {
+      return text
+        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+
     function renderMessageText(text) {
       const escaped = escapeHtml(text || '');
-      return escaped
-        .replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`)
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      const parts = escaped.split('```');
+      
+      if (parts.length === 1) {
+        return applyInlineFormatting(parts[0]);
+      }
+      
+      let html = '';
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+          html += applyInlineFormatting(parts[i]);
+        } else {
+          let code = parts[i];
+          const firstLineBreak = code.indexOf('\n');
+          let lang = '';
+          if (firstLineBreak !== -1 && firstLineBreak < 20) {
+            lang = code.substring(0, firstLineBreak).trim();
+            code = code.substring(firstLineBreak + 1);
+          } else if (firstLineBreak === -1 && code.length < 20 && !code.includes(' ')) {
+            lang = code.trim();
+            code = '';
+          }
+          html += `<pre><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
+        }
+      }
+      return html;
     }
 
     function copyIconMarkup() {
