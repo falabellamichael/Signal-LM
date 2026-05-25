@@ -1,0 +1,272 @@
+/* Phone chat style overlay copied from path/to/SignalLM-Android/app/src/main/assets/index.html.txt.
+   This file maps the phone design onto the existing Signal-LM chat markup without replacing app logic. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  --accent-color: #6366f1;
+  --bg-very-light: #f8fafc;
+  --bg-light: #ffffff;
+  --bg-medium: #f1f5f9;
+  --chat-bg-very-light: #ffffff;
+  --message-bubble-user: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --message-bubble-chat: #f8fafc;
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-soft: 0 4px 16px rgba(99, 102, 241, 0.15);
+  --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+  --transition-fast: 0.15s ease;
+  --transition-soft: 0.25s ease;
+  --accent: var(--accent-color);
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --user-msg-bg: var(--message-bubble-user);
+  --ai-msg-bg: var(--message-bubble-chat);
+}
+
+html[data-theme="light"] body {
+  background-color: var(--bg-light);
+  background-image: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] {
+  --bg-very-light: #0f172a;
+  --bg-light: #1e293b;
+  --bg-medium: #334155;
+  --chat-bg-very-light: #1e293b;
+  --message-bubble-chat: #0f172a;
+  --accent: #8b5cf6;
+  --accent-soft: rgba(99, 102, 241, 0.16);
+}
+
+* {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.main-chat {
+  background: var(--bg-light);
+}
+
+.chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg-light) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+
+.chat-title h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.model-display,
+.header-actions .ghost-btn {
+  color: var(--text-secondary);
+}
+
+.status-pill {
+  border-radius: 20px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-dot {
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.8);
+  animation: phonePulse 2s ease infinite;
+}
+
+@keyframes phonePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+#messages {
+  padding: 1.5rem;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+}
+
+html[data-theme="dark"] #messages {
+  background: var(--bg-very-light);
+}
+
+#messages::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+html[data-theme="dark"] #messages::-webkit-scrollbar-thumb {
+  background: #2d3748;
+}
+
+.message-row {
+  max-width: min(88%, 850px);
+  animation: phoneSlideIn var(--transition-soft) both;
+}
+
+@keyframes phoneSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bubble {
+  padding: 1rem;
+  font-size: 0.925rem;
+  line-height: 1.55;
+  border-radius: 20px;
+  color: var(--text-primary);
+}
+
+.user .bubble {
+  background: var(--message-bubble-user);
+  color: #ffffff;
+  border-bottom-right-radius: 0;
+  box-shadow: var(--shadow-soft);
+}
+
+.ai .bubble {
+  background: var(--message-bubble-chat);
+  color: var(--text-primary);
+  border: none;
+  border-bottom-left-radius: 0;
+  box-shadow: var(--shadow-subtle);
+}
+
+.message-meta {
+  opacity: 1;
+}
+
+.meta-btn,
+.ghost-btn {
+  border-radius: 999px;
+  transition: all var(--transition-fast);
+}
+
+.meta-btn:hover,
+.ghost-btn:hover,
+.header-actions button:hover {
+  background: var(--bg-medium);
+  color: var(--accent-color);
+}
+
+.composer-stack {
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.92) 60%, rgba(255, 255, 255, 0));
+  backdrop-filter: blur(12px);
+  border-top: none;
+}
+
+html[data-theme="dark"] .composer-stack {
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.88) 60%, rgba(15, 23, 42, 0));
+}
+
+.input-area {
+  background: transparent;
+  border-top: none;
+  gap: 0.5rem;
+}
+
+.composer-shell {
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  background: var(--chat-bg-very-light);
+  box-shadow: var(--shadow-subtle);
+  transition: all var(--transition-fast);
+}
+
+.composer-shell:hover {
+  border-color: #a5b4fc;
+  box-shadow: var(--shadow-subtle);
+}
+
+.composer-shell:focus-within {
+  border-color: #a5b4fc;
+  box-shadow: 0 4px 24px rgba(99, 102, 241, 0.3);
+}
+
+#user-input {
+  min-height: 60px;
+  max-height: none;
+  padding: 0.75rem 0.8rem;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.attach-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-medium);
+  color: var(--accent-color);
+  transition: all var(--transition-fast);
+}
+
+.attach-btn:hover {
+  transform: scale(1.12);
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+.send-btn {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 !important;
+  border-radius: 50%;
+  border: none !important;
+  background: var(--primary-gradient) !important;
+  color: #ffffff !important;
+  font-size: 0;
+  display: grid !important;
+  place-items: center;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35) !important;
+  transition: all var(--transition-fast);
+}
+
+.send-btn::after {
+  content: '➤';
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.send-btn .send-label {
+  display: none;
+}
+
+.send-btn:hover {
+  transform: scale(1.08);
+  background: #7c3aed !important;
+}
+
+html[data-theme="dark"] .composer-shell,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] #user-input {
+  border-color: #2d3748;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+html[data-theme="dark"] .composer-shell:focus-within {
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4);
+  border-color: #7c3aed;
+}
+
+.workspace-strip,
+.pending-edits-panel,
+.context-debug-panel,
+.attachment-tray {
+  border-radius: 20px;
+  box-shadow: var(--shadow-subtle);
+}
