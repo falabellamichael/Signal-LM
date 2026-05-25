@@ -100,3 +100,13 @@
   script.onerror = function () { console.warn('Signal-LM runtime restore patch was not found.'); };
   document.head.appendChild(script);
 })();
+
+(function () {
+  if (window.__signalLmWebSearchLoader) return;
+  window.__signalLmWebSearchLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-web-search.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM web search helper was not found.'); };
+  document.head.appendChild(script);
+})();
