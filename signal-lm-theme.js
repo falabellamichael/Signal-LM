@@ -1,6 +1,12 @@
 (function () {
   const SETTINGS_KEY = 'lmStudioLite.settings.v1';
   const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const THEME_OPTIONS = [
+    ['system', 'System'],
+    ['light', 'Light'],
+    ['dark', 'Midnight'],
+    ['classic-dark', 'Classic Dark']
+  ];
 
   function readSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
@@ -12,12 +18,13 @@
   }
 
   function normalizePreference(preference) {
-    return preference || readSettings().theme || 'system';
+    const pref = preference || readSettings().theme || 'system';
+    return pref === 'midnight' ? 'dark' : pref;
   }
 
   function resolveTheme(preference) {
     const pref = normalizePreference(preference);
-    if (pref === 'dark' || pref === 'midnight' || pref === 'classic-dark') return 'dark';
+    if (pref === 'dark' || pref === 'classic-dark') return 'dark';
     if (pref === 'light') return 'light';
     return media && media.matches ? 'dark' : 'light';
   }
@@ -27,6 +34,20 @@
     if (resolved !== 'dark') return '';
     if (pref === 'classic-dark') return 'classic-dark';
     return 'midnight';
+  }
+
+  function ensureThemeOptions() {
+    document.querySelectorAll('[data-theme-select]').forEach(select => {
+      const current = select.value || normalizePreference();
+      select.innerHTML = '';
+      THEME_OPTIONS.forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+      });
+      select.value = current === 'midnight' ? 'dark' : current;
+    });
   }
 
   function applyTheme(preference) {
@@ -40,6 +61,7 @@
     else delete document.documentElement.dataset.themeVariant;
     document.documentElement.style.colorScheme = resolved;
     document.documentElement.style.backgroundColor = resolved === 'dark' ? '#090a0d' : '';
+    ensureThemeOptions();
     document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = pref; });
     document.querySelectorAll('[data-theme-label]').forEach(label => {
       label.textContent = resolved === 'dark' ? (variant === 'classic-dark' ? 'Classic Dark' : 'Midnight') : 'Light';
@@ -56,7 +78,7 @@
 
   function setTheme(preference) {
     const settings = readSettings();
-    settings.theme = preference || 'system';
+    settings.theme = normalizePreference(preference || 'system');
     writeSettings(settings);
     applyTheme(settings.theme);
   }
