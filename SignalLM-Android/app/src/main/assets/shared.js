@@ -1,3 +1,13 @@
+(function () {
+  if (window.__signalLmThemeLoader) return;
+  window.__signalLmThemeLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-theme.js';
+  script.defer = false;
+  script.onerror = function () { console.warn('Signal-LM theme helper was not found.'); };
+  document.head.appendChild(script);
+})();
+
 // Viewport Height Listener
 (function () {
   function updateAppViewportHeight() {
