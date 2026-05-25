@@ -211,10 +211,10 @@
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
     }
 
-    html[data-theme="dark"] .stop-btn {
-      background: #211719;
-      color: var(--danger);
-      border-color: rgba(255, 124, 124, 0.28);
+    html[data-theme="dark"] .send-btn.streaming {
+      background: #211719 !important;
+      color: var(--danger) !important;
+      border-color: rgba(255, 124, 124, 0.28) !important;
     }
 
     * {
@@ -795,11 +795,28 @@
       min-width: 88px;
     }
 
-    .stop-btn {
+    .send-btn .stop-label {
       display: none;
-      background: #fff;
-      color: var(--danger);
-      border: 1px solid rgba(159, 29, 29, 0.25);
+    }
+
+    .send-btn .send-icon,
+    .send-btn .stop-icon {
+      display: none;
+    }
+
+    .send-btn.streaming {
+      background-color: var(--danger) !important;
+      color: #fff !important;
+      border-color: rgba(255, 124, 124, 0.28) !important;
+    }
+
+    .send-btn.streaming .send-label,
+    .send-btn.streaming .send-arrow {
+      display: none;
+    }
+
+    .send-btn.streaming .stop-label {
+      display: inline;
     }
 
 
