@@ -184,6 +184,16 @@
 })();
 
 (function () {
+  if (window.__signalLmMcpFilePathLoader) return;
+  window.__signalLmMcpFilePathLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-mcp-file-path.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM MCP file path helper was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
