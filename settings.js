@@ -49,7 +49,14 @@ const STORAGE_KEYS = {
       contextHelperEnabled: document.getElementById('context-helper-enabled'),
       contextHelperMode: document.getElementById('context-helper-mode'),
       contextHelperMaxSnippets: document.getElementById('context-helper-max-snippets'),
-      contextHelperMaxChars: document.getElementById('context-helper-max-chars')
+      contextHelperMaxChars: document.getElementById('context-helper-max-chars'),
+      runtimeMode: document.getElementById('runtime-mode'),
+      hybridStrategy: document.getElementById('hybrid-strategy'),
+      hybridFallbackMs: document.getElementById('hybrid-fallback-ms'),
+      androidThreads: document.getElementById('android-threads'),
+      androidGpuLayers: document.getElementById('android-gpu-layers'),
+      androidContextLength: document.getElementById('android-context-length'),
+      androidBatchSize: document.getElementById('android-batch-size')
     };
 
     function loadSettings() {
