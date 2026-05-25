@@ -727,7 +727,14 @@ const STORAGE_KEYS = {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'code-block';
-        pre.parentNode.insertBefore(wrapper, pre);
+
+        const prev = pre.previousElementSibling;
+        const hasHeader = prev && prev.classList.contains('file-header');
+
+        pre.parentNode.insertBefore(wrapper, hasHeader ? prev : pre);
+
+        const btnWrapper = document.createElement('div');
+        btnWrapper.className = 'code-copy-wrapper';
 
         const button = document.createElement('button');
         button.className = 'code-copy-btn';
@@ -750,7 +757,9 @@ const STORAGE_KEYS = {
           }
         });
 
-        wrapper.appendChild(button);
+        btnWrapper.appendChild(button);
+        if (hasHeader) wrapper.appendChild(prev);
+        wrapper.appendChild(btnWrapper);
         wrapper.appendChild(pre);
 
         if (window.Prism) {
