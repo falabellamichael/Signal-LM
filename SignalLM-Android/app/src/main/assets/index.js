@@ -828,7 +828,7 @@ const STORAGE_KEYS = {
     }
 
     function buildWorkspaceEditInstruction() {
-      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced JSON block with this exact schema: {"files":[{"path":"relative/path/from/workspace","content":"complete replacement file content"}]}. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
+      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When you edit project files, output the updated code in standard markdown code blocks. To allow the app to automatically apply your edits, you MUST include the relative file path. You can do this by either putting the path in the language tag (e.g. ```javascript:path/to/file.js) or as a comment on the very first line inside the code block (e.g. // path/to/file.js). Output the complete replacement file content inside the block. Do not say that no files are attached when workspace files are provided.';
     }
 
     function contextHelperEnabled() {
@@ -1399,7 +1399,7 @@ These files are selected in the Workspace panel and are attached by the app in t
 ${workspaceContext}
 [END WORKSPACE FILES]
 
-Answer the user request using the workspace files above. When asked to modify files, return a fenced JSON block with complete replacement file contents.`;
+Answer the user request using the workspace files above. When asked to modify files, output the updated code in standard markdown code blocks, ensuring you include the relative file path (e.g. in the language tag or first line comment) so the app can automatically apply the edit.`;
     }
 
     function attachWorkspaceContextToUserContent(content, workspaceContext) {
@@ -1715,6 +1715,29 @@ Answer the user request using the workspace files above. When asked to modify fi
         const edits = normalizeEditPayload(parsed);
         if (edits.length) return edits;
       }
+
+      // Fallback: Parse standard code blocks where the first line is a comment with the file path
+      const codeEdits = [];
+      const anyBlocks = raw.matchAll(/```([^\n]*)\n([\s\S]*?)```/gi);
+      for (const match of anyBlocks) {
+        const langInfo = match[1].trim();
+        const fullContent = match[2].trim();
+        let path = '';
+        
+        if (langInfo.includes(':')) {
+          path = langInfo.split(':').slice(1).join(':').trim();
+        } else {
+          const firstLine = fullContent.split('\n')[0].trim();
+          const pathMatch = firstLine.match(/^(?:\/\/|#|\/\*|<!--)\s*([a-zA-Z0-9_\-\.\/\\]+\.[a-zA-Z0-9]+)\s*(?:\*\/|-->)?$/);
+          if (pathMatch) path = pathMatch[1].trim();
+        }
+
+        if (path) codeEdits.push({ path, content: fullContent });
+      }
+      
+      const normalizedCodeEdits = normalizeEditPayload(codeEdits);
+      if (normalizedCodeEdits.length) return normalizedCodeEdits;
+
       return [];
     }
 
@@ -1799,6 +1822,19 @@ Answer the user request using the workspace files above. When asked to modify fi
       } catch {
         workspaceInfo = null;
       }
+
+      const bridge = getNativeFileBridge();
+      if (bridge?.getPersistedWorkspace) {
+        try {
+          const result = await asPromise(bridge.getPersistedWorkspace());
+          const data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (data && data.files && data.files.length) {
+            await loadNativeWorkspace(data);
+            return;
+          }
+        } catch (err) {}
+      }
+
       try {
         workspaceHandle = await idbGet(WORKSPACE_HANDLE_KEY);
         if (workspaceHandle && !workspaceFiles.length) {

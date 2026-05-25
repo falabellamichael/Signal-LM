@@ -116,6 +116,25 @@
         if (edits.length) return edits;
       } catch (error) {}
     }
+
+    var codeEdits = [];
+    raw.replace(/```([^\n]*)\n([\s\S]*?)```/gi, function (_, langInfo, fullContent) {
+      langInfo = langInfo.trim();
+      fullContent = fullContent.trim();
+      var path = '';
+      if (langInfo.indexOf(':') !== -1) {
+        path = langInfo.substring(langInfo.indexOf(':') + 1).trim();
+      } else {
+        var firstLine = fullContent.split('\n')[0].trim();
+        var pathMatch = firstLine.match(/^(?:\/\/|#|\/\*|<!--)\s*([a-zA-Z0-9_\-\.\/\\]+\.[a-zA-Z0-9]+)\s*(?:\*\/|-->)?$/);
+        if (pathMatch) path = pathMatch[1].trim();
+      }
+      if (path) codeEdits.push({ path: path, content: fullContent });
+    });
+    
+    var normalizedCodeEdits = normalizeEdits(codeEdits);
+    if (normalizedCodeEdits.length) return normalizedCodeEdits;
+
     return typeof previous === 'function' ? previous(raw) : [];
   }
 
@@ -137,7 +156,7 @@
     if (typeof window.buildWorkspaceEditInstruction === 'function' && !window.__signalLmInstructionPatched) {
       var oldInstruction = window.buildWorkspaceEditInstruction;
       window.buildWorkspaceEditInstruction = function () {
-        return oldInstruction() + '\n\nSignal-LM edit tool contract: when asked to output file edits as a JSON block, output exactly one fenced JSON block: {"files":[{"path":"relative/path","content":"complete replacement content"}]}. The app will parse it and show Apply. Otherwise, edit files directly as requested.';
+        return oldInstruction() + '\n\nSignal-LM edit tool contract: output file edits in standard markdown code blocks and include the file path either in the language tag or as a comment on the first line. The app will parse it and show Apply.';
       };
       window.__signalLmInstructionPatched = true;
     }
