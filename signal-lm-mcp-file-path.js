@@ -1,11 +1,11 @@
 (function () {
   if (window.SignalLMMcpFilePath) return;
 
-  const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+  var SETTINGS_KEY = 'lmStudioLite.settings.v1';
 
   function readSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
-    catch { return {}; }
+    catch (error) { return {}; }
   }
 
   function writeSettings(next) {
@@ -13,42 +13,35 @@
   }
 
   function saveMcpFilePath(path) {
-    const settings = readSettings();
+    var settings = readSettings();
     settings.mcpFilePath = String(path || '').trim();
     writeSettings(settings);
     return settings;
   }
 
-  function getMcpFilePath(settings = readSettings()) {
-    return String(settings.mcpFilePath || '').trim();
+  function getMcpFilePath(settings) {
+    var source = settings || readSettings();
+    return String(source.mcpFilePath || '').trim();
   }
 
-  function mcpEnabled(settings = readSettings()) {
-    return Boolean(settings.mcpEnabled);
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+  function mcpEnabled(settings) {
+    var source = settings || readSettings();
+    return Boolean(source.mcpEnabled);
   }
 
   function showToast(message) {
-    const toast = document.getElementById('toast');
+    var toast = document.getElementById('toast');
     if (!toast) return;
     toast.textContent = message;
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2800);
+    setTimeout(function () { toast.classList.remove('show'); }, 2800);
   }
 
   function formatMcpFilePathContext() {
-    const settings = readSettings();
+    var settings = readSettings();
     if (!mcpEnabled(settings)) return '';
-    const path = getMcpFilePath(settings);
-    const lines = [
+    var path = getMcpFilePath(settings);
+    var lines = [
       '[MCP FILESYSTEM PATH]',
       'MCP is enabled. Browser folder/workspace access is separate from MCP server filesystem access.'
     ];
@@ -65,10 +58,10 @@
   function installChatContextPatch() {
     if (window.__signalLmMcpFilePathContextPatch || typeof window.collectWorkspaceContextForPrompt !== 'function') return;
     window.__signalLmMcpFilePathContextPatch = true;
-    const previous = window.collectWorkspaceContextForPrompt;
+    var previous = window.collectWorkspaceContextForPrompt;
     window.collectWorkspaceContextForPrompt = async function (userText) {
-      const existing = await previous.apply(this, arguments);
-      const mcpPathContext = formatMcpFilePathContext(userText);
+      var existing = await previous.apply(this, arguments);
+      var mcpPathContext = formatMcpFilePathContext(userText);
       return [existing, mcpPathContext].filter(Boolean).join('\n\n');
     };
   }
@@ -77,84 +70,104 @@
     return /(^|\/)mcp\.html$/i.test(location.pathname) || Boolean(document.querySelector('a.nav-link.active[href="mcp.html"]'));
   }
 
+  function make(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (typeof text === 'string') el.textContent = text;
+    return el;
+  }
+
   function installMcpPathPanel() {
     if (window.__signalLmMcpFilePathPanel || !isMcpPage()) return;
-    const firstColumn = document.querySelector('.grid > div') || document.querySelector('.grid');
+    var firstColumn = document.querySelector('.grid > div') || document.querySelector('.grid');
     if (!firstColumn) return;
     window.__signalLmMcpFilePathPanel = true;
 
-    const settings = readSettings();
-    const card = document.createElement('section');
-    card.className = 'card';
-    card.innerHTML = `
-      <h2>MCP File Path</h2>
-      <div class="input-group">
-        <label for="mcp-file-path">Filesystem Path For MCP Tools</label>
-        <input id="mcp-file-path" value="${escapeHtml(getMcpFilePath(settings))}" placeholder="/storage/emulated/0/Download/Signal-LM or C:\\Users\\you\\Signal-LM" />
-        <p class="hint">Folders work without MCP through the app workspace picker. MCP servers run separately, so filesystem MCP tools need a real local path they can use as root/path.</p>
-      </div>
-      <div class="button-row">
-        <button type="button" id="save-mcp-file-path">Save MCP File Path</button>
-        <button class="ghost-btn" type="button" id="clear-mcp-file-path">Clear</button>
-      </div>
-    `;
+    var settings = readSettings();
+    var card = make('section', 'card');
+    card.appendChild(make('h2', '', 'MCP File Path'));
 
-    const controlCard = firstColumn.querySelector('.card');
+    var group = make('div', 'input-group');
+    var label = make('label', '', 'Filesystem Path For MCP Tools');
+    label.setAttribute('for', 'mcp-file-path');
+    var input = document.createElement('input');
+    input.id = 'mcp-file-path';
+    input.value = getMcpFilePath(settings);
+    input.placeholder = '/storage/emulated/0/Download/Signal-LM or C:/Users/you/Signal-LM';
+    group.appendChild(label);
+    group.appendChild(input);
+    group.appendChild(make('p', 'hint', 'Folders work without MCP through the app workspace picker. MCP servers run separately, so filesystem MCP tools need a real local path they can use as root/path.'));
+    card.appendChild(group);
+
+    var row = make('div', 'button-row');
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.id = 'save-mcp-file-path';
+    saveBtn.textContent = 'Save MCP File Path';
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.id = 'clear-mcp-file-path';
+    clearBtn.className = 'ghost-btn';
+    clearBtn.textContent = 'Clear';
+    row.appendChild(saveBtn);
+    row.appendChild(clearBtn);
+    card.appendChild(row);
+
+    var controlCard = firstColumn.querySelector('.card');
     if (controlCard && controlCard.nextSibling) firstColumn.insertBefore(card, controlCard.nextSibling);
     else firstColumn.insertBefore(card, firstColumn.firstChild || null);
 
-    const input = card.querySelector('#mcp-file-path');
-    const save = () => {
+    function save() {
       saveMcpFilePath(input.value);
       enhanceRequestPreview();
       showToast(input.value.trim() ? 'MCP file path saved.' : 'MCP file path cleared.');
-    };
+    }
 
-    card.querySelector('#save-mcp-file-path').addEventListener('click', save);
-    card.querySelector('#clear-mcp-file-path').addEventListener('click', () => {
+    saveBtn.addEventListener('click', save);
+    clearBtn.addEventListener('click', function () {
       input.value = '';
       save();
     });
-    input.addEventListener('change', () => {
+    input.addEventListener('change', function () {
       saveMcpFilePath(input.value);
       enhanceRequestPreview();
     });
   }
 
-  let previewUpdating = false;
+  var previewUpdating = false;
 
   function enhanceRequestPreview() {
-    const preview = document.getElementById('request-preview');
+    var preview = document.getElementById('request-preview');
     if (!preview || previewUpdating) return;
-    const raw = String(preview.textContent || '').trim();
-    if (!raw || raw[0] !== '{') return;
+    var raw = String(preview.textContent || '').trim();
+    if (!raw || raw.charAt(0) !== '{') return;
 
     try {
-      const parsed = JSON.parse(raw);
+      var parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object' || !parsed.body || typeof parsed.body !== 'object') return;
-      const settings = readSettings();
-      const path = getMcpFilePath(settings);
-      const marker = '[MCP FILESYSTEM PATH]';
-      const pathValue = path || '<set MCP File Path before using filesystem MCP tools>';
+      var settings = readSettings();
+      var path = getMcpFilePath(settings);
+      var marker = '[MCP FILESYSTEM PATH]';
+      var pathValue = path || '<set MCP File Path before using filesystem MCP tools>';
 
       parsed.body.mcp_file_path = pathValue;
-      if (typeof parsed.body.input === 'string' && !parsed.body.input.includes(marker)) {
-        parsed.body.input = `${formatMcpFilePathContext()}\n\n${parsed.body.input}`.trim();
+      if (typeof parsed.body.input === 'string' && parsed.body.input.indexOf(marker) === -1) {
+        parsed.body.input = (formatMcpFilePathContext() + '\n\n' + parsed.body.input).trim();
       }
 
       previewUpdating = true;
       preview.textContent = JSON.stringify(parsed, null, 2);
       previewUpdating = false;
-    } catch {
+    } catch (error) {
       previewUpdating = false;
     }
   }
 
   function observePreview() {
-    const preview = document.getElementById('request-preview');
+    var preview = document.getElementById('request-preview');
     if (!preview || preview.__signalLmMcpFilePathObserver) return;
     preview.__signalLmMcpFilePathObserver = true;
-    const observer = new MutationObserver(() => enhanceRequestPreview());
+    var observer = new MutationObserver(function () { enhanceRequestPreview(); });
     observer.observe(preview, { childList: true, characterData: true, subtree: true });
     setTimeout(enhanceRequestPreview, 0);
   }
@@ -166,17 +179,17 @@
   }
 
   window.SignalLMMcpFilePath = {
-    readSettings,
-    saveMcpFilePath,
-    getMcpFilePath,
-    formatMcpFilePathContext,
-    installChatContextPatch,
-    installMcpPathPanel,
-    enhanceRequestPreview
+    readSettings: readSettings,
+    saveMcpFilePath: saveMcpFilePath,
+    getMcpFilePath: getMcpFilePath,
+    formatMcpFilePathContext: formatMcpFilePathContext,
+    installChatContextPatch: installChatContextPatch,
+    installMcpPathPanel: installMcpPathPanel,
+    enhanceRequestPreview: enhanceRequestPreview
   };
 
-  const timer = setInterval(installWhenReady, 200);
-  setTimeout(() => clearInterval(timer), 10000);
+  var timer = setInterval(installWhenReady, 200);
+  setTimeout(function () { clearInterval(timer); }, 10000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installWhenReady);
   else installWhenReady();
 })();
