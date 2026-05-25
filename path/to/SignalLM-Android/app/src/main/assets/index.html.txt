@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <title>LM Studio Lite · Chat</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+      --accent-color: #6366f1;
+      
+      --bg-very-light: #f8fafc;
+      --bg-light: #ffffff;
+      --bg-medium: #f1f5f9;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --border-color: #e2e8f0;
+      
+      --chat-bg-very-light: #ffffff;
+      --message-bubble-user: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      --message-bubble-chat: #f8fafc;
+      
+      --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.04);
+      --shadow-soft: 0 4px 16px rgba(99, 102, 241, 0.15);
+      --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+
+      --transition-fast: 0.15s ease;
+      --transition-soft: 0.25s ease;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-very-light: #0f172a;
+        --bg-light: #1e293b;
+        --bg-medium: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --border-color: #2d3748;
+        
+        --chat-bg-very-light: #1e293b;
+        --message-bubble-chat: #0f172a;
+      }
+
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+    body { min-height: 100vh; background-color: var(--bg-light); color: var(--text-primary); transition: var(--transition-soft); }
+    
+    .app-container { max-width: 800px; margin: 0 auto; padding-bottom: 120px; position: relative; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--bg-light); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: all var(--transition-fast);
+    }
+
+    header.scrolled { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(16px); }
+    .dark-header { background: var(--bg-light); color: var(--text-primary) !important; }
+    .dark-header.scrolled { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(20px); }
+
+    .header-title { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+    .app-logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--primary-gradient); color: white; display: grid; place-items: center;
+      font-weight: 700; font-size: 20px;
+    }
+    .app-name { font-size: 1.15rem; font-weight: 600; color: var(--text-primary); user-select: none; }
+
+    /* Connection Status Pill */
+    .connection-pill { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem;
+        border-radius: 20px; background: rgba(99, 102, 241, 0.1); color: #6366f1; font-size: 0.8rem; font-weight: 500; }
+    .connection-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color);
+        box-shadow: 0 0 12px rgba(99, 102, 241, 0.8); animation: pulse 2s ease infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .header-controls button { padding: 0.4rem; border: none; background: transparent; color: var(--text-secondary);
+        cursor: pointer; border-radius: 8px; transition: all var(--transition-fast); margin-left: 0.2rem; display: grid; place-items: center;}
+    .header-controls button:hover { background: var(--bg-medium); color: var(--accent-color); }
+
+    /* Messages */
+    .messages-container { flex: 1; padding: 1.5rem; overflow-y: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;}
+
+    .messages-list { display: flex; flex-direction: column; gap: 0.8rem; }
+
+    /* Scrollbar */
+    .messages-container::-webkit-scrollbar, 
+    .messages-list::-webkit-scrollbar { width: 6px; height: 6px; }
+    .messages-container::-webkit-scrollbar-thumb, 
+    .messages-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+    .dark-theme .messages-container::-webkit-scrollbar-thumb,
+    .dark-theme .messages-list::-webkit-scrollbar-thumb { background: #2d3748; }
+
+    /* Message Bubble */
+    .message-bubble { max-width: 100%; animation: slideIn var(--transition-soft) both; padding: 1rem; display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.925rem;}
+
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .message-bubble.chat,
+    .message-bubble.chat::after { justify-content: flex-start; border-radius: 20px 20px 20px 0; box-shadow: var(--shadow-subtle); background-color: var(--message-bubble-chat);}
+    .message-bubble.user,
+    .message-bubble.user::after { align-items: flex-end; flex-direction: column-reverse; justify-content: flex-end; border-radius: 20px 20px 0 20px; background: var(--primary-gradient); box-shadow: var(--shadow-soft);}
+
+    .bubble-text { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
+        color: var(--text-primary); line-height: 1.55; padding-top: 0.2rem;}
+
+    /* Avatar */
+    .message-avatar { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+        background: var(--bg-medium); color: var(--text-secondary); font-weight: 600; font-size: 14px; user-select: none;}
+
+    /* User controls bubble */
+    .user-controls-bubble { width: 32px; height: 32px; border-radius: 50%; background: white; color: var(--text-secondary);
+        display: grid; place-items: center; box-shadow: var(--shadow-inner); flex-shrink: 0; cursor: pointer; transition: all var(--transition-fast);}
+    .user-controls-bubble:hover { transform: scale(1.1); }
+
+    /* Input Area */
+    .input-container { position: sticky; bottom: 0; background: linear-gradient(to top, rgba(255, 257, 249, 0) 60%, var(--bg-light)); z-index: 30; padding-bottom: env(safe-area-inset-bottom); }
+    .dark-input-container { background: linear-gradient(to top, rgba(15, 23, 42, 0.7) 60%, var(--chat-bg-very-light)); color: white !important;}
+
+    /* Input */
+    .input-wrapper { padding: 0.8rem 1.2rem; position: relative; background: transparent; display: flex; gap: 0.5rem; align-items: flex-end;}
+    
+    textarea.input-field { width: 100%; min-height: 60px; max-height: none; border: 1px solid var(--border-color); border-radius: 24px; background: var(--chat-bg-very-light); color: var(--text-primary);
+        padding: 0.75rem 0.8rem; font-size: 1rem; resize: none; outline: none; line-height: 1.45; overflow-y: auto; transition: all var(--transition-fast);}
+    textarea.input-field:hover { box-shadow: var(--shadow-subtle); border-color: #a5b4fc;}
+    textarea.input-field:focus { box-shadow: 0 4px 24px rgba(99, 102, 241, 0.3); }
+
+    @media (prefers-color-scheme: dark) {
+      .input-wrapper { background: var(--chat-bg-very-light); color: white !important;}
+      textarea.input-field { border-color: #2d3748; box-shadow: inset 0 1px 2px rgba(0,0,0,0.3), 0 2px 8px rgba(99,102,241,0.15); }
+      textarea.input-field:focus { box-shadow: 0 6px 24px rgba(99,102,241,0.4); border-color: #7c3aed; }
+    }
+
+    /* Floating Label */
+    .input-label { position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%); transition: all var(--transition-fast); color: var(--text-secondary); font-size: 1rem; white-space: nowrap; pointer-events: none;}
+
+    textarea.input-field:not([placeholder]) + .input-label {
+      transform: translateX(-26px) translateY(-87%) scale(0.85); color: var(--text-primary); opacity: 0.5; font-size: 0.75rem; background-color: rgba(var(--border-color), 1); border-radius: 4px; padding: 0 3px;
+    }
+
+    /* Attachments Button */
+    .btn-attach { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--bg-medium); color: var(--accent-color); display: grid; place-items: center; cursor: pointer; font-size: 18px; transition: all var(--transition-fast); flex-shrink: 0;}
+    .btn-attach:hover { transform: scale(1.12); background: #7c3aed; }
+
+    /* Send Button */
+    .send-btn { padding: 0.9rem 1.4rem !important; border-radius: 50%; border: none !important; 
+        background: var(--primary-gradient) !important; color: white !important; font-size: 0.82rem; font-weight: 600; display: grid !important; place-items: center; cursor: pointer; transition: all var(--transition-fast); box-shadow: 0 4px 15px rgba(99,102,241,0.35) !important;}
+    .send-btn:hover { transform: scale(1.08); background: #7c3aed !important; }
+
+    /* Markdown helper */
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+
+    .message-bubble.chat > p, 
+    .message-bubble.chat > div:last-child::after { animation: fadeDown var(--transition-soft) both;}
+    
+    /* Chat-specific styling */
+    .chat .bubble-text { max-width: 85%; padding-top: 0.4rem; }
+    
+    @media (prefers-color-scheme: dark) {
+      .messages-container, 
+      .message-bubble.chat > div:last-child::after { color: #e2e8f0; }
+      textarea.input-field { box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
+    }
+  </style>
+
+  <script>
+    (function () {
+      const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+      const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+      function readSettings() {
+        try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
+        catch { return {}; }
+      }
+
+      function writeSettings(next) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+      }
+
+      function resolveTheme(preference) {
+        const pref = preference || readSettings().theme || 'system';
+        if (pref === 'dark' || pref === 'light') return pref;
+        return media && media.matches ? 'dark' : 'light';
+      }
+
+      function applyTheme(preference) {
+        const settings = readSettings();
+        const pref = preference || settings.theme || 'system';
+        const resolved = resolveTheme(pref);
+        document.documentElement.dataset.themePreference = resolved;
+        
+        // Apply gradient based on theme for professional polish
+        if (resolved === 'light') {
+          document.body.style.backgroundImage = "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)";
+        } else {
+          document.body.style.backgroundImage = "none";
+        }
+      }
+
+      function applyThemeFromMedia() {
+        const pref = readSettings().theme;
+        if (!pref) return applyTheme(null); // use system default
+        return applyTheme(pref);
+      }
+
+      window.LmStudioLiteTheme = {
+        setTheme(theme) {
+          writeSettings({ theme });
+          setTimeout(() => applyTheme(theme), 10);
+          showToast(`Set theme to ${theme}`);
+        }
+      };
+
+      function setupTheme() {
+        const pref = readSettings().theme || 'system';
+        applyTheme(pref).catch(console.error);
+      }
+
+      // Apply system preference on initial load if no setting exists
+      setupTheme();
+    })();
+  </script>
+</head>
+<body class="dark-theme">
+
+<div class="app-container" data-scrolled="false" style="background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); color: #0f172a;">
+
+    <header class="header">
+        <div class="header-title">
+            <button onclick="window.history.back()" style="font-size: 22px; padding: 6px 12px; border-radius: 8px; border:none; background: transparent; cursor:pointer;" aria-label="Back arrow">&lt;</button>
+            <div class="app-logo">⚡</div>
+            <span class="app-name" contenteditable="true" style="font-size: 1.25rem; color: #0f172a;">SignalLM</span>
+        </div>
+        
+        <div class="connection-pill">
+            🟢 <span id="status-text" style="font-weight: 600; font-size: 0.82rem;">Connected</span>
+        </div>
+
+        <div class="header-controls">
+            <button onclick="window.location.href='folders.html'" aria-label="New folder"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" color="#8b5cf6;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+            <button onclick="window.location.href='settings.html'" aria-label="Settings">⚙️</button>
+        </div>
+    </header>
+
+    <main class="messages-container">
+        <div class="messages-list" id="messages-list"></div>
+    </main>
+
+    <section class="input-container">
+        <div class="input-wrapper">
+            <textarea 
+                id="user-input" 
+                rows="1" 
+                placeholder="Message SignalLM..." 
+                autocomplete="off" 
+                autocorrect="on" 
+                spellcheck="false"></textarea>
+
+            <button class="btn-attach" aria-label="Attach files"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.76-2.24-5-5-5S2 2.24 2 5v12.5a2.5 2.5 0 0 0 5 0V5c0-2.21 1.79-4 4-4s4 1.79 4 4z"/></svg></button>
+            
+            <button class="send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
+        </div>
+    </section>
+
+</div>
+
+<script>
+// Message formatting (minimal markdown support)
+function formatMarkdown(text, theme = 'dark') {
+  // Basic inline styling - more could be added later
+  return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+}
+
+async function sendMessage() {
+  const inputEl = document.getElementById('user-input');
+  let message = inputEl.value.trim();
+  
+  if (!message) return;
+  
+  // Add user message
+  appendMessage({
+    id: Date.now(),
+    text: formatMarkdown(message),
+    isUser: true,
+    avatarInitial: 'Me'
+  });
+  
+  const originalText = inputEl.value;
+  inputEl.value = '';
+  scrollToBottom();
+  await saveMessages();
+  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+  // Stream response with typing animation effect
+  try {
+    const nativeBridge = window.lmStudioLiteNative || 
+                        window.NativeInferenceBridge || 
+                        window.AndroidInferenceBridge;
+    
+    if (nativeBridge && typeof nativeBridge.fetchCompletion === 'function') {
+      const loadingIndicator = document.createElement('div');
+      loadingIndicator.className = 'message-bubble user';
+      loadingIndicator.style.justifyContent = 'flex-end';
+      loadingIndicator.innerHTML = `<span style="display:inline-block;width:24px;height:24px;border-radius:50%;border-top:3px solid #fff;border-right:3px solid #fff;border-bottom:3px solid #fff;"></span>`;
+      
+      appendMessage({
+        id: Date.now() + 1,
+        text: '',
+        isUser: false,
+        avatarInitial: '🤖',
+        loadingIndicator: loadingIndicator,
+        loadingMessage: message, // store original prompt for copy/delete reference
+      });
+      
+      scrollToBottom();
+
+      const result = await nativeBridge.fetchCompletion({ 
+        messages: [{ role: "user", content: JSON.stringify(message) }], 
+        maxTokens: 1024 
+      }, true);
+      
+      if (result?.text || result?.output_text) {
+        const completionText = (result.text || result.output_text).trim();
+        appendMessage({
+          id: Date.now() + 2,
+          text: formatMarkdown(completionText),
+          isUser: false,
+          avatarInitial: '🤖',
+          loadingIndicator: null,
+          copyText: originalText // for edit features in future
+        }, () => {
+          inputEl.focus();
+        });
+      } else if (result?.status) {
+        appendMessage({
+          id: Date.now() + 2,
+          text: `Error: ${JSON.stringify(result)}`,
+          isUser: false,
+          avatarInitial: '❌',
+          loadingIndicator: null
+        });
+      }
+
+    } else {
+      appendMessage({
+        id: Date.now() + 1,
+        text: "ℹ️ Your local inference bridge isn't ready. Make sure LM Studio Lite is running and the chat URL is set.",
+        isUser: false,
+        avatarInitial: '⚠️',
+        loadingIndicator: null
+      }, () => {
+        inputEl.focus();
+      });
+    }
+
+  } catch (error) {
+    appendMessage({
+      id: Date.now() + 1,
+      text: `Connection failed: ${error.message || error}`,
+      isUser: false,
+      avatarInitial: '❌',
+      loadingIndicator: null
+    });
+    console.error(error);
+  }
+
+  updateScrollStatus();
+}
+
+function appendMessage(msgData, callback) {
+  const listEl = document.getElementById('messages-list');
+  const bubbleEl = document.createElement('div');
+  bubbleEl.className = `message-bubble ${msgData.isUser ? 'user' : 'chat'}`;
+  
+  let innerHtml = '';
+  if (msgData.loadingIndicator) {
+    innerHtml += `<div class="loading"></div>`; // animation element
+    innerHtml += msgData.avatarInitial === '🤖' ? '<span class="bubble-text">Thinking...</span>' : '<span class="bubble-text"></span>';
+  } else {
+    innerHtml = `<div class="bubble-text">${msgData.text}</div>`;
+  }
+
+  if (msgData.loadingMessage) {
+    // Add reference to original message for potential edit/delete feature
+    bubbleEl.innerHTML += `<button class="btn-attach" style="color:#aaa;font-size:14px;" onclick="editMessage(this)">Edit</button>
+                          <button class="btn-attach" style="color:#6366f1;font-size:12px;" onclick="copyToClipboard('${msgData.text}')" title="Copy response">📋</button>`;
+  } else if (!msgData.loadingIndicator) {
+    bubbleEl.innerHTML += `<div class="user-controls-bubble" onclick="window.history.go(-1)" title="Go back to previous message">&lt;</div>`;
+  }
+
+  // If it's a chat message, the user bubble should show controls differently
+  if (!msgData.isUser && msgData.loadingIndicator) {
+    bubbleEl.innerHTML += `<span class="bubble-text" style="opacity:0.5;">Thinking...</span> <button class="btn-attach" style="color:#aaa;font-size:14px;" onclick="editMessage(this)">Edit</button>
+                           <button class="btn-attach" style="color:#6366f1;font-size:12px;" onclick="copyToClipboard('${msgData.loadingMessage}')">📋</button>`;
+  } else if (!msgData.isUser) {
+    bubbleEl.innerHTML += `<span class="bubble-text">${msgData.text}</span> <div class="user-controls-bubble" title="Copy response">📋</div>`;
+  }
+
+  // Avatar styling
+  bubbleEl.className = msgData.isUser 
+      ? 'message-bubble user' + (msgData.avatarInitial !== 'Me' && msgData.avatarInitial !== '' ? ` avatar-initial-${escapeCss(msgData.avatarInitial)}` : '')
+      : 'message-bubble chat';
+  
+  // Chat bubble text alignment and spacing
+  if (msgData.isUser) {
+    bubbleEl.className = msgData.loadingIndicator 
+        ? 'message-bubble user' + (msgData.avatarInitial !== 'Me' && msgData.avatarInitial !== '' ? ` avatar-initial-${escapeCss(msgData.avatarInitial)}` : '')
+        : 'message-bubble user';
+  }
+
+  listEl.appendChild(bubbleEl);
+
+  if (!msgData.loadingIndicator && !callback) {
+    scrollToBottom();
+  }
+}
+
+function editMessage(btn) {
+  // Placeholder for future edit functionality - copy original prompt back to input
+  btn.parentElement.previousElementSibling.click(); // go back one message (the user's)
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
+}
+
+// Scroll and resize utilities
+function scrollToBottom() {
+  const container = document.querySelector('.messages-container');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+window.updateScrollStatus = function() {
+  const header = document.querySelector('header');
+  window.scrollY > 10 ? header.classList.add('scrolled') : header.classList.remove('scrolled');
+  
+  // Also update footer container
+  const container = document.querySelector('.app-container');
+  container.style.paddingBottom = '4rem';
+};
+
+// Resize textarea on input
+document.getElementById('user-input').addEventListener('input', function() {
+  this.style.height = '';
+  this.style.height = Math.max(this.scrollHeight, 30) + 'px';
+});
+
+function scrollToBottomSmooth() {
+  const container = document.querySelector('.messages-container');
+  if (!container) return;
+  const offset = window.innerHeight + container.getBoundingClientRect().top - window.scrollY + 120;
+  requestAnimationFrame(() => container.scrollTop = offset);
+}
+
+// Load saved messages on page load (future enhancement)
+/*
+function loadMessages() {
+  const messages = localStorage.getItem('chat-messages') || '[]';
+  const parsed = JSON.parse(messages);
+  if (parsed && Array.isArray(parsed)) {
+    for (const msg of parsed) {
+      appendMessage(msg);
+    }
+  }
+}
+*/
+
+// Save messages to localStorage (future feature - basic version)
+window.saveMessages = async function() {
+  const listEl = document.getElementById('messages-list');
+  if (!listEl) return;
+  
+  const messages = [];
+  listEl.querySelectorAll('.message-bubble').forEach(el => {
+    messages.push({
+      id: parseInt(el.dataset.id),
+      text: el.querySelector('.bubble-text')?.textContent,
+      isUser: el.classList.contains('user'),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  localStorage.setItem('chat-messages', JSON.stringify(messages));
+};
+</script>
+</body>
+</html>
