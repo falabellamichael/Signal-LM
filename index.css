@@ -645,11 +645,11 @@
     }
 
     .code-copy-btn {
-      position: absolute;
-      top: 0.2rem;
-      right: 0.5rem;
-      margin: 0;
-      z-index: 3;
+      position: sticky;
+      float: right;
+      top: 0.5rem;
+      margin: 0.5rem 0.5rem 0 0;
+      z-index: 10;
       min-height: 30px;
       padding: 0.32rem 0.56rem;
       border-radius: 999px;
