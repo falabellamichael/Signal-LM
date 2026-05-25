@@ -194,6 +194,16 @@
 })();
 
 (function () {
+  if (window.__signalLmJsonEditEnforcerLoader) return;
+  window.__signalLmJsonEditEnforcerLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-json-edit-enforcer.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM JSON edit enforcer was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
