@@ -808,8 +808,51 @@ const STORAGE_KEYS = {
       if (empty) empty.remove();
     }
 
-    function scrollToBottom() {
-      els.msgContainer.scrollTop = els.msgContainer.scrollHeight;
+    let userHasScrolledUp = false;
+    let scrollBottomPill = null;
+
+    function isNearBottom(threshold = 80) {
+      const el = els.msgContainer;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    }
+
+    function scrollToBottom(force = false) {
+      if (force || !userHasScrolledUp) {
+        els.msgContainer.scrollTop = els.msgContainer.scrollHeight;
+        userHasScrolledUp = false;
+        updateScrollPill();
+      }
+    }
+
+    function updateScrollPill() {
+      if (!scrollBottomPill) return;
+      const show = isStreaming && userHasScrolledUp && !isNearBottom();
+      scrollBottomPill.classList.toggle('visible', show);
+    }
+
+    function initScrollPill() {
+      scrollBottomPill = document.createElement('button');
+      scrollBottomPill.type = 'button';
+      scrollBottomPill.className = 'scroll-bottom-pill';
+      scrollBottomPill.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+      scrollBottomPill.title = 'Jump to bottom';
+      scrollBottomPill.setAttribute('aria-label', 'Jump to bottom');
+      scrollBottomPill.addEventListener('click', () => {
+        userHasScrolledUp = false;
+        scrollToBottom(true);
+      });
+
+      const mainChat = els.msgContainer.closest('.main-chat');
+      if (mainChat) mainChat.appendChild(scrollBottomPill);
+
+      els.msgContainer.addEventListener('scroll', () => {
+        if (isNearBottom()) {
+          userHasScrolledUp = false;
+        } else if (isStreaming) {
+          userHasScrolledUp = true;
+        }
+        updateScrollPill();
+      }, { passive: true });
     }
 
     function updateInputHeight() {
@@ -1263,9 +1306,12 @@ Workspace context is present in the latest user message. Treat those files as at
       if (active) {
         els.sendBtn.classList.add('streaming');
         els.sendBtn.title = 'Stop generation';
+        userHasScrolledUp = false;
       } else {
         els.sendBtn.classList.remove('streaming');
         els.sendBtn.title = 'Send message';
+        userHasScrolledUp = false;
+        updateScrollPill();
       }
     }
 
@@ -2412,6 +2458,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       applySettingsToUI();
       bindEvents();
       renderMessages();
+      initScrollPill();
       loadWorkspaceHandle();
       hydrateFileContext();
       renderAttachmentTray();
