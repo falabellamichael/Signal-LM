@@ -576,14 +576,26 @@ const STORAGE_KEYS = {
           let code = parts[i];
           const firstLineBreak = code.indexOf('\n');
           let lang = '';
-          if (firstLineBreak !== -1 && firstLineBreak < 20) {
+          let filepath = '';
+          if (firstLineBreak !== -1 && firstLineBreak < 200) {
             lang = code.substring(0, firstLineBreak).trim();
             code = code.substring(firstLineBreak + 1);
-          } else if (firstLineBreak === -1 && code.length < 20 && !code.includes(' ')) {
+          } else if (firstLineBreak === -1 && code.length < 200 && !code.includes(' ')) {
             lang = code.trim();
             code = '';
           }
-          html += `<pre class="line-numbers"><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
+
+          if (lang.includes('.') || lang.includes('/')) {
+            filepath = lang;
+            lang = lang.split('.').pop();
+          }
+
+          let headerHtml = '';
+          if (filepath) {
+            headerHtml = `<div class="file-header">${filepath}</div>`;
+          }
+
+          html += `${headerHtml}<pre class="line-numbers"><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
         }
       }
       return html;
@@ -859,7 +871,7 @@ const STORAGE_KEYS = {
     }
 
     function buildWorkspaceEditInstruction() {
-      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced JSON block with this exact schema: {"files":[{"path":"relative/path/from/workspace","content":"complete replacement file content"}]}. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
+      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced code block with the relative file path as the language identifier, like this: ```relative/path/to/file.html\\ncontent here\\n```. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
     }
 
     function contextHelperEnabled() {
@@ -1446,7 +1458,7 @@ These files are selected in the Workspace panel and are attached by the app in t
 ${workspaceContext}
 [END WORKSPACE FILES]
 
-Answer the user request using the workspace files above. When asked to modify files, return a fenced JSON block with complete replacement file contents.`;
+Answer the user request using the workspace files above. When asked to modify files, return a fenced code block with the relative file path as the language identifier.`;
     }
 
     function attachWorkspaceContextToUserContent(content, workspaceContext) {
@@ -1749,11 +1761,32 @@ Answer the user request using the workspace files above. When asked to modify fi
       return [...byPath.values()];
     }
 
+    function extractPendingEdits(raw) {
+      const fenced = Array.from(raw.matchAll(/```([^\n]*)\n([\s\S]*?)```/gi));
+      const edits = [];
+      for (const match of fenced) {
+        const langOrPath = match[1].trim();
+        const content = match[2];
+        if (langOrPath === 'json' || langOrPath === 'lmstudio-edits') {
+          const parsed = tryParseJson(content);
+          if (parsed && Array.isArray(parsed.files)) {
+            edits.push(...parsed.files);
+            continue;
+          }
+        }
+        if (langOrPath.includes('.') || langOrPath.includes('/')) {
+          edits.push({ path: langOrPath, content: content });
+        }
+      }
+      return edits;
+    }
+
     function extractEditsFromAssistantText(text) {
       const raw = String(text || '');
+      const edits = extractPendingEdits(raw);
+      if (edits.length) return edits;
+
       const candidates = [];
-      const fenced = raw.matchAll(/```(?:json|lmstudio-edits)?\s*([\s\S]*?)```/gi);
-      for (const match of fenced) candidates.push(match[1].trim());
       const objectMatch = raw.match(/\{[\s\S]*"(?:files|changes)"[\s\S]*\}/);
       if (objectMatch) candidates.push(objectMatch[0]);
 
