@@ -1,3 +1,23 @@
+(function () {
+  if (window.__signalLmThemeLoader) return;
+  window.__signalLmThemeLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-theme.js';
+  script.defer = false;
+  script.onerror = function () { console.warn('Signal-LM theme helper was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmMcpDarkCssLoader) return;
+  window.__signalLmMcpDarkCssLoader = true;
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'signal-lm-mcp-dark.css';
+  link.onerror = function () { console.warn('Signal-LM MCP dark stylesheet was not found.'); };
+  document.head.appendChild(link);
+})();
+
 // Viewport Height Listener
 (function () {
   function updateAppViewportHeight() {
