@@ -291,6 +291,7 @@ const STORAGE_KEYS = {
     async function runNativeChatCompletion(requestMessages, assistantUi) {
       const text = await runNativeCompletionText(requestMessages);
       assistantUi.setContent(text);
+      assistantUi.streamingFinished();
       scrollToBottom();
       return text;
     }
@@ -353,6 +354,7 @@ const STORAGE_KEYS = {
       }
 
       if (buffer.trim()) parseSseEvents(buffer + '\n\n', handleData);
+      assistantUi.streamingFinished();
       return fullResponse;
     }
 
@@ -424,6 +426,7 @@ const STORAGE_KEYS = {
           pcController.abort();
         }
         assistantUi.setContent(winner.text);
+        assistantUi.streamingFinished();
         scrollToBottom();
         showToast(`Hybrid boost used ${winner.source}.`);
         return winner.text;
@@ -446,6 +449,7 @@ const STORAGE_KEYS = {
         const text = await Promise.race([runServerChatCompletionText(requestMessages, pcController.signal), timeoutPromise]);
         clearTimeout(timeoutId);
         assistantUi.setContent(text);
+        assistantUi.streamingFinished();
         scrollToBottom();
         showToast('Hybrid boost used PC server.');
         return text;
@@ -454,6 +458,7 @@ const STORAGE_KEYS = {
         showToast('PC server failed or was slow. Using Android phone fallback.');
         const text = await runNativeCompletionText(requestMessages);
         assistantUi.setContent(text);
+        assistantUi.streamingFinished();
         scrollToBottom();
         return text;
       }
@@ -535,6 +540,7 @@ const STORAGE_KEYS = {
 
       const result = text || '(Tool executed, no message returned.)';
       assistantUi.setContent(result);
+      assistantUi.streamingFinished();
       scrollToBottom();
       return result;
     }
@@ -774,6 +780,38 @@ const STORAGE_KEYS = {
       enhanceCodeBlocks(bubble);
     }
 
+    function createStreamRenderer(bubble) {
+      let pendingText = null;
+      let rafId = null;
+
+      function flush() {
+        rafId = null;
+        if (pendingText === null) return;
+        const text = pendingText;
+        pendingText = null;
+        renderBubbleContent(bubble, text);
+      }
+
+      return {
+        update(text) {
+          pendingText = text;
+          if (!rafId) rafId = requestAnimationFrame(flush);
+        },
+        finish() {
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          if (pendingText !== null) {
+            renderBubbleContent(bubble, pendingText);
+            pendingText = null;
+          }
+          const row = bubble.closest('.message-row');
+          if (row) {
+            row.classList.add('stream-done');
+            setTimeout(() => row.classList.remove('stream-done'), 800);
+          }
+        }
+      };
+    }
+
     function addMessage(role, content, options = {}) {
       removeEmptyState();
 
@@ -806,11 +844,15 @@ const STORAGE_KEYS = {
       els.msgContainer.appendChild(row);
       scrollToBottom();
 
+      const streamRenderer = createStreamRenderer(bubble);
+
       return { row, bubble, setContent: (text) => {
-        renderBubbleContent(bubble, text);
+        streamRenderer.update(text);
         copyBtn.onclick = () => {
           copyText(text || '', 'Copied message.');
         };
+      }, streamingFinished: () => {
+        streamRenderer.finish();
       }};
     }
 
