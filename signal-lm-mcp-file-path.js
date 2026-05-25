@@ -155,9 +155,12 @@
         parsed.body.input = (formatMcpFilePathContext() + '\n\n' + parsed.body.input).trim();
       }
 
-      previewUpdating = true;
-      preview.textContent = JSON.stringify(parsed, null, 2);
-      previewUpdating = false;
+      var next = JSON.stringify(parsed, null, 2);
+      if (next !== raw) {
+        previewUpdating = true;
+        preview.textContent = next;
+        previewUpdating = false;
+      }
     } catch (error) {
       previewUpdating = false;
     }
