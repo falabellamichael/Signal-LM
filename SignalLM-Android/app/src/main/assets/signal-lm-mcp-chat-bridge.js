@@ -144,8 +144,6 @@
       max_output_tokens: nativeMaxOutputTokens(settings),
       store: true
     };
-    body.mcp_file_path = path || '';
-    if (path) body.filesystem_path = path;
     return body;
   }
 

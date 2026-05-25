@@ -84,7 +84,11 @@
   }
 
   async function browserGet(url) {
-    const response = await fetch(url, { method: 'GET' });
+    let targetUrl = url;
+    if (url.includes('duckduckgo.com')) {
+      targetUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+    }
+    const response = await fetch(targetUrl, { method: 'GET' });
     if (!response.ok) throw new Error('HTTP ' + response.status);
     return await response.text();
   }

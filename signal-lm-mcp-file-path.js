@@ -150,7 +150,6 @@
       var marker = '[MCP FILESYSTEM PATH]';
       var pathValue = path || '<set MCP File Path before using filesystem MCP tools>';
 
-      parsed.body.mcp_file_path = pathValue;
       if (typeof parsed.body.input === 'string' && parsed.body.input.indexOf(marker) === -1) {
         parsed.body.input = (formatMcpFilePathContext() + '\n\n' + parsed.body.input).trim();
       }
