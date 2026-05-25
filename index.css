@@ -734,6 +734,7 @@
       padding: 5px 5px 5px 14px;
       background: #fff;
       min-width: 0;
+      position: relative;
     }
 
     #user-input {
@@ -1413,4 +1414,65 @@
       body.sidebar-open #messages {
         overflow: hidden;
       }
+    }
+
+    /* Commands Autocomplete Dropdown styling */
+    .commands-dropdown {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      padding: 6px;
+      backdrop-filter: blur(12px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    .commands-dropdown.show {
+      display: flex;
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .command-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.1s ease, transform 0.1s ease;
+      font-size: 0.92rem;
+      color: var(--text-primary);
+    }
+    .command-item:hover, .command-item.active {
+      background: var(--accent-soft);
+      transform: translateX(2px);
+    }
+    .command-name {
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 90px;
+    }
+    .command-desc {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .command-chevron {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-weight: bold;
+      opacity: 0.7;
     }

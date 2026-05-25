@@ -132,6 +132,7 @@
   background: var(--ai-msg-bg);
   box-shadow: var(--phone-shadow-subtle);
   transition: all var(--phone-transition-fast);
+  position: relative;
 }
 
 .composer-shell:hover {

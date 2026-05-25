@@ -1158,6 +1158,17 @@ Workspace context is present in the latest user message. Treat those files as at
       const text = els.userInput.value.trim();
       if ((!text && !attachments.length) || isStreaming) return;
 
+      if (text.startsWith('/')) {
+        els.userInput.value = '';
+        if (typeof updateInputHeight === 'function') updateInputHeight();
+        if (window.executeSlashCommand) {
+          window.executeSlashCommand(text);
+        } else {
+          showToast('Command processor not loaded.');
+        }
+        return;
+      }
+
       if (!settings.model) {
         showToast('Select or load a model first.');
         return;
@@ -2128,6 +2139,10 @@ Answer the user request using the workspace files above. When asked to modify fi
       });
 
       els.userInput.addEventListener('keydown', (event) => {
+        const dropdown = document.getElementById('commands-dropdown');
+        if (dropdown && dropdown.classList.contains('show')) {
+          return;
+        }
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           sendMessage();
@@ -2249,6 +2264,15 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     function init() {
+      Object.defineProperty(window, 'settings', {
+        get: () => settings,
+        configurable: true
+      });
+      Object.defineProperty(window, 'workspaceFiles', {
+        get: () => workspaceFiles,
+        configurable: true
+      });
+
       applySettingsToUI();
       bindEvents();
       renderMessages();
