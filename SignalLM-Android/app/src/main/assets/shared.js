@@ -38,6 +38,15 @@
   window.__lmStudioLiteNativeFetchPatch = true;
   const originalFetch = window.fetch ? window.fetch.bind(window) : null;
 
+  const LM_STUDIO_CHAT_FORBIDDEN_KEYS = new Set([
+    'response_id',
+    'previous_response_id',
+    'conversation',
+    'conversation_id',
+    'thread_id',
+    'session_id'
+  ]);
+
   function getBridge() {
     return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
   }
@@ -45,6 +54,34 @@
   function bridgeCanRequest(url) {
     const bridge = getBridge();
     return Boolean(bridge && /^https?:\/\//i.test(String(url || '')) && (bridge.httpRequest || bridge.request || bridge.fetchJson));
+  }
+
+  function isLmStudioChatRequest(url) {
+    const clean = String(url || '').split('?')[0].replace(/\/+$/, '');
+    return /\/(?:v1\/chat\/completions|api\/v1\/chat)$/i.test(clean);
+  }
+
+  function sanitizeLmStudioRequestBody(url, body) {
+    if (!isLmStudioChatRequest(url) || typeof body !== 'string') return body;
+    const trimmed = body.trim();
+    if (!trimmed || trimmed[0] !== '{') return body;
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return body;
+
+      let changed = false;
+      LM_STUDIO_CHAT_FORBIDDEN_KEYS.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+          delete parsed[key];
+          changed = true;
+        }
+      });
+
+      return changed ? JSON.stringify(parsed) : body;
+    } catch {
+      return body;
+    }
   }
 
   function mergeHeaders(inputHeaders, initHeaders) {
@@ -71,6 +108,7 @@
     const headers = mergeHeaders(input && input.headers, options.headers);
     let body = options.body || null;
     if (body && typeof body !== 'string') body = String(body);
+    body = sanitizeLmStudioRequestBody(url, body);
 
     const payload = JSON.stringify({ url, method, headers, body });
     const bridge = getBridge();
@@ -95,8 +133,13 @@
   if (originalFetch) {
     window.fetch = function (input, init) {
       const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
-      if (bridgeCanRequest(url)) return nativeFetch(input, init);
-      return originalFetch(input, init);
+      let nextInit = init;
+      if (nextInit && typeof nextInit.body === 'string' && isLmStudioChatRequest(url)) {
+        const cleanBody = sanitizeLmStudioRequestBody(url, nextInit.body);
+        if (cleanBody !== nextInit.body) nextInit = { ...nextInit, body: cleanBody };
+      }
+      if (bridgeCanRequest(url)) return nativeFetch(input, nextInit);
+      return originalFetch(input, nextInit);
     };
   }
 })();
@@ -135,7 +178,7 @@
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-chat-bridge.js';
+  script.src = 'signal-lm-mcp-chat-bridge.js?v=response-id-fix-1';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP chat bridge was not found.'); };
   document.head.appendChild(script);
