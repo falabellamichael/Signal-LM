@@ -20,6 +20,30 @@
     return base + '/api/v1';
   }
 
+  function clampNumber(value, fallback, min, max) {
+    const parsed = Number(value);
+    const safe = Number.isFinite(parsed) ? parsed : fallback;
+    return Math.min(max, Math.max(min, safe));
+  }
+
+  function clampInteger(value, fallback, min, max) {
+    const parsed = parseInt(value, 10);
+    const safe = Number.isFinite(parsed) ? parsed : fallback;
+    return Math.min(max, Math.max(min, safe));
+  }
+
+  function nativeTemperature(settings) {
+    return clampNumber(settings.temperature ?? 0.7, 0.7, 0, 1);
+  }
+
+  function nativeMaxOutputTokens(settings) {
+    return clampInteger(settings.maxTokens, 500, 1, 8192);
+  }
+
+  function nativeContextLength(settings) {
+    return clampInteger(settings.mcpContextLength, 8000, 1024, 131072);
+  }
+
   function headers(settings) {
     const result = { 'Content-Type': 'application/json' };
     const key = String(settings.mcpAuthToken || settings.apiKey || '').trim();
@@ -119,9 +143,9 @@
         model: settings.model,
         input: messagesToInput(requestMessages),
         integrations,
-        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
-        temperature: Number(settings.temperature ?? 0.7),
-        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
+        context_length: nativeContextLength(settings),
+        temperature: nativeTemperature(settings),
+        max_output_tokens: nativeMaxOutputTokens(settings),
         store: true
       })
     });
@@ -148,7 +172,7 @@
     };
   }
 
-  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, runMcpChat, install };
+  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, runMcpChat, install, nativeTemperature, nativeMaxOutputTokens, nativeContextLength };
 
   const timer = setInterval(install, 200);
   setTimeout(() => clearInterval(timer), 8000);
