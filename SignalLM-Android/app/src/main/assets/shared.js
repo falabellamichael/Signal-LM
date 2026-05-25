@@ -10,7 +10,6 @@
   window.addEventListener('orientationchange', function () { setTimeout(updateAppViewportHeight, 80); }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', updateAppViewportHeight, { passive: true });
-    window.visualViewport.addEventListener('scroll', updateAppViewportHeight, { passive: true });
   }
 })();
 

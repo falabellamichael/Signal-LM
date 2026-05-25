@@ -4,6 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LM Studio Lite · MCP</title>
+
+  <script>
+    (function () {
+      const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+      const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+      function readSettings() {
+        try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
+        catch { return {}; }
+      }
+
+      function applyTheme(preference) {
+        const settings = readSettings();
+        const pref = preference || settings.theme || 'system';
+        let resolved = 'light';
+        if (pref === 'dark') resolved = 'dark';
+        else if (pref === 'light') resolved = 'light';
+        else resolved = media && media.matches ? 'dark' : 'light';
+
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+        return resolved;
+      }
+
+      applyTheme();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => applyTheme());
+      } else {
+        applyTheme();
+      }
+      if (media && media.addEventListener) media.addEventListener('change', () => applyTheme());
+      window.addEventListener('storage', event => { if (event.key === SETTINGS_KEY) applyTheme(); });
+    })();
+  </script>
+
   <link rel="stylesheet" href="shared.css">
   <link rel="stylesheet" href="mcp.css">
 

@@ -2,7 +2,8 @@ const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       messages: 'lmStudioLite.messages.v1',
       fileContext: 'lmStudioLite.fileContext.v1',
-      workspaceInfo: 'lmStudioLite.workspaceInfo.v1'
+      workspaceInfo: 'lmStudioLite.workspaceInfo.v1',
+      nativeResponseId: 'lmStudioLite.nativeResponseId.v1'
     };
 
     const DEFAULT_SETTINGS = {
@@ -28,7 +29,10 @@ const STORAGE_KEYS = {
       contextHelperEnabled: true,
       contextHelperMode: 'smart',
       contextHelperMaxSnippets: 16,
-      contextHelperMaxChars: 70000
+      contextHelperMaxChars: 70000,
+      mcpEnabled: false,
+      mcpContextLength: 8000,
+      mcpServers: []
     };
 
     const HANDLE_DB = 'lmStudioLite.filesystem.v1';
@@ -453,6 +457,86 @@ const STORAGE_KEYS = {
         scrollToBottom();
         return text;
       }
+    }
+
+    function nativeApiBaseUrl() {
+      const base = normalizeBaseUrl(settings.baseUrl);
+      if (/\/api\/v1$/i.test(base)) return base;
+      if (/\/v1$/i.test(base)) return base.replace(/\/v1$/i, '/api/v1');
+      return base + '/api/v1';
+    }
+
+    function getEnabledMcpServers() {
+      return Array.isArray(settings.mcpServers) ? settings.mcpServers.filter(s => s && s.enabled !== false) : [];
+    }
+
+    function buildMcpIntegrations() {
+      return getEnabledMcpServers().map(server => {
+        const tools = Array.isArray(server.allowedTools) ? server.allowedTools.map(t => String(t).trim()).filter(Boolean) : [];
+        if (server.type === 'plugin') return tools.length ? { type: 'plugin', id: server.id, allowed_tools: tools } : server.id;
+        const integration = { type: 'ephemeral_mcp', server_label: server.serverLabel || server.label || 'remote-mcp', server_url: server.serverUrl || '' };
+        if (!integration.server_url) return null;
+        if (tools.length) integration.allowed_tools = tools;
+        if (server.headers && typeof server.headers === 'object' && Object.keys(server.headers).length) integration.headers = server.headers;
+        return integration;
+      }).filter(Boolean);
+    }
+
+    async function runNativeMcpChatCompletion(userInput, assistantUi) {
+      const integrations = buildMcpIntegrations();
+
+      // Convert multimodal input to string if needed, as native /api/v1/chat usually expects input as string
+      let inputString = userInput;
+      if (Array.isArray(userInput)) {
+        inputString = userInput.filter(p => p.type === 'text').map(p => p.text).join('\n');
+      }
+
+      const body = {
+        model: settings.model,
+        input: inputString,
+        integrations,
+        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
+        temperature: Number(settings.temperature),
+        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
+        store: true
+      };
+
+      const responseId = localStorage.getItem(STORAGE_KEYS.nativeResponseId);
+      if (responseId) body.response_id = responseId;
+
+      const systemPrompt = (settings.systemPrompt || '').trim();
+      if (systemPrompt) body.system_prompt = systemPrompt;
+
+      const response = await fetch(nativeApiBaseUrl() + '/chat', {
+        method: 'POST',
+        headers: getHeaders(),
+        signal: abortController.signal,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || `Native MCP API error: HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (payload.response_id) localStorage.setItem(STORAGE_KEYS.nativeResponseId, payload.response_id);
+
+      const text = (payload.output || [])
+        .filter(item => item.type === 'message' && item.content)
+        .map(item => item.content)
+        .join('\n\n')
+        .trim();
+
+      const toolUses = (payload.output || []).filter(item => item.type === 'tool_use');
+      if (toolUses.length) {
+        showToast(`Used ${toolUses.length} tool${toolUses.length === 1 ? '' : 's'}.`);
+      }
+
+      const result = text || '(Tool executed, no message returned.)';
+      assistantUi.setContent(result);
+      scrollToBottom();
+      return result;
     }
 
     async function testAndroidRuntime() {
@@ -1211,11 +1295,15 @@ Workspace context is present in the latest user message. Treat those files as at
       setStreamingUI(true);
 
       try {
-        fullResponse = isHybridRuntime()
-          ? await runHybridChatCompletion(requestMessages, assistantUi)
-          : isAndroidRuntime()
-            ? await runNativeChatCompletion(requestMessages, assistantUi)
-            : await runServerChatCompletion(requestMessages, assistantUi);
+        if (settings.mcpEnabled) {
+          fullResponse = await runNativeMcpChatCompletion(requestContent, assistantUi);
+        } else {
+          fullResponse = isHybridRuntime()
+            ? await runHybridChatCompletion(requestMessages, assistantUi)
+            : isAndroidRuntime()
+              ? await runNativeChatCompletion(requestMessages, assistantUi)
+              : await runServerChatCompletion(requestMessages, assistantUi);
+        }
 
         if (!fullResponse.trim()) {
           fullResponse = '(No content returned.)';
@@ -1257,6 +1345,7 @@ Workspace context is present in the latest user message. Treat those files as at
     function clearChat() {
       messages = [];
       localStorage.removeItem(STORAGE_KEYS.messages);
+      localStorage.removeItem(STORAGE_KEYS.nativeResponseId);
       renderMessages();
       showToast('Chat cleared.');
     }

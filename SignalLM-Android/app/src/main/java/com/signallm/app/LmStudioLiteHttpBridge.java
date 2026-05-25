@@ -1,5 +1,6 @@
 package com.signallm.app;
 
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 
 import org.json.JSONObject;
@@ -17,11 +18,13 @@ import java.util.List;
 import java.util.Map;
 
 public class LmStudioLiteHttpBridge {
+    private static final String TAG = "LmStudioBridge";
     private MainActivity activity;
 
     public LmStudioLiteHttpBridge(MainActivity activity) {
         this.activity = activity;
     }
+// ... (rest of imports and class start)
 
     @JavascriptInterface
     public void triggerSelectFolder() {
@@ -97,36 +100,46 @@ public class LmStudioLiteHttpBridge {
 
     @JavascriptInterface
     public void triggerHttpRequest(final String payloadJson, final String requestId) {
+        Log.d(TAG, "triggerHttpRequest called with requestId: " + requestId);
         if (activity != null) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    final String result = httpRequest(payloadJson);
-                    activity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            activity.resolveHttpRequest(requestId, result);
-                        }
-                    });
+                    try {
+                        final String result = httpRequest(payloadJson);
+                        activity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                activity.resolveHttpRequest(requestId, result);
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in triggerHttpRequest thread", e);
+                    }
                 }
             }).start();
+        } else {
+            Log.e(TAG, "Activity is null in triggerHttpRequest");
         }
     }
 
+    @JavascriptInterface
     public String httpRequest(String payloadJson) {
         HttpURLConnection connection = null;
         try {
             JSONObject payload = new JSONObject(payloadJson == null ? "{}" : payloadJson);
             String urlText = payload.optString("url", "");
             String method = payload.optString("method", "GET").toUpperCase();
+            Log.d(TAG, "httpRequest: " + method + " " + urlText);
+
             String body = payload.isNull("body") ? null : payload.optString("body", null);
             JSONObject headers = payload.optJSONObject("headers");
 
             URL url = new URL(urlText);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod(method);
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(0);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(120000); // 2 minutes
             connection.setUseCaches(false);
             connection.setDoInput(true);
 
@@ -135,7 +148,7 @@ public class LmStudioLiteHttpBridge {
                 while (keys.hasNext()) {
                     String key = keys.next();
                     String value = headers.optString(key, "");
-                    if (key != null && key.length() > 0 && value != null) {
+                    if (key != null && !key.isEmpty() && value != null) {
                         connection.setRequestProperty(key, value);
                     }
                 }
@@ -152,6 +165,7 @@ public class LmStudioLiteHttpBridge {
             }
 
             int status = connection.getResponseCode();
+            Log.d(TAG, "HTTP Response Code: " + status);
             InputStream responseStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
             String responseBody = readStream(responseStream);
 
@@ -171,6 +185,7 @@ public class LmStudioLiteHttpBridge {
             out.put("headers", outHeaders);
             return out.toString();
         } catch (Exception error) {
+            Log.e(TAG, "httpRequest error: " + error.getMessage(), error);
             try {
                 JSONObject out = new JSONObject();
                 out.put("status", 0);
@@ -185,10 +200,12 @@ public class LmStudioLiteHttpBridge {
         }
     }
 
+    @JavascriptInterface
     public String request(String payloadJson) {
         return httpRequest(payloadJson);
     }
 
+    @JavascriptInterface
     public String fetchJson(String payloadJson) {
         return httpRequest(payloadJson);
     }
