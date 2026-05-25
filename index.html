@@ -241,8 +241,17 @@
           <button class="attach-btn" type="button" onclick="openAttachmentPicker()" title="Attach files or images">+</button>
           <textarea id="user-input" placeholder="Message LM Studio..." rows="1"></textarea>
         </div>
-        <button class="stop-btn" type="button" id="stop-btn" onclick="stopGeneration()">Stop</button>
-        <button class="send-btn" type="submit" id="send-btn"><span class="send-label">Send</span> ↵</button>
+        <button class="send-btn" type="submit" id="send-btn" title="Send message">
+          <span class="send-label">Send</span>
+          <span class="stop-label">Stop</span>
+          <span class="send-arrow"> ↵</span>
+          <svg class="send-icon" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="7 3 21 12 7 21 12 12"></polygon>
+          </svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1.5"></rect>
+          </svg>
+        </button>
       </form>
       <input class="hidden-input" id="chat-attachments" type="file" multiple accept="image/*,.txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
       <input class="hidden-input" id="workspace-folder-input" type="file" multiple webkitdirectory directory accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />

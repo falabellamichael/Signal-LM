@@ -63,7 +63,6 @@ const STORAGE_KEYS = {
       msgContainer: document.getElementById('messages'),
       userInput: document.getElementById('user-input'),
       sendBtn: document.getElementById('send-btn'),
-      stopBtn: document.getElementById('stop-btn'),
       modelSelect: document.getElementById('model-select'),
       runtimeMode: document.getElementById('runtime-mode'),
       runtimeStatusLine: document.getElementById('runtime-status-line'),
@@ -1146,8 +1145,13 @@ Workspace context is present in the latest user message. Treat those files as at
 
     function setStreamingUI(active) {
       isStreaming = active;
-      els.sendBtn.disabled = active;
-      els.stopBtn.style.display = active ? 'inline-flex' : 'none';
+      if (active) {
+        els.sendBtn.classList.add('streaming');
+        els.sendBtn.title = 'Stop generation';
+      } else {
+        els.sendBtn.classList.remove('streaming');
+        els.sendBtn.title = 'Send message';
+      }
     }
 
     async function sendMessage() {
@@ -2084,7 +2088,11 @@ Answer the user request using the workspace files above. When asked to modify fi
     function bindEvents() {
       els.form.addEventListener('submit', (event) => {
         event.preventDefault();
-        sendMessage();
+        if (isStreaming) {
+          stopGeneration();
+        } else {
+          sendMessage();
+        }
       });
 
       els.userInput.addEventListener('input', updateInputHeight);

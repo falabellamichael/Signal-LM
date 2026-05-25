@@ -1,7 +1,0 @@
-com.signallm.app-pngs-0 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\build\generated\res\pngs\debug
-com.signallm.app-resValues-1 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\build\generated\res\resValues\debug
-com.signallm.app-packageDebugResources-2 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
-com.signallm.app-packageDebugResources-3 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
-com.signallm.app-debug-4 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\build\intermediates\merged_res\debug\mergeDebugResources
-com.signallm.app-debug-5 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\debug\res
-com.signallm.app-main-6 D:\SignalLM\SignalLM-Android-full\SignalLM-Android\app\src\main\res
