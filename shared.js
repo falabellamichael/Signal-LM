@@ -1,3 +1,12 @@
+(function(){
+  var bridge=window.SignalLMNativeBridge||window.lmStudioLiteNative||window.NativeFileBridge||window.NativeInferenceBridge||window.AndroidBridge||window.AndroidFileBridge||window.AndroidWorkspaceBridge||window.AndroidInferenceBridge||null;
+  if(!bridge)return;
+  if(!window.lmStudioLiteNative)window.lmStudioLiteNative=bridge;
+  if(!window.NativeFileBridge)window.NativeFileBridge=bridge;
+  if(!window.NativeInferenceBridge)window.NativeInferenceBridge=bridge;
+  if(!window.AndroidBridge)window.AndroidBridge=bridge;
+})();
+
 // Viewport Height Listener
 (function () {
   function updateAppViewportHeight() {
