@@ -180,7 +180,12 @@
   window.addEventListener('focusout', function () { setTimeout(syncViewport, 160); }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', syncViewport, { passive: true });
-    window.visualViewport.addEventListener('scroll', syncViewport, { passive: true });
+    window.visualViewport.addEventListener('scroll', function () {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      syncViewport();
+    }, { passive: true });
   }
 
   var attempts = 0;

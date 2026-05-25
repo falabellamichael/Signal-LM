@@ -19,7 +19,13 @@
   window.addEventListener('orientationchange',function(){setTimeout(syncViewport,80)},{passive:true});
   window.addEventListener('focusin',function(){setTimeout(function(){syncViewport();scrollMessages()},60)},{passive:true});
   window.addEventListener('focusout',function(){setTimeout(syncViewport,160)},{passive:true});
-  if(window.visualViewport){window.visualViewport.addEventListener('resize',function(){syncViewport();scrollMessages()},{passive:true});window.visualViewport.addEventListener('scroll',function(){syncViewport();scrollMessages()},{passive:true});}
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',function(){syncViewport();scrollMessages()},{passive:true});
+    window.visualViewport.addEventListener('scroll',function(){
+      if(window.scrollY!==0||window.scrollX!==0){window.scrollTo(0,0);}
+      syncViewport();
+    },{passive:true});
+  }
 
   function parseMaybeJson(v){if(typeof v!=='string')return v;var t=v.trim();if(!t||!/^[{[]/.test(t))return v;try{return JSON.parse(t)}catch(e){return v}}
   function rawBridge(){return window.lmStudioLiteNative||window.NativeFileBridge||window.NativeInferenceBridge||window.AndroidInferenceBridge||null}
