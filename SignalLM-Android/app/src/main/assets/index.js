@@ -644,6 +644,10 @@ const STORAGE_KEYS = {
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     }
 
+    function unescapeHtml(text) {
+      return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
+    }
+
     function renderMessageText(text) {
       const escaped = escapeHtml(text || '');
       const parts = escaped.split('```');
@@ -667,6 +671,23 @@ const STORAGE_KEYS = {
           } else if (firstLineBreak === -1 && code.length < 200 && !code.includes(' ')) {
             lang = code.trim();
             code = '';
+          }
+
+          if (lang === 'json' || lang === 'lmstudio-edits') {
+            try {
+              const parsed = JSON.parse(unescapeHtml(code));
+              if (parsed && Array.isArray(parsed.files)) {
+                let reformatted = '';
+                for (const file of parsed.files) {
+                  const ext = file.path ? file.path.split('.').pop() : '';
+                  reformatted += `<div class="file-header">${file.path || 'file'}</div><pre class="line-numbers"><code class="language-${ext}">${escapeHtml(file.content || '').replace(/^\n+|\n+$/g, '')}</code></pre>`;
+                }
+                html += reformatted;
+                continue;
+              }
+            } catch (e) {
+              // Fallback to normal rendering if JSON is incomplete/invalid
+            }
           }
 
           if (lang.includes('.') || lang.includes('/')) {
