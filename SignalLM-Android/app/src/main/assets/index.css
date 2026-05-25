@@ -622,7 +622,9 @@
 
     .code-block pre {
       margin: 0;
-      padding: 1.25rem;
+      padding-top: 1.25rem;
+      padding-right: 1.25rem;
+      padding-bottom: 1.25rem;
       border: 1px solid rgba(255,255,255,0.08);
       font-size: 1.05em;
     }

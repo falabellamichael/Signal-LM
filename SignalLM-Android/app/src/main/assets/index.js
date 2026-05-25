@@ -667,7 +667,7 @@ const STORAGE_KEYS = {
             lang = code.trim();
             code = '';
           }
-          html += `<pre><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
+          html += `<pre class="line-numbers"><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
         }
       }
       return html;
@@ -719,6 +719,11 @@ const STORAGE_KEYS = {
 
         wrapper.appendChild(button);
         wrapper.appendChild(pre);
+
+        if (window.Prism) {
+          const codeEl = pre.querySelector('code');
+          if (codeEl) Prism.highlightElement(codeEl);
+        }
       });
     }
 
