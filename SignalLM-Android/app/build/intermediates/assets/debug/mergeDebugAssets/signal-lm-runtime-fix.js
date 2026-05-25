@@ -156,7 +156,7 @@
     if (typeof window.buildWorkspaceEditInstruction === 'function' && !window.__signalLmInstructionPatched) {
       var oldInstruction = window.buildWorkspaceEditInstruction;
       window.buildWorkspaceEditInstruction = function () {
-        return oldInstruction() + '\n\nSignal-LM edit tool contract: output file edits in standard markdown code blocks and include the file path either in the language tag or as a comment on the first line. The app will parse it and show Apply.';
+        return oldInstruction() + '\n\nSignal-LM edit tool contract: output file edits in standard markdown code blocks and include the file path either in the language tag or as a comment on the first line. DO NOT ask for permission to edit. DO NOT truncate the files. Output the FULL, COMPLETE replacement content. The app will parse it and show Apply.';
       };
       window.__signalLmInstructionPatched = true;
     }
