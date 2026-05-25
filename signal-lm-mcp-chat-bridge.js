@@ -44,6 +44,26 @@
     return clampInteger(settings.mcpContextLength, 8000, 1024, 131072);
   }
 
+  function mcpFilePath(settings) {
+    return String(settings.mcpFilePath || '').trim();
+  }
+
+  function mcpFilePathContext(settings) {
+    const path = mcpFilePath(settings);
+    const lines = [
+      '[MCP FILESYSTEM PATH]',
+      'MCP is enabled. Browser folder/workspace access is separate from MCP server filesystem access.'
+    ];
+    if (path) {
+      lines.push('Filesystem path for MCP tools: ' + path);
+      lines.push('When MCP filesystem/project tools need root/path/file_path arguments, use this exact path unless the user explicitly gives a different path.');
+    } else {
+      lines.push('No MCP filesystem path is configured. Folder/workspace context can still work without MCP, but MCP filesystem tools need an explicit local path. Ask the user to set MCP File Path on the MCP page before using filesystem MCP tools.');
+    }
+    lines.push('[END MCP FILESYSTEM PATH]');
+    return lines.join('\n');
+  }
+
   function headers(settings) {
     const result = { 'Content-Type': 'application/json' };
     const key = String(settings.mcpAuthToken || settings.apiKey || '').trim();
@@ -95,7 +115,7 @@
     return String(content || '');
   }
 
-  function messagesToInput(messages) {
+  function messagesToInput(messages, settings) {
     const system = [];
     const turns = [];
     (messages || []).forEach(message => {
@@ -106,10 +126,27 @@
       else turns.push(role.toUpperCase() + ': ' + text);
     });
     return [
+      mcpFilePathContext(settings),
       system.length ? 'System instructions:\n' + system.join('\n\n') : '',
       turns.join('\n\n'),
       'ASSISTANT:'
     ].filter(Boolean).join('\n\n');
+  }
+
+  function buildRequestBody(settings, requestMessages) {
+    const path = mcpFilePath(settings);
+    const body = {
+      model: settings.model,
+      input: messagesToInput(requestMessages, settings),
+      integrations: buildIntegrations(settings),
+      context_length: nativeContextLength(settings),
+      temperature: nativeTemperature(settings),
+      max_output_tokens: nativeMaxOutputTokens(settings),
+      store: true
+    };
+    body.mcp_file_path = path || '';
+    if (path) body.filesystem_path = path;
+    return body;
   }
 
   function extractMessage(result) {
@@ -136,18 +173,12 @@
     const integrations = buildIntegrations(settings);
     if (!settings.mcpEnabled || !integrations.length) return null;
 
+    const body = buildRequestBody(settings, requestMessages);
+
     const response = await fetch(nativeApiBaseUrl(settings) + '/chat', {
       method: 'POST',
       headers: headers(settings),
-      body: JSON.stringify({
-        model: settings.model,
-        input: messagesToInput(requestMessages),
-        integrations,
-        context_length: nativeContextLength(settings),
-        temperature: nativeTemperature(settings),
-        max_output_tokens: nativeMaxOutputTokens(settings),
-        store: true
-      })
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
@@ -172,7 +203,7 @@
     };
   }
 
-  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, runMcpChat, install, nativeTemperature, nativeMaxOutputTokens, nativeContextLength };
+  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, buildRequestBody, runMcpChat, install, nativeTemperature, nativeMaxOutputTokens, nativeContextLength, mcpFilePath, mcpFilePathContext };
 
   const timer = setInterval(install, 200);
   setTimeout(() => clearInterval(timer), 8000);
