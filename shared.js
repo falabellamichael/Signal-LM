@@ -110,3 +110,13 @@
   script.onerror = function () { console.warn('Signal-LM web search helper was not found.'); };
   document.head.appendChild(script);
 })();
+
+(function () {
+  if (window.__signalLmMcpPipelineLoader) return;
+  window.__signalLmMcpPipelineLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-mcp-pipeline.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM MCP pipeline helper was not found.'); };
+  document.head.appendChild(script);
+})();
