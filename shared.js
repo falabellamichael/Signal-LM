@@ -120,3 +120,13 @@
   script.onerror = function () { console.warn('Signal-LM MCP pipeline helper was not found.'); };
   document.head.appendChild(script);
 })();
+
+(function () {
+  if (window.__signalLmMcpChatBridgeLoader) return;
+  window.__signalLmMcpChatBridgeLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-mcp-chat-bridge.js';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM MCP chat bridge was not found.'); };
+  document.head.appendChild(script);
+})();
