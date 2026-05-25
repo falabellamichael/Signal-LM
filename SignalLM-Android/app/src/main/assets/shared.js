@@ -8,6 +8,16 @@
   document.head.appendChild(script);
 })();
 
+(function () {
+  if (window.__signalLmMcpDarkCssLoader) return;
+  window.__signalLmMcpDarkCssLoader = true;
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'signal-lm-mcp-dark.css';
+  link.onerror = function () { console.warn('Signal-LM MCP dark stylesheet was not found.'); };
+  document.head.appendChild(link);
+})();
+
 // Viewport Height Listener
 (function () {
   function updateAppViewportHeight() {
