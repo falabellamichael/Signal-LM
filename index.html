@@ -210,6 +210,10 @@
           <div class="workspace-actions">
             <button class="mini-btn ghost-btn" type="button" onclick="openWorkspaceFromChat()">Select Folder</button>
             <button class="mini-btn ghost-btn" type="button" onclick="selectWorkspaceFilesFallback()">Select Files</button>
+            <label class="workspace-toggle-all" title="Select all compatible workspace files">
+              <input type="checkbox" id="workspace-select-all-checkbox" onchange="handleWorkspaceSelectAllToggle(this)" />
+              <span>All Files</span>
+            </label>
             <button class="mini-btn ghost-btn" type="button" onclick="previewChatContext()">Debug Context</button>
             <button class="mini-btn ghost-btn" type="button" onclick="toggleContextHelper()" id="context-helper-toggle">Helper On</button>
             <button class="mini-btn ghost-btn" type="button" onclick="clearWorkspace()">Clear</button>
