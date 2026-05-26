@@ -1516,17 +1516,18 @@
 
     /* Commands Autocomplete Dropdown styling */
     .commands-dropdown {
-      position: absolute;
-      bottom: calc(100% + 8px);
-      left: 0;
-      right: 0;
-      max-height: 240px;
+      position: fixed;
+      bottom: var(--commands-bottom, 88px);
+      left: var(--commands-left, 1rem);
+      right: auto;
+      width: var(--commands-width, min(560px, calc(100vw - 2rem)));
+      max-height: var(--commands-max-height, min(320px, calc(100vh - 7rem)));
       overflow-y: auto;
       background: var(--bg-color);
       border: 1px solid var(--border-color);
       border-radius: 16px;
       box-shadow: var(--shadow);
-      z-index: 1000;
+      z-index: 10000;
       display: none;
       flex-direction: column;
       padding: 6px;
@@ -1541,8 +1542,9 @@
       opacity: 1;
     }
     .command-item {
-      display: flex;
-      align-items: center;
+      display: grid;
+      grid-template-columns: minmax(90px, max-content) minmax(0, 1fr) auto;
+      align-items: start;
       gap: 12px;
       padding: 10px 14px;
       border-radius: 12px;
@@ -1550,6 +1552,7 @@
       transition: background 0.1s ease, transform 0.1s ease;
       font-size: 0.92rem;
       color: var(--text-primary);
+      min-height: 44px;
     }
     .command-item:hover, .command-item.active {
       background: var(--accent-soft);
@@ -1558,19 +1561,59 @@
     .command-name {
       font-weight: 600;
       color: var(--accent);
-      min-width: 90px;
+      min-width: 0;
+      white-space: nowrap;
     }
     .command-desc {
       color: var(--text-secondary);
       font-size: 0.82rem;
       flex: 1;
-      white-space: nowrap;
+      white-space: normal;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.32;
     }
     .command-chevron {
       color: var(--text-secondary);
       font-size: 0.85rem;
       font-weight: bold;
       opacity: 0.7;
+    }
+
+    .command-result {
+      font-family: inherit;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .command-result ul {
+      margin: 0.45rem 0 0;
+      padding-left: 1.15rem;
+    }
+
+    .command-result pre {
+      max-height: min(42vh, 360px);
+      overflow: auto;
+      margin: 0.55rem 0 0;
+      padding: 0.75rem;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.06);
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 520px) {
+      .commands-dropdown {
+        border-radius: 14px;
+        padding: 5px;
+      }
+
+      .command-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 4px 10px;
+        padding: 10px 12px;
+      }
+
+      .command-desc {
+        grid-column: 1 / -1;
+      }
     }

@@ -2411,6 +2411,90 @@ Answer the user request using the workspace files above. When asked to modify fi
       }
     }
 
+    function resolveWorkspaceEntry(path) {
+      const clean = normalizeWorkspacePath(path).toLowerCase();
+      if (!clean) return null;
+      return workspaceFiles.find(file => file.path.toLowerCase() === clean)
+        || workspaceFiles.find(file => file.path.toLowerCase().endsWith('/' + clean))
+        || workspaceFiles.find(file => file.path.toLowerCase().includes(clean));
+    }
+
+    function workspaceAccessLabel() {
+      if (nativeWorkspace?.writable === false) return 'app read-only';
+      if (nativeWorkspace) return 'app writable';
+      if (workspaceHandle) return 'write enabled';
+      if (workspaceFiles.length) return 'browser fallback';
+      return 'none';
+    }
+
+    function getCommandWorkspaceStatus() {
+      return {
+        name: workspaceHandle?.name || workspaceInfo?.name || (workspaceFiles.length ? 'Selected workspace' : 'No workspace selected'),
+        access: workspaceAccessLabel(),
+        count: workspaceFiles.length,
+        selectedCount: workspaceSelectedPaths.size || workspaceFiles.length,
+        pendingEditCount: pendingEdits.length,
+        writable: Boolean(nativeWorkspace?.writable || workspaceHandle || getNativeFileBridge()?.writeFiles || getNativeFileBridge()?.writeFile)
+      };
+    }
+
+    function listCommandWorkspaceFiles(filter = '', limit = 80) {
+      const query = String(filter || '').trim().toLowerCase();
+      return workspaceFiles
+        .filter(file => !query || file.path.toLowerCase().includes(query))
+        .slice(0, limit)
+        .map(file => ({
+          path: file.path,
+          size: file.size || 0,
+          selected: workspaceSelectedPaths.has(file.path)
+        }));
+    }
+
+    async function readCommandWorkspaceFile(path) {
+      const entry = resolveWorkspaceEntry(path);
+      if (!entry) throw new Error(`Workspace file not found: ${path}`);
+      const content = await readWorkspaceEntry(entry);
+      return { path: entry.path, content, size: content.length };
+    }
+
+    function stageCommandEdit(path, content) {
+      const clean = normalizeWorkspacePath(path);
+      const text = String(content ?? '');
+      if (!clean) throw new Error('Add a relative file path after /write.');
+      if (!text) throw new Error('Add replacement content after the file path.');
+      pendingEdits = normalizeEditPayload([...pendingEdits, { path: clean, content: text }]);
+      renderPendingEdits();
+      showToast(`Staged ${clean}. Review, then apply.`);
+      return { path: clean, count: pendingEdits.length };
+    }
+
+    function getCommandPendingEdits() {
+      return pendingEdits.map(edit => ({
+        path: edit.path,
+        size: String(edit.content || '').length
+      }));
+    }
+
+    function addCommandResultMessage(htmlContent) {
+      const msg = addMessage('ai', '');
+      msg.bubble.innerHTML = `<div class="command-result">${htmlContent}</div>`;
+      const meta = msg.row.querySelector('.message-meta');
+      if (meta) meta.remove();
+      scrollToBottom();
+    }
+
+    function submitCommandPrompt(prompt) {
+      const text = String(prompt || '').trim();
+      if (!text) return false;
+      els.userInput.value = text;
+      updateInputHeight();
+      setTimeout(() => {
+        if (typeof els.form.requestSubmit === 'function') els.form.requestSubmit();
+        else els.sendBtn.click();
+      }, 0);
+      return true;
+    }
+
     function bindEvents() {
       els.form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -2631,6 +2715,21 @@ window.clearPendingEdits = clearPendingEdits;
 window.closeContextPreview = closeContextPreview;
 window.copyContextPreview = copyContextPreview;
 window.toggleWorkspaceCollapse = toggleWorkspaceCollapse;
+window.updateInputHeight = updateInputHeight;
+window.SignalLMChatCommands = {
+  addResult: addCommandResultMessage,
+  toast: showToast,
+  getWorkspaceStatus: getCommandWorkspaceStatus,
+  listWorkspaceFiles: listCommandWorkspaceFiles,
+  readWorkspaceFile: readCommandWorkspaceFile,
+  stageEdit: stageCommandEdit,
+  getPendingEdits: getCommandPendingEdits,
+  applyPendingEdits,
+  clearPendingEdits,
+  clearWorkspace,
+  openWorkspace: openWorkspaceFromChat,
+  submitPrompt: submitCommandPrompt
+};
 
 window.addEventListener('settingsChanged', () => { settings = loadSettings(); if (settings.model) els.modelDisplay.textContent = settings.model; });
 
