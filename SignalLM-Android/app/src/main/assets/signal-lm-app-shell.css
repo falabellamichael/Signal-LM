@@ -742,3 +742,21 @@ body.keyboard-open #view-chat .workspace-file-row {
     max-height: min(34dvh, 160px);
   }
 }
+
+#view-chat .workspace-strip.collapsed,
+body.keyboard-open #view-chat .workspace-strip.collapsed {
+  position: static !important;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin: 0 !important;
+  max-height: none;
+  overflow: visible;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+
+#view-chat .workspace-strip.collapsed .workspace-body,
+body.keyboard-open #view-chat .workspace-strip.collapsed .workspace-body {
+  display: none !important;
+}
