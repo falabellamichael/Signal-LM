@@ -947,9 +947,34 @@ const STORAGE_KEYS = {
       }, { passive: true });
     }
 
+    function getInputHeightLimit() {
+      const maxHeight = parseFloat(getComputedStyle(els.userInput).maxHeight);
+      if (Number.isFinite(maxHeight) && maxHeight > 0) return maxHeight;
+      return document.body.classList.contains('keyboard-open') || document.body.classList.contains('composer-focused')
+        ? 190
+        : 150;
+    }
+
+    function syncComposerHeightVars(inputHeight) {
+      document.documentElement.style.setProperty('--input-height', inputHeight + 'px');
+      if (els.composerStack) {
+        document.documentElement.style.setProperty('--composer-height', els.composerStack.offsetHeight + 'px');
+      }
+    }
+
+    function keepComposerVisible() {
+      if (document.activeElement !== els.userInput || !els.composerStack) return;
+      requestAnimationFrame(() => {
+        els.composerStack.scrollIntoView({ block: 'end', inline: 'nearest' });
+      });
+    }
+
     function updateInputHeight() {
       els.userInput.style.height = 'auto';
-      els.userInput.style.height = Math.min(els.userInput.scrollHeight, 150) + 'px';
+      const newHeight = Math.min(els.userInput.scrollHeight, getInputHeightLimit());
+      els.userInput.style.height = newHeight + 'px';
+      syncComposerHeightVars(newHeight);
+      keepComposerVisible();
     }
 
     function syncRangeAndNumber(rangeEl, numberEl, valueEl, settingKey, min, max) {
@@ -2614,6 +2639,16 @@ Answer the user request using the workspace files above. When asked to modify fi
       });
 
       els.userInput.addEventListener('input', updateInputHeight);
+      els.userInput.addEventListener('focus', () => {
+        document.body.classList.add('composer-focused');
+        updateInputHeight();
+        setTimeout(keepComposerVisible, 80);
+        setTimeout(keepComposerVisible, 260);
+      });
+      els.userInput.addEventListener('blur', () => {
+        document.body.classList.remove('composer-focused');
+        setTimeout(updateInputHeight, 120);
+      });
 
       els.attachmentInput.addEventListener('change', () => {
         addAttachments(els.attachmentInput.files);
@@ -2790,6 +2825,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       renderPendingEdits();
       renderContextHelperStatus();
       loadModels();
+      updateInputHeight();
 
       const collapsed = localStorage.getItem('lmStudioLite.workspaceCollapsed.v1') === 'true';
       if (collapsed) {

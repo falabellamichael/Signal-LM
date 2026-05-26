@@ -608,3 +608,129 @@ html[data-theme="dark"] #view-chat .attach-btn:hover {
     align-self: center;
   }
 }
+
+/* Floating composer panels.
+   Workspace, context, pending edits, and attachments should not add height to
+   the composer stack. When a folder is packed and the textarea grows, keeping
+   these panels out of normal flow prevents the chat area from collapsing into
+   an empty gap. */
+
+#view-chat .composer-stack {
+  overflow: visible !important;
+}
+
+#view-chat .workspace-strip,
+#view-chat .pending-edits-panel,
+#view-chat .context-debug-panel,
+#view-chat .attachment-tray {
+  position: absolute !important;
+  left: max(0.65rem, var(--safe-left, 0px));
+  right: max(0.65rem, var(--safe-right, 0px));
+  bottom: calc(100% + 0.45rem);
+  margin: 0 !important;
+  max-height: min(45dvh, 380px);
+  overflow: auto;
+  z-index: 90;
+}
+
+#view-chat .workspace-strip.show,
+#view-chat .pending-edits-panel.show,
+#view-chat .context-debug-panel.show,
+#view-chat .attachment-tray.show {
+  display: flex;
+}
+
+#view-chat .workspace-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#view-chat .workspace-file-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(32dvh, 280px);
+}
+
+body.composer-focused #view-chat #user-input,
+body.keyboard-open #view-chat #user-input {
+  max-height: min(38dvh, 190px);
+}
+
+body.composer-focused #view-chat .composer-stack,
+body.keyboard-open #view-chat .composer-stack {
+  padding-bottom: calc(0.6rem + var(--safe-bottom, 0px)) !important;
+}
+
+body.keyboard-open #view-chat .workspace-strip,
+body.keyboard-open #view-chat .pending-edits-panel,
+body.keyboard-open #view-chat .context-debug-panel,
+body.keyboard-open #view-chat .attachment-tray {
+  max-height: min(34dvh, 260px);
+}
+
+body.keyboard-open #view-chat .workspace-file-row {
+  max-height: min(24dvh, 180px);
+}
+
+body.keyboard-open #view-chat .workspace-body {
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+body.keyboard-open #view-chat .workspace-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  margin-left: 0;
+  min-height: 28px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+body.keyboard-open #view-chat .workspace-actions::-webkit-scrollbar {
+  display: none;
+}
+
+body.keyboard-open #view-chat .workspace-actions .mini-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+body.keyboard-open #view-chat .workspace-context-status,
+body.keyboard-open #view-chat .context-helper-status {
+  display: none;
+}
+
+body.keyboard-open #view-chat .workspace-file-row {
+  flex: 1 1 auto;
+  min-height: 3.5rem;
+}
+
+@media (max-width: 520px) {
+  body.composer-focused #view-chat #user-input,
+  body.keyboard-open #view-chat #user-input {
+    max-height: min(36dvh, 176px);
+  }
+}
+
+@media (max-height: 640px) {
+  #view-chat .workspace-strip,
+  #view-chat .pending-edits-panel,
+  #view-chat .context-debug-panel,
+  #view-chat .attachment-tray {
+    max-height: min(38dvh, 260px);
+  }
+
+  #view-chat .workspace-file-row {
+    max-height: min(22dvh, 180px);
+  }
+}
+
+@media (max-height: 560px) {
+  body.composer-focused #view-chat #user-input,
+  body.keyboard-open #view-chat #user-input {
+    max-height: min(34dvh, 160px);
+  }
+}
