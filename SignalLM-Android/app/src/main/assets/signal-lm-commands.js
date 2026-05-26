@@ -1067,8 +1067,16 @@
           return;
         }
         addLocalSystemMessage(`Performing web search for: "${escapeHtml(query)}"...`);
-        if (window.LmStudioLiteWebSearch && typeof window.LmStudioLiteWebSearch.performSearch === 'function') {
-          window.LmStudioLiteWebSearch.performSearch(query);
+        if (window.LmStudioLiteWebSearch && typeof window.LmStudioLiteWebSearch.search === 'function') {
+          try {
+            const payload = await window.LmStudioLiteWebSearch.search(query);
+            const formatted = typeof window.LmStudioLiteWebSearch.formatForPrompt === 'function'
+              ? window.LmStudioLiteWebSearch.formatForPrompt(payload)
+              : JSON.stringify(payload, null, 2);
+            addLocalSystemMessage(`<strong>Web Search Results</strong><pre><code>${escapeHtml(formatted)}</code></pre>`);
+          } catch (error) {
+            addLocalSystemMessage(`Web search failed: ${escapeHtml(error.message || String(error))}`);
+          }
         } else {
           addLocalSystemMessage('Web search helper is not loaded or configured.');
         }

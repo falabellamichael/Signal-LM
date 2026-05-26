@@ -70,8 +70,10 @@
     window.__signalLmMcpPipelineChatPatch = true;
     const previous = window.collectWorkspaceContextForPrompt;
     window.collectWorkspaceContextForPrompt = async function (userText) {
-      const pipeline = await buildExecutedContext(userText);
       const existing = await previous.apply(this, arguments);
+      const pipeline = String(existing || '').includes('[BUILT-IN WEB SEARCH RESULTS]')
+        ? formatPipelineContext(userText, [])
+        : await buildExecutedContext(userText);
       return [pipeline, existing].filter(Boolean).join('\n\n');
     };
   }

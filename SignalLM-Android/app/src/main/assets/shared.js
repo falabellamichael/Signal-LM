@@ -167,7 +167,7 @@
   if (window.__signalLmWebSearchLoader) return;
   window.__signalLmWebSearchLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-web-search.js';
+  script.src = 'signal-lm-web-search.js?v=3';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM web search helper was not found.'); };
   document.head.appendChild(script);
@@ -177,7 +177,7 @@
   if (window.__signalLmMcpPipelineLoader) return;
   window.__signalLmMcpPipelineLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-pipeline.js';
+  script.src = 'signal-lm-mcp-pipeline.js?v=2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP pipeline helper was not found.'); };
   document.head.appendChild(script);

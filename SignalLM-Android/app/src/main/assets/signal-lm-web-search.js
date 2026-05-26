@@ -68,6 +68,18 @@
     return 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query);  
   }
 
+  function readerUrl(url) {
+    return 'https://r.jina.ai/http://' + url;
+  }
+
+  function corsProxyUrl(url) {
+    return 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+  }
+
+  function allOriginsUrl(url) {
+    return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+  }
+
   function getNativeBridge() {
     return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
   }
@@ -84,13 +96,22 @@
   }
 
   async function browserGet(url) {
-    let targetUrl = url;
+    const urls = [url];
     if (url.includes('duckduckgo.com')) {
-      targetUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+      urls.push(corsProxyUrl(url), readerUrl(url), allOriginsUrl(url));
     }
-    const response = await fetch(targetUrl, { method: 'GET' });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return await response.text();
+
+    let lastError = null;
+    for (const targetUrl of urls) {
+      try {
+        const response = await fetch(targetUrl, { method: 'GET' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return await response.text();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error('Browser fetch failed.');
   }
 
   async function getText(url, headers) {
@@ -210,10 +231,42 @@
     return results;
   }
 
+  function stripMarkdown(value) {
+    return stripTags(String(value || '')
+      .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+      .replace(/\[([^\]]+)]\(([^)]+)\)/g, '$1')
+      .replace(/[`*_>#-]+/g, ' '));
+  }
+
+  function parseDuckDuckGoMarkdown(markdown, query) {
+    const source = String(markdown || '');
+    if (!/Markdown Content:/i.test(source) && !/^##\s+\[[^\]]+]\([^)]+\)/m.test(source)) return [];
+    const matches = [...source.matchAll(/^##\s+\[([^\]]+)]\(([^)]+)\)/gm)];
+    const results = [];
+
+    matches.forEach((match, index) => {
+      if (results.length >= MAX_RESULTS) return;
+      const title = compact(stripMarkdown(match[1]), 120);
+      const url = normalizeResultUrl(match[2]);
+      const next = matches[index + 1];
+      const body = source.slice(match.index + match[0].length, next ? next.index : source.length);
+      const snippet = compact(stripMarkdown(body
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('![') && !/^Title:|^URL Source:|^Markdown Content:/i.test(line))
+        .join(' ')), 420);
+      if (title) pushUnique(results, { title, snippet, url: url || resultUrl(query) });
+    });
+
+    return results;
+  }
+
   function parseDuckDuckGoHtml(payload, query) {
     const domResults = parseDuckDuckGoHtmlWithDom(payload, query);
-    const results = domResults.length ? domResults : parseDuckDuckGoHtmlWithRegex(payload, query);
-    return { query, source: 'DuckDuckGo HTML search', url: resultUrl(query), results: results.slice(0, MAX_RESULTS) };
+    const regexResults = domResults.length ? [] : parseDuckDuckGoHtmlWithRegex(payload, query);
+    const markdownResults = domResults.length || regexResults.length ? [] : parseDuckDuckGoMarkdown(payload, query);
+    const results = domResults.length ? domResults : regexResults.length ? regexResults : markdownResults;
+    return { query, source: markdownResults.length ? 'DuckDuckGo reader search' : 'DuckDuckGo HTML search', url: resultUrl(query), results: results.slice(0, MAX_RESULTS) };
   }
 
   async function search(query) {
@@ -311,6 +364,7 @@
     const previous = window.collectWorkspaceContextForPrompt;
     window.collectWorkspaceContextForPrompt = async function (userText) {
       const existing = await previous.apply(this, arguments);
+      if (String(existing || '').includes('[BUILT-IN WEB SEARCH RESULTS]')) return existing;
       let webContext = '';
       try { webContext = await buildContextForText(userText); }
       catch (error) { webContext = '[BUILT-IN WEB SEARCH RESULTS]\nSearch failed: ' + (error.message || error) + '\n[END BUILT-IN WEB SEARCH RESULTS]'; }

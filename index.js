@@ -1344,6 +1344,24 @@ Silent helper selected context:
 ${fallback}${failedText}`;
     }
 
+    function exposePromptContextCollector() {
+      if (!window.collectWorkspaceContextForPrompt || window.collectWorkspaceContextForPrompt === collectPromptContextForPrompt) {
+        window.collectWorkspaceContextForPrompt = collectWorkspaceContextForPrompt;
+      }
+    }
+
+    async function collectPromptContextForPrompt(userText) {
+      const currentCollector = window.collectWorkspaceContextForPrompt;
+      if (
+        typeof currentCollector === 'function' &&
+        currentCollector !== collectWorkspaceContextForPrompt &&
+        currentCollector !== collectPromptContextForPrompt
+      ) {
+        return currentCollector(userText);
+      }
+      return collectWorkspaceContextForPrompt(userText);
+    }
+
     function shouldDropPriorMessageForWorkspace(message) {
       const text = String(message?.content || message?.displayContent || '').toLowerCase();
       return /no files attached|don't see any files|do not see any files|please share the files|upload them directly|paste their contents/.test(text);
@@ -1460,7 +1478,7 @@ Workspace context is present in the latest user message. Treat those files as at
 
       let workspaceContext = '';
       try {
-        workspaceContext = await collectWorkspaceContextForPrompt(text || userTurn.modelText || '');
+        workspaceContext = await collectPromptContextForPrompt(text || userTurn.modelText || '');
       } catch (error) {
         console.error(error);
         showToast('Workspace files were selected, but their contents could not be read. Try Select Files again.');
@@ -2220,7 +2238,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       const draft = els.userInput.value.trim() || 'List the files you can see in the workspace.';
       let workspaceContext = '';
       try {
-        workspaceContext = await collectWorkspaceContextForPrompt(draft);
+        workspaceContext = await collectPromptContextForPrompt(draft);
       } catch (error) {
         console.error(error);
         showToast('Could not build workspace debug context. Try Select Files again.');
@@ -2589,7 +2607,7 @@ Answer the user request using the workspace files above. When asked to modify fi
 
     async function getCommandContextPreview(draft = '') {
       const request = String(draft || '').trim() || 'List the files you can see in the workspace.';
-      const workspaceContext = await collectWorkspaceContextForPrompt(request);
+      const workspaceContext = await collectPromptContextForPrompt(request);
       const requestContent = workspaceContext
         ? attachWorkspaceContextToUserContent(request, workspaceContext)
         : request;
@@ -2826,6 +2844,7 @@ Answer the user request using the workspace files above. When asked to modify fi
         get: () => workspaceFiles,
         configurable: true
       });
+      exposePromptContextCollector();
 
       applySettingsToUI();
       bindEvents();
