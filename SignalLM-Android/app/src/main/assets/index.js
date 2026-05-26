@@ -1063,6 +1063,8 @@ const STORAGE_KEYS = {
         opt.value = settings.model || '';
         opt.textContent = settings.model || 'Set model in Settings';
         els.modelSelect.appendChild(opt);
+      }
+    }
 
     function buildWorkspaceEditInstruction() {
       return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced code block with the relative file path as the language identifier, like this: ```relative/path/to/file.html\ncontent here\n```. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
