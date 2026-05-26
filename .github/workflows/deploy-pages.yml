@@ -23,26 +23,27 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Prepare static site
         run: |
           mkdir -p _site
           cp index.html folders.html .nojekyll README.md ANDROID_VULKAN_RUNTIME.md SILENT_CONTEXT_HELPER.md _site/
-          cp shared.css index.css signal-lm-phone-chat.css editor.css mcp.css settings.css folders.css signal-lm-mcp-dark.css signal-lm-app-shell.css _site/
+          cp shared.css index.css editor.css mcp.css settings.css folders.css signal-lm-mcp-dark.css signal-lm-app-shell.css _site/
           cp shared.js index.js signal-lm-commands.js editor.js mcp.js settings.js folders.js _site/
           cp signal-lm-theme.js signal-lm-runtime-fix.js signal-lm-web-search.js signal-lm-mcp-pipeline.js _site/
           cp signal-lm-mcp-file-path.js signal-lm-json-edit-enforcer.js signal-lm-mcp-chat-bridge.js _site/
           cp -r libs _site/
 
       - name: Upload static site
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          include-hidden-files: true
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
