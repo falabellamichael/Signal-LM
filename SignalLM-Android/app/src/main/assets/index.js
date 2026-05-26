@@ -1057,13 +1057,14 @@ const STORAGE_KEYS = {
         setStatus('connected', 'Connected');
         updateRuntimeUi();
       } catch (error) {
-        console.error(error);
         els.modelSelect.innerHTML = '';
 
         const opt = document.createElement('option');
         opt.value = settings.model || '';
-        opt.textContent = settings.model || 'Set model in Settings';
+        opt.textContent = settings.model || 'Server offline';
         els.modelSelect.appendChild(opt);
+        setStatus('error', 'Offline');
+        updateRuntimeUi();
       }
     }
 
@@ -1770,7 +1771,7 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     async function readWorkspaceEntry(entry) {
-      if (typeof entry.content === 'string') return entry.content;
+      if (typeof entry.content === 'string' && entry.content !== '') return entry.content;
       if (entry.file) return readFileText(entry.file);
       if (entry.handle?.getFile) {
         const file = await entry.handle.getFile();
@@ -1783,6 +1784,7 @@ Answer the user request using the workspace files above. When asked to modify fi
         if (typeof result?.content === 'string') return result.content;
         if (typeof result?.text === 'string') return result.text;
       }
+      if (typeof entry.content === 'string') return entry.content;
       throw new Error(`Could not read ${entry.path}`);
     }
 

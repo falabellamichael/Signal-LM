@@ -114,11 +114,12 @@ public class MainActivity extends Activity {
                         "    });\n" +
                         "  };\n" +
                         "  window.lmStudioLiteNative.httpRequest = function(payload) {\n" +
+                        "    var json = typeof payload === 'string' ? payload : JSON.stringify(payload || {});\n" +
                         "    return new Promise(function(resolve, reject) {\n" +
                         "      var requestId = 'req_' + Math.random().toString(36).slice(2);\n" +
                         "      window['__httpResolve_' + requestId] = resolve;\n" +
                         "      window['__httpReject_' + requestId] = reject;\n" +
-                        "      window.lmStudioLiteNative.triggerHttpRequest(payload, requestId);\n" +
+                        "      window.lmStudioLiteNative.triggerHttpRequest(json, requestId);\n" +
                         "    });\n" +
                         "  };\n" +
                         "  window.lmStudioLiteNative.request = window.lmStudioLiteNative.httpRequest;\n" +
@@ -369,15 +370,13 @@ public class MainActivity extends Activity {
                             ext = name.toLowerCase();
                         }
                         if (compExts.contains(ext) && size <= 2 * 1024 * 1024) {
-                            Uri fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id);
-                            String content = readFileContent(fileUri);
-
                             JSONObject fileObj = new JSONObject();
                             fileObj.put("path", childPath);
                             fileObj.put("name", name);
                             fileObj.put("size", size);
                             fileObj.put("lastModified", lastModified);
-                            fileObj.put("content", content);
+                            // Do not read content during scan to avoid memory issues and giant JSON payloads.
+                            // The JS side will call readFile(path) when it actually needs the content.
                             filesArray.put(fileObj);
                         }
                     }

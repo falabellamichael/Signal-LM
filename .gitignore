@@ -5,6 +5,9 @@ build/
 app/build/
 .gradle
 
+# Node / browser test dependencies
+node_modules/
+
 # Android Studio / IntelliJ IDEA
 .idea/
 *.iml

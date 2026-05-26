@@ -319,12 +319,20 @@
   }
 
   function isMcpPage() {
-    return /(^|\/)mcp\.html$/i.test(location.pathname) || Boolean(document.querySelector('a.nav-link.active[href="mcp.html"]'));
+    return /(^|\/)mcp\.html$/i.test(location.pathname)
+      || location.hash === '#mcp'
+      || Boolean(document.querySelector('#view-mcp.active'))
+      || Boolean(document.querySelector('a.nav-link.active[href="#mcp"], a.nav-link.active[href="mcp.html"]'));
+  }
+
+  function getMcpGrid() {
+    const view = document.getElementById('view-mcp') || document;
+    return view.querySelector('.grid');
   }
 
   function installMcpPanel() {
     if (window.__signalLmWebSearchMcpPanel || !isMcpPage()) return;
-    const grid = document.querySelector('.grid');
+    const grid = getMcpGrid();
     if (!grid) return;
     window.__signalLmWebSearchMcpPanel = true;
 
@@ -370,6 +378,7 @@
 
   const timer = setInterval(installWhenReady, 200);
   setTimeout(() => clearInterval(timer), 15000);
+  window.addEventListener('hashchange', installWhenReady);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installWhenReady);
   else installWhenReady();
 })();
