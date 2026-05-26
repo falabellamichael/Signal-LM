@@ -2014,6 +2014,16 @@ Answer the user request using the workspace files above. When asked to modify fi
       }
     }
 
+    function handleWorkspaceSelectAllToggle(checkbox) {
+      if (!workspaceFiles.length) return;
+      if (checkbox.checked) {
+        workspaceFiles.forEach(file => workspaceSelectedPaths.add(file.path));
+      } else {
+        workspaceSelectedPaths.clear();
+      }
+      renderWorkspaceStrip();
+    }
+
     function selectWorkspaceFilesFallback() {
       els.workspaceFilesInput.click();
     }
@@ -2243,6 +2253,11 @@ Answer the user request using the workspace files above. When asked to modify fi
         els.workspaceContextStatus.textContent = workspaceFiles.length
           ? `${selectedCount || workspaceFiles.length} selected file${(selectedCount || workspaceFiles.length) === 1 ? '' : 's'} will be inserted directly into the next user message. Older “no files attached” replies are ignored for workspace requests.`
           : 'Select a folder or files to attach workspace context to the next prompt.';
+      }
+      const allCheckbox = document.getElementById('workspace-select-all-checkbox');
+      if (allCheckbox) {
+        allCheckbox.disabled = !workspaceFiles.length;
+        allCheckbox.checked = workspaceFiles.length > 0 && workspaceFiles.every(file => workspaceSelectedPaths.has(file.path));
       }
       renderContextHelperStatus();
       renderWorkspaceFiles();
@@ -2895,6 +2910,7 @@ window.openWorkspaceFromChat = openWorkspaceFromChat;
 window.selectWorkspaceFilesFallback = selectWorkspaceFilesFallback;
 window.previewChatContext = previewChatContext;
 window.toggleContextHelper = toggleContextHelper;
+window.handleWorkspaceSelectAllToggle = handleWorkspaceSelectAllToggle;
 window.clearWorkspace = clearWorkspace;
 window.openAttachmentPicker = openAttachmentPicker;
 window.applyPendingEdits = applyPendingEdits;

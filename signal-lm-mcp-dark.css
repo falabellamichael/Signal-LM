@@ -136,6 +136,7 @@ html[data-theme="dark"] .commands-dropdown {
 
 html[data-theme="dark"] .ghost-btn:hover,
 html[data-theme="dark"] .meta-btn:hover,
+html[data-theme="dark"] .workspace-toggle-all:hover,
 html[data-theme="dark"] .header-actions button:hover {
   background: var(--accent-soft) !important;
   color: var(--accent) !important;
@@ -268,7 +269,8 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 
 html[data-theme="dark"] .workspace-file-chip,
 html[data-theme="dark"] .file-chip,
-html[data-theme="dark"] .edit-chip {
+html[data-theme="dark"] .edit-chip,
+html[data-theme="dark"] .workspace-toggle-all {
   background: var(--surface-muted) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-color) !important;

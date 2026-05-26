@@ -701,6 +701,7 @@ body.keyboard-open #view-chat .workspace-actions::-webkit-scrollbar {
   display: none;
 }
 
+body.keyboard-open #view-chat .workspace-actions .workspace-toggle-all,
 body.keyboard-open #view-chat .workspace-actions .mini-btn {
   flex: 0 0 auto;
   white-space: nowrap;
