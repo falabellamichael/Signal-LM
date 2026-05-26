@@ -7,6 +7,7 @@
   var LEGACY_MCP_PATH_MARKER = '[MCP FILESYSTEM PATH]';
   var LEGACY_MCP_TARGET_MARKER = '[MCP FILESYSTEM TARGET]';
   var FETCH_PATCH_FLAG = '__signalLmMcpFilePathFetchPatch';
+  var nativeModelsCache = { url: '', at: 0, models: [] };
 
   function readSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
@@ -263,6 +264,133 @@
     return next;
   }
 
+  function nativeModelsUrlFromChatUrl(resource) {
+    var url = requestUrl(resource);
+    return url.replace(/\/chat([?#].*)?$/i, '/models$1');
+  }
+
+  function parseNativeModels(payload) {
+    var list = [];
+    if (Array.isArray(payload)) list = payload;
+    else if (Array.isArray(payload && payload.data)) list = payload.data;
+    else if (Array.isArray(payload && payload.models)) list = payload.models;
+
+    return list.map(function (model) {
+      if (typeof model === 'string') return model;
+      if (!model || typeof model !== 'object') return '';
+      return model.id || model.model || model.name || model.identifier || model.path || '';
+    }).map(function (id) {
+      return String(id || '').trim();
+    }).filter(Boolean);
+  }
+
+  function modelCompareKey(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/^[^/]+\//, '')
+      .replace(/:[0-9]+$/, '')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+
+  function selectReplacementModel(currentModel, models) {
+    var current = String(currentModel || '').trim();
+    if (!models.length) return '';
+    if (current && models.indexOf(current) !== -1) return current;
+
+    var currentKey = modelCompareKey(current);
+    if (currentKey) {
+      var fuzzy = models.find(function (model) {
+        var key = modelCompareKey(model);
+        return key && (key === currentKey || key.indexOf(currentKey) !== -1 || currentKey.indexOf(key) !== -1);
+      });
+      if (fuzzy) return fuzzy;
+    }
+
+    return models[0];
+  }
+
+  function updateSelectedModel(model) {
+    var value = String(model || '').trim();
+    if (!value) return;
+    var settings = readSettings();
+    if (settings.model === value) return;
+    settings.model = value;
+    writeSettings(settings);
+
+    var display = document.getElementById('model-display');
+    if (display) display.textContent = value;
+
+    var select = document.getElementById('model-select');
+    if (select) {
+      var exists = Array.from(select.options || []).some(function (option) { return option.value === value; });
+      if (!exists) {
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      }
+      select.value = value;
+    }
+  }
+
+  async function fetchNativeModels(originalFetch, resource, init, force) {
+    var url = nativeModelsUrlFromChatUrl(resource);
+    var now = Date.now();
+    if (!force && nativeModelsCache.url === url && nativeModelsCache.models.length && now - nativeModelsCache.at < 30000) {
+      return nativeModelsCache.models.slice();
+    }
+
+    var headers = new Headers(init && init.headers ? init.headers : {});
+    headers.delete('Content-Type');
+    var response = await originalFetch(url, { method: 'GET', headers: headers });
+    if (!response.ok) return [];
+    var payload = await response.json().catch(function () { return null; });
+    var models = parseNativeModels(payload);
+    nativeModelsCache = { url: url, at: Date.now(), models: models.slice() };
+    return models;
+  }
+
+  async function resolveNativeMcpModel(originalFetch, resource, init, body, force) {
+    var current = body && body.model ? body.model : readSettings().model;
+    var models = await fetchNativeModels(originalFetch, resource, init, force);
+    var selected = selectReplacementModel(current, models);
+    if (selected && selected !== current) {
+      updateSelectedModel(selected);
+      resetNativeMcpThread();
+      showToast('MCP model changed to downloaded model: ' + selected);
+    }
+    return selected;
+  }
+
+  async function responseLooksLikeModelNotFound(response) {
+    if (!response || response.ok) return false;
+    if (response.status !== 400 && response.status !== 404 && response.status !== 422) return false;
+    var text = await response.clone().text().catch(function () { return ''; });
+    return /model_not_found|invalid model identifier|valid downloaded model|model .*not.*found|downloaded model/i.test(text);
+  }
+
+  async function sendNativeMcpChat(originalFetch, resource, init, parsed) {
+    syncThreadToCurrentTarget();
+    var injected = injectMcpFilePathIntoBody(parsed);
+
+    if (!injected.model) {
+      var initialModel = await resolveNativeMcpModel(originalFetch, resource, init, injected, false);
+      if (initialModel) injected.model = initialModel;
+    }
+
+    var firstResponse = await originalFetch(resource, cloneFetchInit(init, injected));
+    if (!(await responseLooksLikeModelNotFound(firstResponse))) return firstResponse;
+
+    var replacement = await resolveNativeMcpModel(originalFetch, resource, init, injected, true);
+    if (!replacement || replacement === injected.model) return firstResponse;
+
+    injected.model = replacement;
+    delete injected.response_id;
+    resetNativeMcpThread();
+    showToast('Retrying MCP with downloaded model: ' + replacement);
+    return originalFetch(resource, cloneFetchInit(init, injected));
+  }
+
   function installNativeMcpFetchPatch() {
     if (window[FETCH_PATCH_FLAG] || typeof window.fetch !== 'function') return;
     window[FETCH_PATCH_FLAG] = true;
@@ -274,9 +402,7 @@
         if (typeof rawBody === 'string' && rawBody.trim().charAt(0) === '{') {
           var parsed = JSON.parse(rawBody);
           if (isNativeMcpChatRequest(resource, init, parsed)) {
-            syncThreadToCurrentTarget();
-            var injected = injectMcpFilePathIntoBody(parsed);
-            return originalFetch(resource, cloneFetchInit(init, injected));
+            return sendNativeMcpChat(originalFetch, resource, init, parsed);
           }
         }
       } catch (error) {
