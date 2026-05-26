@@ -103,13 +103,57 @@
     var saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.id = 'save-mcp-file-path';
-    saveBtn.textContent = 'Save MCP File Path';
+    saveBtn.textContent = 'Save Path';
+
+    var browseBtn = document.createElement('button');
+    browseBtn.type = 'button';
+    browseBtn.className = 'ghost-btn';
+    browseBtn.textContent = 'Browse File';
+    browseBtn.addEventListener('click', function () {
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.onchange = function (e) {
+        var file = e.target.files && e.target.files[0];
+        if (file) {
+          input.value = file.path || file.name;
+          saveMcpFilePath(input.value);
+          enhanceRequestPreview();
+          showToast('File path updated.');
+        }
+      };
+      fileInput.click();
+    });
+
+    var browseDirBtn = document.createElement('button');
+    browseDirBtn.type = 'button';
+    browseDirBtn.className = 'ghost-btn';
+    browseDirBtn.textContent = 'Browse Folder';
+    browseDirBtn.addEventListener('click', function () {
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.webkitdirectory = true;
+      fileInput.onchange = function (e) {
+        var file = e.target.files && e.target.files[0];
+        if (file) {
+          var pathStr = file.path ? file.path.replace(/[\/\\][^\/\\]+$/, '') : (file.webkitRelativePath ? file.webkitRelativePath.split('/')[0] : file.name);
+          input.value = pathStr;
+          saveMcpFilePath(input.value);
+          enhanceRequestPreview();
+          showToast('Folder path updated.');
+        }
+      };
+      fileInput.click();
+    });
+
     var clearBtn = document.createElement('button');
     clearBtn.type = 'button';
     clearBtn.id = 'clear-mcp-file-path';
     clearBtn.className = 'ghost-btn';
     clearBtn.textContent = 'Clear';
+    
     row.appendChild(saveBtn);
+    row.appendChild(browseBtn);
+    row.appendChild(browseDirBtn);
     row.appendChild(clearBtn);
     card.appendChild(row);
 
