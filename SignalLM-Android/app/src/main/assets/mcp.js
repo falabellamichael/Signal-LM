@@ -55,6 +55,7 @@ const STORAGE_KEYS = {
 
     function saveSettings() {
       localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+      window.dispatchEvent(new Event('settingsChanged'));
     }
 
     function normalizeBaseUrl(url) {

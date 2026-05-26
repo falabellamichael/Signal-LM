@@ -2625,5 +2625,5 @@ window.toggleWorkspaceCollapse = toggleWorkspaceCollapse;
 
 window.addEventListener('settingsChanged', () => { settings = loadSettings(); if (settings.model) els.modelDisplay.textContent = settings.model; });
 
-window.addEventListener('workspaceSelected', () => { loadWorkspaceContext(); });
+window.addEventListener('workspaceSelected', () => { hydrateFileContext(); loadWorkspaceHandle(); });
 })();

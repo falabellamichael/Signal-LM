@@ -38,12 +38,12 @@ const STORAGE_KEYS = {
       defaultModel: document.getElementById('default-model'),
       temperature: document.getElementById('temperature'),
       topP: document.getElementById('top-p'),
-      maxTokens: document.getElementById('max-tokens'),
-      systemPrompt: document.getElementById('system-prompt'),
+      maxTokens: document.getElementById('settings-max-tokens'),
+      systemPrompt: document.getElementById('settings-system-prompt'),
       persistChat: document.getElementById('persist-chat'),
-      statusPill: document.getElementById('status-pill'),
-      statusText: document.getElementById('status-text'),
-      statusDetail: document.getElementById('status-detail'),
+      statusPill: document.getElementById('settings-status-pill'),
+      statusText: document.getElementById('settings-status-text'),
+      statusDetail: document.getElementById('settings-status-detail'),
       modelList: document.getElementById('model-list'),
       toast: document.getElementById('toast'),
       themeSelect: document.getElementById('theme-select'),
@@ -51,13 +51,13 @@ const STORAGE_KEYS = {
       contextHelperMode: document.getElementById('context-helper-mode'),
       contextHelperMaxSnippets: document.getElementById('context-helper-max-snippets'),
       contextHelperMaxChars: document.getElementById('context-helper-max-chars'),
-      runtimeMode: document.getElementById('runtime-mode'),
-      hybridStrategy: document.getElementById('hybrid-strategy'),
-      hybridFallbackMs: document.getElementById('hybrid-fallback-ms'),
-      androidThreads: document.getElementById('android-threads'),
-      androidGpuLayers: document.getElementById('android-gpu-layers'),
-      androidContextLength: document.getElementById('android-context-length'),
-      androidBatchSize: document.getElementById('android-batch-size')
+      runtimeMode: document.getElementById('settings-runtime-mode'),
+      hybridStrategy: document.getElementById('settings-hybrid-strategy'),
+      hybridFallbackMs: document.getElementById('settings-hybrid-fallback-ms'),
+      androidThreads: document.getElementById('settings-android-threads'),
+      androidGpuLayers: document.getElementById('settings-android-gpu-layers'),
+      androidContextLength: document.getElementById('settings-android-context-length'),
+      androidBatchSize: document.getElementById('settings-android-batch-size')
     };
 
     function loadSettings() {
@@ -70,6 +70,7 @@ const STORAGE_KEYS = {
 
     function saveSettings() {
       localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+      window.dispatchEvent(new Event('settingsChanged'));
     }
 
     function normalizeBaseUrl(url) {

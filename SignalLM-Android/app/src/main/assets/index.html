@@ -505,8 +505,8 @@
         <section class="card">
           <h2>Android Runtime</h2>
           <div class="input-group">
-            <label for="runtime-mode">Runtime Mode</label>
-            <select id="runtime-mode">
+            <label for="settings-runtime-mode">Runtime Mode</label>
+            <select id="settings-runtime-mode">
               <option value="server">LM Studio server</option>
               <option value="hybrid">Hybrid boost · PC primary + Android support</option>
               <option value="android-vulkan">Android Vulkan local only</option>
@@ -515,8 +515,8 @@
           </div>
 
           <div class="input-group">
-            <label for="hybrid-strategy">Hybrid Strategy</label>
-            <select id="hybrid-strategy">
+            <label for="settings-hybrid-strategy">Hybrid Strategy</label>
+            <select id="settings-hybrid-strategy">
               <option value="fallback">PC first, phone fallback on slow/fail</option>
               <option value="race">Run PC + phone in parallel, use first reply</option>
             </select>
@@ -524,29 +524,29 @@
           </div>
 
           <div class="input-group">
-            <label for="hybrid-fallback-ms">PC Timeout Before Phone Fallback (ms)</label>
-            <input id="hybrid-fallback-ms" type="number" min="1000" max="120000" step="500" />
+            <label for="settings-hybrid-fallback-ms">PC Timeout Before Phone Fallback (ms)</label>
+            <input id="settings-hybrid-fallback-ms" type="number" min="1000" max="120000" step="500" />
           </div>
 
           <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
             <div class="input-group">
-              <label for="android-threads">CPU Threads</label>
-              <input id="android-threads" type="number" min="1" max="16" step="1" />
+              <label for="settings-android-threads">CPU Threads</label>
+              <input id="settings-android-threads" type="number" min="1" max="16" step="1" />
             </div>
             <div class="input-group">
-              <label for="android-gpu-layers">GPU Layers</label>
-              <input id="android-gpu-layers" type="number" min="0" max="999" step="1" />
+              <label for="settings-android-gpu-layers">GPU Layers</label>
+              <input id="settings-android-gpu-layers" type="number" min="0" max="999" step="1" />
             </div>
           </div>
 
           <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
             <div class="input-group">
-              <label for="android-context-length">Context Length</label>
-              <input id="android-context-length" type="number" min="1024" max="32768" step="512" />
+              <label for="settings-android-context-length">Context Length</label>
+              <input id="settings-android-context-length" type="number" min="1024" max="32768" step="512" />
             </div>
             <div class="input-group">
-              <label for="android-batch-size">Batch Size</label>
-              <input id="android-batch-size" type="number" min="32" max="2048" step="32" />
+              <label for="settings-android-batch-size">Batch Size</label>
+              <input id="settings-android-batch-size" type="number" min="32" max="2048" step="32" />
             </div>
           </div>
 
@@ -611,13 +611,13 @@
           </div>
 
           <div class="input-group">
-            <label for="max-tokens">Max Tokens</label>
-            <input id="max-tokens" type="number" min="1" step="1" />
+            <label for="settings-max-tokens">Max Tokens</label>
+            <input id="settings-max-tokens" type="number" min="1" step="1" />
           </div>
 
           <div class="input-group">
-            <label for="system-prompt">System Prompt</label>
-            <textarea id="system-prompt"></textarea>
+            <label for="settings-system-prompt">System Prompt</label>
+            <textarea id="settings-system-prompt"></textarea>
           </div>
 
           <div class="switch-row">
@@ -640,8 +640,8 @@
         <section class="card">
           <h2>Runtime Status</h2>
           <div class="status-card">
-            <span class="status-pill checking" id="status-pill"><span class="status-dot"></span><span id="status-text">Not tested</span></span>
-            <p class="hint" id="status-detail">Run a test to check the selected server or Android runtime.</p>
+            <span class="status-pill checking" id="settings-status-pill"><span class="status-dot"></span><span id="settings-status-text">Not tested</span></span>
+            <p class="hint" id="settings-status-detail">Run a test to check the selected server or Android runtime.</p>
           </div>
         </section>
 
