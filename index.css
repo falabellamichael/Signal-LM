@@ -819,7 +819,7 @@
       border-top: none;
       display: flex;
       gap: 0.5rem;
-      align-items: flex-end;
+      align-items: center;
     }
 
     .composer-shell {
@@ -1144,16 +1144,32 @@
 
     .attach-btn {
       flex: 0 0 auto;
-      width: 38px;
-      min-width: 38px;
-      min-height: 38px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      min-height: 34px;
       padding: 0;
-      border-radius: 50%;
-      background: #fff;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.15s ease, transform 0.15s ease;
+      align-self: center;
+    }
+
+    .attach-btn:hover {
       color: var(--accent);
-      border: 1px solid var(--border-color);
-      font-size: 1.2rem;
-      line-height: 1;
+      background: transparent;
+      transform: scale(1.08);
+    }
+
+    .attach-icon {
+      width: 20px;
+      height: 20px;
+      display: block;
     }
 
     .hidden-input { display: none !important; }
