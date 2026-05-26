@@ -23,10 +23,50 @@
       usage: '/edit path/to/file.js make the header smaller'
     },
     {
+      name: '/patch',
+      desc: 'Stage a direct find/replace patch for a workspace file',
+      acceptsArgs: true,
+      usage: '/patch path/to/file.js old text => new text'
+    },
+    {
+      name: '/replace',
+      desc: 'Alias for /patch find/replace staging',
+      acceptsArgs: true,
+      usage: '/replace path/to/file.js old text => new text'
+    },
+    {
       name: '/write',
       desc: 'Stage a complete file replacement for review',
       acceptsArgs: true,
       usage: '/write path/to/file.txt replacement text'
+    },
+    {
+      name: '/append',
+      desc: 'Append text to a workspace file and stage the result',
+      acceptsArgs: true,
+      usage: '/append notes.md new line to add'
+    },
+    {
+      name: '/find',
+      desc: 'Search workspace paths and file contents',
+      acceptsArgs: true,
+      usage: '/find functionName'
+    },
+    {
+      name: '/tree',
+      desc: 'Show a compact workspace tree',
+      acceptsArgs: true,
+      usage: '/tree css'
+    },
+    {
+      name: '/stats',
+      desc: 'Show workspace file counts and extension stats'
+    },
+    {
+      name: '/context',
+      desc: 'Preview the workspace context that will be sent',
+      acceptsArgs: true,
+      usage: '/context fix the chat layout'
     },
     {
       name: '/apply',
@@ -45,6 +85,88 @@
       desc: 'Show workspace and staged edit status'
     },
     {
+      name: '/tools',
+      desc: 'List built-in tools available without MCP'
+    },
+    {
+      name: '/review',
+      desc: 'Ask the model for a code review using workspace context',
+      acceptsArgs: true,
+      usage: '/review focus on mobile bugs'
+    },
+    {
+      name: '/security',
+      desc: 'Ask for a security review of the loaded workspace',
+      acceptsArgs: true,
+      usage: '/security check auth and uploads'
+    },
+    {
+      name: '/tests',
+      desc: 'Ask for a focused test plan or test code',
+      acceptsArgs: true,
+      usage: '/tests for slash commands'
+    },
+    {
+      name: '/explain',
+      desc: 'Ask the model to explain a file or system',
+      acceptsArgs: true,
+      usage: '/explain index.js chat flow'
+    },
+    {
+      name: '/summarize',
+      desc: 'Ask for a concise summary of workspace or file context',
+      acceptsArgs: true,
+      usage: '/summarize recent UI changes'
+    },
+    {
+      name: '/refactor',
+      desc: 'Ask for a refactor plan or replacement code',
+      acceptsArgs: true,
+      usage: '/refactor index.js reduce duplication'
+    },
+    {
+      name: '/debug',
+      desc: 'Ask for debugging steps using current workspace context',
+      acceptsArgs: true,
+      usage: '/debug dropdown is clipped'
+    },
+    {
+      name: '/docs',
+      desc: 'Ask for docs, README, or usage text',
+      acceptsArgs: true,
+      usage: '/docs write command help'
+    },
+    {
+      name: '/report',
+      desc: 'Ask for a structured report',
+      acceptsArgs: true,
+      usage: '/report project status'
+    },
+    {
+      name: '/data',
+      desc: 'Ask for data analysis or CSV/chart guidance',
+      acceptsArgs: true,
+      usage: '/data analyze attached CSV'
+    },
+    {
+      name: '/commit',
+      desc: 'Ask for commit message, changelog, or PR text',
+      acceptsArgs: true,
+      usage: '/commit summarize staged UI changes'
+    },
+    {
+      name: '/android',
+      desc: 'Ask for Android/Capacitor/WebView help',
+      acceptsArgs: true,
+      usage: '/android check WebView layout'
+    },
+    {
+      name: '/supabase',
+      desc: 'Ask for Supabase auth/storage/RLS guidance',
+      acceptsArgs: true,
+      usage: '/supabase review upload security'
+    },
+    {
       name: '/model',
       desc: 'Select or manage LLM models',
       subcommands: [
@@ -59,6 +181,9 @@
         { name: 'select', desc: 'Select a folder from device' },
         { name: 'list', desc: 'List workspace files', acceptsArgs: true },
         { name: 'read', desc: 'Read a workspace file', acceptsArgs: true },
+        { name: 'find', desc: 'Search workspace files', acceptsArgs: true },
+        { name: 'tree', desc: 'Show workspace tree', acceptsArgs: true },
+        { name: 'stats', desc: 'Show workspace stats' },
         { name: 'clear', desc: 'Clear loaded workspace files' },
         { name: 'status', desc: 'Show workspace file counts & status' }
       ]
@@ -93,6 +218,61 @@
       desc: 'Clear active chat message history'
     }
   ];
+
+  const PROMPT_TOOLS = {
+    '/review': {
+      title: 'Code Review',
+      prompt: (args) => `Review the loaded workspace or named files for bugs, regressions, maintainability issues, performance problems, and missing tests.\n\nFocus: ${args || 'general code review'}\n\nReturn findings first, ordered by severity, with file paths and exact code references when possible.`
+    },
+    '/security': {
+      title: 'Security Review',
+      prompt: (args) => `Audit the loaded workspace for security issues.\n\nFocus: ${args || 'auth, storage, secrets, unsafe inputs, network calls, and client/server trust boundaries'}\n\nCall out any Supabase RLS, storage bucket, token exposure, upload, or WebView risks if relevant.`
+    },
+    '/tests': {
+      title: 'Test Planner',
+      prompt: (args) => `Create focused tests or a manual test checklist for this workspace.\n\nTarget: ${args || 'the current app behavior'}\n\nPrefer concrete test cases, expected results, and any useful code snippets.`
+    },
+    '/explain': {
+      title: 'Explainer',
+      prompt: (args) => `Explain the requested file, feature, or system using the loaded workspace context.\n\nTopic: ${args || 'the current app architecture'}\n\nKeep it practical and point to relevant files or functions.`
+    },
+    '/summarize': {
+      title: 'Summarizer',
+      prompt: (args) => `Summarize the loaded workspace or selected files.\n\nFocus: ${args || 'what this project does, important files, and current risks'}\n\nKeep it concise but useful.`
+    },
+    '/refactor': {
+      title: 'Refactor Assistant',
+      prompt: (args) => `Propose a safe refactor for the loaded workspace.\n\nGoal: ${args || 'improve readability and reduce duplication'}\n\nPreserve behavior. If code changes are needed, return complete replacement blocks for the affected files.`
+    },
+    '/debug': {
+      title: 'Debugger',
+      prompt: (args) => `Debug this issue using the loaded workspace context.\n\nIssue: ${args || 'describe likely causes and next checks'}\n\nPrioritize concrete causes, affected files, and one clear fix path.`
+    },
+    '/docs': {
+      title: 'Docs Writer',
+      prompt: (args) => `Write or improve documentation for this project.\n\nNeed: ${args || 'usage notes and developer documentation'}\n\nMake it copy/paste-ready and grounded in the loaded workspace.`
+    },
+    '/report': {
+      title: 'Report Writer',
+      prompt: (args) => `Write a structured report.\n\nTopic: ${args || 'project status, risks, and next steps'}\n\nUse clear headings and concise recommendations.`
+    },
+    '/data': {
+      title: 'Data Analyst',
+      prompt: (args) => `Analyze the loaded data or CSV-like files.\n\nQuestion: ${args || 'find patterns, issues, and useful summaries'}\n\nIf charts would help, describe the chart and the data columns needed.`
+    },
+    '/commit': {
+      title: 'Commit Helper',
+      prompt: (args) => `Draft a commit message, PR description, changelog entry, or release note.\n\nContext: ${args || 'the current workspace changes'}\n\nUse concise professional wording. Do not mention AI or generated wording.`
+    },
+    '/android': {
+      title: 'Android Helper',
+      prompt: (args) => `Review Android, Capacitor, or WebView behavior for this project.\n\nIssue: ${args || 'layout, build, permissions, and WebView integration'}\n\nTreat the app as web-first unless the problem is clearly native.`
+    },
+    '/supabase': {
+      title: 'Supabase Helper',
+      prompt: (args) => `Review Supabase-related behavior.\n\nIssue: ${args || 'auth, uploads, storage, RLS, signed URLs, and ownership checks'}\n\nSeparate client-side UX checks from real server-side enforcement.`
+    }
+  };
 
   let dropdown = null;
   let input = null;
@@ -243,6 +423,102 @@
     }
   }
 
+  function renderBuiltInTools() {
+    const directTools = [
+      '/select', '/status', '/list', '/tree', '/find', '/read', '/write', '/append', '/patch', '/replace', '/pending', '/apply', '/context', '/stats'
+    ];
+    const promptTools = Object.keys(PROMPT_TOOLS);
+    addLocalSystemMessage(
+      '<strong>Built-in Tools</strong>' +
+      '<p>These run inside Signal-LM without an MCP integration. File-changing tools stage edits for review before applying.</p>' +
+      `<strong>Local tools</strong><ul>${directTools.map(name => `<li><code>${escapeHtml(name)}</code> ${escapeHtml(COMMANDS.find(cmd => cmd.name === name)?.desc || '')}</li>`).join('')}</ul>` +
+      `<strong>Prompt tools</strong><ul>${promptTools.map(name => `<li><code>${escapeHtml(name)}</code> ${escapeHtml(COMMANDS.find(cmd => cmd.name === name)?.desc || '')}</li>`).join('')}</ul>`
+    );
+  }
+
+  function renderWorkspaceStats() {
+    const api = runtime();
+    const stats = typeof api.getWorkspaceStats === 'function' ? api.getWorkspaceStats() : null;
+    if (!stats || !stats.count) {
+      addLocalSystemMessage('No workspace files are loaded. Use <code>/select</code> first.');
+      return;
+    }
+    const rows = stats.byExtension.slice(0, 24)
+      .map(item => `<li><code>${escapeHtml(item.extension)}</code>: ${item.count} file${item.count === 1 ? '' : 's'} (${fileSizeLabel(item.bytes)})</li>`)
+      .join('');
+    addLocalSystemMessage(
+      `<strong>Workspace Stats</strong><ul>` +
+      `<li>Name: <code>${escapeHtml(stats.name)}</code></li>` +
+      `<li>Files: ${Number(stats.count || 0).toLocaleString()}</li>` +
+      `<li>Selected for chat: ${Number(stats.selectedCount || 0).toLocaleString()}</li>` +
+      `<li>Total listed size: ${fileSizeLabel(stats.totalBytes)}</li>` +
+      `</ul><strong>Extensions</strong><ul>${rows}</ul>`
+    );
+  }
+
+  function renderWorkspaceTree(filter = '') {
+    const api = runtime();
+    const tree = typeof api.getWorkspaceTree === 'function' ? api.getWorkspaceTree(filter, 220) : null;
+    if (!tree || !tree.lines.length) {
+      addLocalSystemMessage(filter
+        ? `No workspace tree entries match <code>${escapeHtml(filter)}</code>.`
+        : 'No workspace files are loaded. Use <code>/select</code> first.');
+      return;
+    }
+    const suffix = tree.truncated ? `\n\n[Showing ${tree.shown} of ${tree.total} files.]` : '';
+    addLocalSystemMessage(`<strong>Workspace Tree${filter ? ` matching "${escapeHtml(filter)}"` : ''}</strong><pre><code>${escapeHtml(tree.lines.join('\n') + suffix)}</code></pre>`);
+  }
+
+  async function renderWorkspaceFind(query) {
+    if (!query) {
+      showUsage(commandUsage('/find'));
+      return;
+    }
+    const api = runtime();
+    if (typeof api.searchWorkspace !== 'function') {
+      addLocalSystemMessage('Workspace search is unavailable on this page.');
+      return;
+    }
+    try {
+      const results = await api.searchWorkspace(query, 60);
+      if (!results.length) {
+        addLocalSystemMessage(`No workspace matches for <code>${escapeHtml(query)}</code>.`);
+        return;
+      }
+      const rows = results.map(result => {
+        const line = result.line ? `:${result.line}` : '';
+        return `<li><code>${escapeHtml(result.path)}${line}</code> ${escapeHtml(result.preview || '')}</li>`;
+      }).join('');
+      addLocalSystemMessage(`<strong>Find: ${escapeHtml(query)}</strong><ul>${rows}</ul>`);
+    } catch (error) {
+      addLocalSystemMessage(escapeHtml(error.message || 'Search failed.'));
+    }
+  }
+
+  async function renderContextPreview(draft) {
+    const api = runtime();
+    if (typeof api.getContextPreview !== 'function') {
+      addLocalSystemMessage('Context preview is unavailable on this page.');
+      return;
+    }
+    try {
+      const context = await api.getContextPreview(draft);
+      const maxChars = 12000;
+      const preview = context.preview.length > maxChars
+        ? context.preview.slice(0, maxChars) + '\n\n[Context preview clipped for display.]'
+        : context.preview;
+      addLocalSystemMessage(
+        `<strong>Context Preview</strong><ul>` +
+        `<li>Workspace files: ${Number(context.files || 0).toLocaleString()}</li>` +
+        `<li>Selected: ${Number(context.selectedCount || 0).toLocaleString()}</li>` +
+        `<li>Preview size: ${Number(context.length || 0).toLocaleString()} characters</li>` +
+        `</ul><pre><code>${escapeHtml(preview)}</code></pre>`
+      );
+    } catch (error) {
+      addLocalSystemMessage(escapeHtml(error.message || 'Could not build context preview.'));
+    }
+  }
+
   function stageWrite(path, content) {
     if (!path || !content) {
       showUsage(commandUsage('/write'), 'This stages a full replacement, then you can review and apply it.');
@@ -261,6 +537,53 @@
     }
   }
 
+  async function stageAppend(path, content) {
+    if (!path || !content) {
+      showUsage(commandUsage('/append'), 'This reads the current file, appends text, and stages the full replacement.');
+      return;
+    }
+    const api = runtime();
+    if (typeof api.stageAppend !== 'function') {
+      addLocalSystemMessage('Append is unavailable on this page.');
+      return;
+    }
+    try {
+      const result = await api.stageAppend(path, content);
+      addLocalSystemMessage(`Appended text and staged <code>${escapeHtml(result.path)}</code>. Review, then run <code>/apply</code>.`);
+    } catch (error) {
+      addLocalSystemMessage(escapeHtml(error.message || 'Could not stage append.'));
+    }
+  }
+
+  function parseFindReplace(rest) {
+    const marker = rest.indexOf('=>');
+    if (marker === -1) return null;
+    return {
+      find: rest.slice(0, marker).trim(),
+      replacement: rest.slice(marker + 2).trim()
+    };
+  }
+
+  async function stagePatch(commandName, raw) {
+    const parsed = parsePathAndRemainder(raw, commandName);
+    const change = parseFindReplace(parsed.rest);
+    if (!parsed.path || !change || !change.find) {
+      showUsage(commandUsage(commandName), 'This stages a direct find/replace patch. The original text must match exactly.');
+      return;
+    }
+    const api = runtime();
+    if (typeof api.stageReplace !== 'function') {
+      addLocalSystemMessage('Patch is unavailable on this page.');
+      return;
+    }
+    try {
+      const result = await api.stageReplace(parsed.path, change.find, change.replacement);
+      addLocalSystemMessage(`Patched and staged <code>${escapeHtml(result.path)}</code>. Review, then run <code>/apply</code>.`);
+    } catch (error) {
+      addLocalSystemMessage(escapeHtml(error.message || 'Could not stage patch.'));
+    }
+  }
+
   function submitEditPrompt(path, instruction) {
     if (!path || !instruction) {
       showUsage(commandUsage('/edit'), 'This asks the model to produce a replacement for the named workspace file.');
@@ -273,6 +596,19 @@
     }
     const prompt = `Edit ${path}.\n\nRequest: ${instruction}\n\nReturn a complete replacement for ${path} in a fenced code block whose language/header is the relative file path. Preserve unrelated behavior.`;
     if (!api.submitPrompt(prompt)) addLocalSystemMessage('Could not submit the edit prompt.');
+  }
+
+  function submitPromptTool(commandName, args) {
+    const tool = PROMPT_TOOLS[commandName];
+    if (!tool) return false;
+    const api = runtime();
+    if (typeof api.submitPrompt !== 'function') {
+      addLocalSystemMessage('The chat submit hook is unavailable on this page.');
+      return true;
+    }
+    const prompt = `[Built-in tool: ${tool.title}]\n\n${tool.prompt(args)}`;
+    if (!api.submitPrompt(prompt)) addLocalSystemMessage(`Could not submit ${escapeHtml(commandName)}.`);
+    return true;
   }
 
   function renderPendingEdits() {
@@ -527,6 +863,11 @@
       return;
     }
 
+    if (cmd === '/tools') {
+      renderBuiltInTools();
+      return;
+    }
+
     if (cmd === '/select') {
       const api = runtime();
       if (typeof api.openWorkspace === 'function') api.openWorkspace();
@@ -536,6 +877,21 @@
 
     if (cmd === '/status') {
       renderWorkspaceStatus();
+      return;
+    }
+
+    if (cmd === '/stats') {
+      renderWorkspaceStats();
+      return;
+    }
+
+    if (cmd === '/tree') {
+      renderWorkspaceTree(args);
+      return;
+    }
+
+    if (cmd === '/find') {
+      await renderWorkspaceFind(args);
       return;
     }
 
@@ -549,15 +905,31 @@
       return;
     }
 
+    if (cmd === '/patch' || cmd === '/replace') {
+      await stagePatch(cmd, raw);
+      return;
+    }
+
     if (cmd === '/write') {
       const parsed = parsePathAndRemainder(raw, '/write');
       stageWrite(parsed.path, parsed.rest);
       return;
     }
 
+    if (cmd === '/append') {
+      const parsed = parsePathAndRemainder(raw, '/append');
+      await stageAppend(parsed.path, parsed.rest);
+      return;
+    }
+
     if (cmd === '/edit') {
       const parsed = parsePathAndRemainder(raw, '/edit');
       submitEditPrompt(parsed.path, parsed.rest);
+      return;
+    }
+
+    if (cmd === '/context') {
+      await renderContextPreview(args);
       return;
     }
 
@@ -570,6 +942,10 @@
 
     if (cmd === '/pending') {
       renderPendingEdits();
+      return;
+    }
+
+    if (submitPromptTool(cmd, args)) {
       return;
     }
 
@@ -618,6 +994,12 @@
         renderWorkspaceList(parts.slice(2).join(' '));
       } else if (sub === 'read') {
         await renderWorkspaceRead(parts.slice(2).join(' '));
+      } else if (sub === 'find') {
+        await renderWorkspaceFind(parts.slice(2).join(' '));
+      } else if (sub === 'tree') {
+        renderWorkspaceTree(parts.slice(2).join(' '));
+      } else if (sub === 'stats') {
+        renderWorkspaceStats();
       } else if (sub === 'clear') {
         const api = runtime();
         if (typeof api.clearWorkspace === 'function') {
@@ -626,7 +1008,7 @@
       } else if (sub === 'status') {
         renderWorkspaceStatus();
       } else {
-        addLocalSystemMessage('Usage:<br><code>/workspace select</code><br><code>/workspace list [filter]</code><br><code>/workspace read &lt;path&gt;</code><br><code>/workspace status</code><br><code>/workspace clear</code>');
+        addLocalSystemMessage('Usage:<br><code>/workspace select</code><br><code>/workspace list [filter]</code><br><code>/workspace read &lt;path&gt;</code><br><code>/workspace find &lt;term&gt;</code><br><code>/workspace tree [filter]</code><br><code>/workspace stats</code><br><code>/workspace status</code><br><code>/workspace clear</code>');
       }
       return;
     }

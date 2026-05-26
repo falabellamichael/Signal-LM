@@ -2457,6 +2457,77 @@ Answer the user request using the workspace files above. When asked to modify fi
       return { path: entry.path, content, size: content.length };
     }
 
+    function getCommandWorkspaceStats() {
+      const byExtension = new Map();
+      let totalBytes = 0;
+      workspaceFiles.forEach(file => {
+        const ext = fileExtension(file.path) || '[none]';
+        const current = byExtension.get(ext) || { extension: ext, count: 0, bytes: 0 };
+        current.count += 1;
+        current.bytes += file.size || 0;
+        totalBytes += file.size || 0;
+        byExtension.set(ext, current);
+      });
+      return {
+        name: workspaceHandle?.name || workspaceInfo?.name || 'Selected workspace',
+        count: workspaceFiles.length,
+        selectedCount: workspaceSelectedPaths.size || workspaceFiles.length,
+        totalBytes,
+        byExtension: [...byExtension.values()].sort((a, b) => b.count - a.count || a.extension.localeCompare(b.extension))
+      };
+    }
+
+    function getCommandWorkspaceTree(filter = '', limit = 220) {
+      const query = String(filter || '').trim().toLowerCase();
+      const files = workspaceFiles
+        .filter(file => !query || file.path.toLowerCase().includes(query))
+        .slice(0, limit);
+      return {
+        total: workspaceFiles.length,
+        shown: files.length,
+        truncated: workspaceFiles.length > files.length,
+        lines: files.map(file => {
+          const parts = file.path.split('/').filter(Boolean);
+          const indent = '  '.repeat(Math.max(0, parts.length - 1));
+          const marker = workspaceSelectedPaths.has(file.path) ? '* ' : '';
+          return `${indent}${marker}${parts[parts.length - 1] || file.path}`;
+        })
+      };
+    }
+
+    async function searchCommandWorkspace(query, limit = 60) {
+      const needle = String(query || '').trim().toLowerCase();
+      if (!needle) throw new Error('Add a search term after /find.');
+      const results = [];
+      for (const file of workspaceFiles) {
+        if (results.length >= limit) break;
+        const pathMatch = file.path.toLowerCase().includes(needle);
+        if (pathMatch) {
+          results.push({ path: file.path, type: 'path', line: null, preview: file.path });
+        }
+        if (results.length >= limit) break;
+        try {
+          const content = await readWorkspaceEntry(file);
+          const lines = String(content || '').split(/\r?\n/);
+          let matchesInFile = 0;
+          for (let index = 0; index < lines.length; index++) {
+            if (results.length >= limit || matchesInFile >= 4) break;
+            const line = lines[index];
+            if (line.toLowerCase().includes(needle)) {
+              results.push({
+                path: file.path,
+                type: 'content',
+                line: index + 1,
+                preview: line.trim().slice(0, 220)
+              });
+              matchesInFile++;
+            }
+          }
+        } catch {}
+      }
+      return results;
+    }
+
     function stageCommandEdit(path, content) {
       const clean = normalizeWorkspacePath(path);
       const text = String(content ?? '');
@@ -2466,6 +2537,43 @@ Answer the user request using the workspace files above. When asked to modify fi
       renderPendingEdits();
       showToast(`Staged ${clean}. Review, then apply.`);
       return { path: clean, count: pendingEdits.length };
+    }
+
+    async function stageCommandAppend(path, content) {
+      const clean = normalizeWorkspacePath(path);
+      const text = String(content ?? '');
+      if (!clean) throw new Error('Add a relative file path after /append.');
+      if (!text) throw new Error('Add text to append after the file path.');
+      const entry = resolveWorkspaceEntry(clean);
+      const existing = entry ? await readWorkspaceEntry(entry) : '';
+      const next = existing ? existing + (existing.endsWith('\n') ? '' : '\n') + text : text;
+      return stageCommandEdit(entry?.path || clean, next);
+    }
+
+    async function stageCommandReplace(path, findText, replacementText) {
+      const entry = resolveWorkspaceEntry(path);
+      if (!entry) throw new Error(`Workspace file not found: ${path}`);
+      const find = String(findText ?? '');
+      if (!find) throw new Error('Add text to find before the => marker.');
+      const existing = await readWorkspaceEntry(entry);
+      if (!existing.includes(find)) throw new Error(`Could not find that text in ${entry.path}.`);
+      return stageCommandEdit(entry.path, existing.split(find).join(String(replacementText ?? '')));
+    }
+
+    async function getCommandContextPreview(draft = '') {
+      const request = String(draft || '').trim() || 'List the files you can see in the workspace.';
+      const workspaceContext = await collectWorkspaceContextForPrompt(request);
+      const requestContent = workspaceContext
+        ? attachWorkspaceContextToUserContent(request, workspaceContext)
+        : request;
+      const requestMessages = await collectRequestMessages([{ role: 'user', content: requestContent }], workspaceContext);
+      const preview = buildContextPreviewText(requestMessages);
+      return {
+        preview,
+        files: workspaceFiles.length,
+        selectedCount: workspaceSelectedPaths.size || workspaceFiles.length,
+        length: preview.length
+      };
     }
 
     function getCommandPendingEdits() {
@@ -2722,7 +2830,13 @@ window.SignalLMChatCommands = {
   getWorkspaceStatus: getCommandWorkspaceStatus,
   listWorkspaceFiles: listCommandWorkspaceFiles,
   readWorkspaceFile: readCommandWorkspaceFile,
+  getWorkspaceStats: getCommandWorkspaceStats,
+  getWorkspaceTree: getCommandWorkspaceTree,
+  searchWorkspace: searchCommandWorkspace,
   stageEdit: stageCommandEdit,
+  stageAppend: stageCommandAppend,
+  stageReplace: stageCommandReplace,
+  getContextPreview: getCommandContextPreview,
   getPendingEdits: getCommandPendingEdits,
   applyPendingEdits,
   clearPendingEdits,
