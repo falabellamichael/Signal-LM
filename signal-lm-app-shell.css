@@ -735,15 +735,30 @@ body.keyboard-open #view-chat .workspace-file-row {
   }
 }
 
+#view-chat .composer-stack.workspace-attached {
+  gap: 0;
+}
+
 #view-chat .workspace-strip.collapsed,
 body.keyboard-open #view-chat .workspace-strip.collapsed {
   position: static !important;
+  align-self: flex-start;
+  width: calc(100% - 52px);
+  max-width: calc(100% - 52px);
   left: auto;
   right: auto;
   bottom: auto;
   margin: 0 !important;
+  min-height: 34px;
   max-height: none;
-  overflow: visible;
+  padding: 0.34rem 0.72rem 0.24rem;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  background: #fff;
+  box-shadow: none;
+  backdrop-filter: none;
   z-index: 1;
   flex: 0 0 auto;
 }
@@ -751,4 +766,58 @@ body.keyboard-open #view-chat .workspace-strip.collapsed {
 #view-chat .workspace-strip.collapsed .workspace-body,
 body.keyboard-open #view-chat .workspace-strip.collapsed .workspace-body {
   display: none !important;
+}
+
+#view-chat .workspace-strip.collapsed .workspace-header {
+  min-height: 26px;
+  gap: 0.45rem;
+  overflow: hidden;
+}
+
+#view-chat .workspace-strip.collapsed strong {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#view-chat .workspace-strip.collapsed #workspace-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+}
+
+#view-chat .workspace-strip.collapsed #workspace-collapse-btn {
+  flex: 0 0 auto;
+  min-height: 22px;
+  margin-left: 0.25rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+#view-chat .workspace-strip.collapsed ~ .input-area .composer-shell {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top-color: var(--border-color);
+}
+
+html[data-theme="dark"] #view-chat .workspace-strip.collapsed {
+  background: #111113;
+  border-color: #3a3a40;
+}
+
+html[data-theme="dark"] #view-chat .workspace-strip.collapsed ~ .input-area .composer-shell {
+  border-top-color: #3a3a40;
+}
+
+@media (max-width: 520px) {
+  #view-chat .workspace-strip.collapsed,
+  body.keyboard-open #view-chat .workspace-strip.collapsed {
+    width: calc(100% - 46px);
+    max-width: calc(100% - 46px);
+    border-radius: 20px 20px 0 0;
+  }
 }

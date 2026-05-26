@@ -2178,6 +2178,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       const name = workspaceHandle?.name || workspaceInfo?.name || (workspaceFiles.length ? 'Selected workspace' : '');
       if (!name && !workspaceFiles.length) {
         els.workspaceStrip.classList.remove('show');
+        setWorkspaceCollapsedState(false);
         renderPendingEdits();
         return;
       }
@@ -2794,14 +2795,22 @@ Answer the user request using the workspace files above. When asked to modify fi
       }
     }
 
-    function toggleWorkspaceCollapse() {
+    function setWorkspaceCollapsedState(isCollapsed) {
       const strip = document.getElementById('workspace-strip');
       const body = document.getElementById('workspace-body');
       const btn = document.getElementById('workspace-collapse-btn');
       if (!strip || !body || !btn) return;
-      const isCollapsed = strip.classList.toggle('collapsed');
+      strip.classList.toggle('collapsed', isCollapsed);
+      els.composerStack?.classList.toggle('workspace-attached', isCollapsed);
       body.style.display = isCollapsed ? 'none' : 'flex';
       btn.textContent = isCollapsed ? 'Show' : 'Hide';
+    }
+
+    function toggleWorkspaceCollapse() {
+      const strip = document.getElementById('workspace-strip');
+      if (!strip) return;
+      const isCollapsed = !strip.classList.contains('collapsed');
+      setWorkspaceCollapsedState(isCollapsed);
       localStorage.setItem('lmStudioLite.workspaceCollapsed.v1', isCollapsed ? 'true' : 'false');
     }
 
@@ -2829,14 +2838,7 @@ Answer the user request using the workspace files above. When asked to modify fi
 
       const collapsed = localStorage.getItem('lmStudioLite.workspaceCollapsed.v1') === 'true';
       if (collapsed) {
-        const strip = document.getElementById('workspace-strip');
-        const body = document.getElementById('workspace-body');
-        const btn = document.getElementById('workspace-collapse-btn');
-        if (strip && body && btn) {
-          strip.classList.add('collapsed');
-          body.style.display = 'none';
-          btn.textContent = 'Show';
-        }
+        setWorkspaceCollapsedState(true);
       }
     }
 
