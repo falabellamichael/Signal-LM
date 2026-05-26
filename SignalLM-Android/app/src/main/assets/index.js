@@ -655,8 +655,14 @@ const STORAGE_KEYS = {
       return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
     }
 
+    function normalizeMessageDisplayText(text) {
+      return String(text || '')
+        .replace(/^(?:[ \t]*\r?\n)+/, '')
+        .replace(/(?:\r?\n[ \t]*)+$/, '');
+    }
+
     function renderMessageText(text) {
-      const escaped = escapeHtml(text || '');
+      const escaped = escapeHtml(normalizeMessageDisplayText(text));
       const parts = escaped.split('```');
       
       if (parts.length === 1) {
