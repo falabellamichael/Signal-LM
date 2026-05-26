@@ -514,6 +514,29 @@
     try { window.dispatchEvent(new CustomEvent('workspaceSelected', { detail: data })); } catch (error) { try { window.dispatchEvent(new Event('workspaceSelected')); } catch (ignored) {} }
   }
 
+  function canUseBrowserDirectoryPicker() {
+    return typeof window.showDirectoryPicker === 'function' && window.isSecureContext;
+  }
+
+  function loadBrowserWorkspaceFromDirectoryHandle(directoryHandle) {
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.loadWorkspaceDirectoryHandle === 'function') {
+      return Promise.resolve(api.loadWorkspaceDirectoryHandle(directoryHandle, {
+        source: 'MCP selected browser folder',
+        writable: true
+      })).catch(function () {});
+    }
+    return Promise.resolve(null);
+  }
+
+  function loadBrowserWorkspaceFromFileList(fileList) {
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.loadWorkspaceFileList === 'function') {
+      return Promise.resolve(api.loadWorkspaceFileList(fileList, 'MCP selected browser folder')).catch(function () {});
+    }
+    return Promise.resolve(null);
+  }
+
   function installMcpPathPanel() {
     if (window.__signalLmMcpFilePathPanel || !isMcpPage()) return;
     var firstColumn = getMcpFirstColumn();
@@ -604,10 +627,25 @@
           showToast('Native folder picker failed or cancelled.');
         }
       } else {
+        if (canUseBrowserDirectoryPicker()) {
+          try {
+            var directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            if (!directoryHandle) return;
+            input.value = cleanPath(directoryHandle.name || input.value || 'Selected folder');
+            saveInputPath(input, 'folder', 'MCP folder target updated. MCP thread reset.', targetDetail);
+            await loadBrowserWorkspaceFromDirectoryHandle(directoryHandle);
+            showToast('MCP folder target updated and browser workspace attached.');
+            return;
+          } catch (error) {
+            if (error && error.name === 'AbortError') return;
+            showToast('Writable folder picker failed. Opening file/folder fallback.');
+          }
+        }
+
         var fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.webkitdirectory = true;
-        fileInput.onchange = function (e) {
+        fileInput.onchange = async function (e) {
           var file = e.target.files && e.target.files[0];
           if (!file) return;
           if (file.path) {
@@ -619,6 +657,7 @@
             return;
           }
           saveInputPath(input, 'folder', 'MCP folder target updated. MCP thread reset.', targetDetail);
+          await loadBrowserWorkspaceFromFileList(e.target.files);
         };
         fileInput.click();
       }

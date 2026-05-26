@@ -1903,6 +1903,30 @@ Answer the user request using the workspace files above. When asked to modify fi
       return files;
     }
 
+    async function loadWorkspaceDirectoryHandle(directoryHandle, info = {}) {
+      if (!directoryHandle || directoryHandle.kind !== 'directory' || typeof directoryHandle.entries !== 'function') {
+        showToast('Folder picker did not return a readable folder.');
+        return null;
+      }
+
+      workspaceHandle = directoryHandle;
+      try { await idbSet(WORKSPACE_HANDLE_KEY, workspaceHandle); } catch {}
+      nativeWorkspace = null;
+      const files = await scanDirectoryHandle(workspaceHandle);
+      setWorkspaceFiles(files, {
+        name: info.name || workspaceHandle.name || 'Selected folder',
+        source: info.source || 'browser folder handle',
+        writable: info.writable !== false
+      });
+      showToast(`Workspace selected: ${workspaceInfo.name}`);
+      return {
+        name: workspaceInfo.name,
+        count: workspaceFiles.length,
+        source: workspaceInfo.source,
+        writable: workspaceInfo.writable
+      };
+    }
+
     async function loadNativeWorkspace(result) {
       const parsed = typeof result === 'string' ? tryParseJson(result) : result;
       const data = Array.isArray(parsed) ? { files: parsed } : (parsed || {});
@@ -2300,16 +2324,11 @@ Answer the user request using the workspace files above. When asked to modify fi
 
       if ('showDirectoryPicker' in window && window.isSecureContext) {
         try {
-          workspaceHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-          await idbSet(WORKSPACE_HANDLE_KEY, workspaceHandle);
-          nativeWorkspace = null;
-          const files = await scanDirectoryHandle(workspaceHandle);
-          setWorkspaceFiles(files, {
-            name: workspaceHandle.name || 'Selected folder',
+          const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+          await loadWorkspaceDirectoryHandle(handle, {
             source: 'browser folder handle',
             writable: true
           });
-          showToast(`Workspace selected: ${workspaceInfo.name}`);
           return;
         } catch (error) {
           if (error.name === 'AbortError') return;
@@ -2899,6 +2918,8 @@ window.SignalLMChatCommands = {
   getContextPreview: getCommandContextPreview,
   getPendingEdits: getCommandPendingEdits,
   loadNativeWorkspace,
+  loadWorkspaceDirectoryHandle,
+  loadWorkspaceFileList: loadWorkspaceFromFileList,
   refreshWorkspace: loadWorkspaceHandle,
   applyPendingEdits,
   clearPendingEdits,
