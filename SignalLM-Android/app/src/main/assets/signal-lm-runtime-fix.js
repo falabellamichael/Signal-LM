@@ -16,10 +16,10 @@
 
   function installKeyboardCss() {
     if (document.getElementById('signal-lm-keyboard-css')) return;
-    if (!document.querySelector('.main-chat')) return;
+    if (!document.querySelector('.main-chat, .main-app')) return;
     var style = document.createElement('style');
     style.id = 'signal-lm-keyboard-css';
-    style.textContent = ':root{--viewport-offset-top:0px;--keyboard-inset:0px}@media(max-width:880px){html,body{height:var(--app-height);overflow:hidden;overscroll-behavior:none}#messages{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}.composer-stack{flex:0 0 auto;position:relative;z-index:35}.keyboard-open .composer-stack{padding-bottom:.55rem}}';
+    style.textContent = ':root{--viewport-offset-top:0px;--keyboard-inset:0px}@media(max-width:880px){html,body{height:var(--app-height);overflow:hidden;overscroll-behavior:none}.main-chat,.main-app{height:var(--app-height);max-height:var(--app-height)}#messages{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}.composer-stack{flex:0 0 auto;position:relative;z-index:35}.keyboard-open .composer-stack{padding-bottom:.55rem}}';
     document.head.appendChild(style);
   }
 
@@ -131,7 +131,7 @@
       }
       if (path) codeEdits.push({ path: path, content: fullContent });
     });
-    
+
     var normalizedCodeEdits = normalizeEdits(codeEdits);
     if (normalizedCodeEdits.length) return normalizedCodeEdits;
 
