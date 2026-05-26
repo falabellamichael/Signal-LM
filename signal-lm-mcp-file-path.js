@@ -2,7 +2,8 @@
   if (window.SignalLMMcpFilePath) return;
 
   var SETTINGS_KEY = 'lmStudioLite.settings.v1';
-  var MCP_PATH_MARKER = '[MCP FILESYSTEM PATH]';
+  var MCP_PATH_MARKER = '[MCP FILESYSTEM TARGET]';
+  var LEGACY_MCP_PATH_MARKER = '[MCP FILESYSTEM PATH]';
   var FETCH_PATCH_FLAG = '__signalLmMcpFilePathFetchPatch';
 
   function readSettings() {
@@ -19,6 +20,10 @@
     return String(path || '').trim().replace(/^["']|["']$/g, '').trim();
   }
 
+  function normalizeSlash(path) {
+    return cleanPath(path).replace(/\\/g, '/');
+  }
+
   function pathLooksAbsolute(path) {
     var value = cleanPath(path);
     return Boolean(
@@ -30,9 +35,10 @@
     );
   }
 
-  function saveMcpFilePath(path) {
+  function saveMcpFilePath(path, targetType) {
     var settings = readSettings();
     settings.mcpFilePath = cleanPath(path);
+    settings.mcpFileTargetType = cleanTargetType(targetType || settings.mcpFileTargetType || inferTargetType(path));
     writeSettings(settings);
     return settings;
   }
@@ -40,6 +46,37 @@
   function getMcpFilePath(settings) {
     var source = settings || readSettings();
     return cleanPath(source.mcpFilePath);
+  }
+
+  function cleanTargetType(value) {
+    var type = String(value || '').toLowerCase().trim();
+    if (type === 'file' || type === 'folder' || type === 'directory') return type === 'directory' ? 'folder' : type;
+    return 'target';
+  }
+
+  function inferTargetType(path) {
+    var value = cleanPath(path);
+    if (!value) return 'target';
+    if (/[\\/]$/.test(value)) return 'folder';
+    var last = value.split(/[\\/]/).pop() || '';
+    if (/\.[a-z0-9]{1,12}$/i.test(last)) return 'file';
+    return 'target';
+  }
+
+  function getMcpTargetType(settings) {
+    var source = settings || readSettings();
+    var explicit = cleanTargetType(source.mcpFileTargetType || source.mcpPathTargetType);
+    if (explicit !== 'target') return explicit;
+    return inferTargetType(getMcpFilePath(source));
+  }
+
+  function splitTargetPath(path) {
+    var raw = cleanPath(path);
+    var normalized = normalizeSlash(raw).replace(/\/+$/, '');
+    var index = normalized.lastIndexOf('/');
+    var parent = index > 0 ? normalized.slice(0, index) : index === 0 ? '/' : '';
+    var name = index >= 0 ? normalized.slice(index + 1) : normalized;
+    return { raw: raw, normalized: normalized || raw, parent: parent, name: name };
   }
 
   function mcpEnabled(settings) {
@@ -59,23 +96,37 @@
     var settings = readSettings();
     if (!mcpEnabled(settings)) return '';
     var path = getMcpFilePath(settings);
+    var targetType = getMcpTargetType(settings);
+    var parts = splitTargetPath(path);
+    var targetLabel = targetType === 'file' ? 'file' : targetType === 'folder' ? 'folder' : 'file or folder';
     var lines = [
       MCP_PATH_MARKER,
       'MCP is enabled. Browser workspace/folder access and MCP server filesystem access are separate.',
-      'The configured MCP File Path is the only project root that filesystem/project MCP tools should inspect.'
+      'The configured MCP File Path is the user-selected filesystem target. It may be a single file or an entire folder.'
     ];
 
     if (path) {
-      lines.push('Configured MCP File Path: ' + path);
-      lines.push('For every filesystem/project MCP tool call, pass this exact path as the root, cwd, directory, dir, path, or project path parameter when that parameter exists.');
-      lines.push('Do not let MCP tools default to their own working directory, package directory, server directory, or LM Studio skills directory.');
-      lines.push('Ignore tool results from paths outside the configured MCP File Path unless the user explicitly asks about MCP tool internals.');
-      lines.push('Wrong-target examples to avoid: .lmstudio/skills, MCP server source folders, node_modules, package install folders, and tool configuration folders.');
+      lines.push('Configured MCP Target Type: ' + targetLabel);
+      lines.push('Configured MCP Target Path: ' + path);
+      if (targetType === 'file') {
+        lines.push('Target Parent Folder: ' + (parts.parent || '<same directory as MCP server if relative>'));
+        lines.push('Target Filename: ' + (parts.name || '<selected file>'));
+        lines.push('For file read/edit/search tools, pass the exact Configured MCP Target Path when a file/path parameter exists.');
+        lines.push('If a tool separates root/cwd/directory from file/path, use Target Parent Folder for root/cwd/directory and Target Filename for the file/path parameter.');
+        lines.push('Do not replace the selected file target with the parent folder unless the tool API requires separate root and filename arguments.');
+      } else if (targetType === 'folder') {
+        lines.push('For directory/project/search/list tools, pass the exact Configured MCP Target Path as root/cwd/directory/path.');
+        lines.push('For file-specific tools, operate only inside this selected folder unless the user chooses a different MCP File Path.');
+      } else {
+        lines.push('Treat the configured path as the active target. If the tool can accept files, pass it exactly. If it requires a directory root and the path is a file, use the parent folder and the filename separately.');
+      }
+      lines.push('Do not let MCP tools default to their own working directory, package directory, server directory, LM Studio skills directory, or previous target.');
+      lines.push('If a tool response shows unrelated skill/tool files or a path outside the selected target, treat that as the wrong target and retry using the configured MCP File Path.');
     } else {
-      lines.push('No MCP File Path is configured. Do not use filesystem/project MCP tools yet. Ask the user to set MCP File Path on the MCP page, or use the browser workspace files already attached by the app.');
+      lines.push('No MCP File Path target is configured. Do not use filesystem/project MCP tools yet. Ask the user to choose a file/folder target on the MCP page, or use the browser workspace files already attached by the app.');
     }
 
-    lines.push('[END MCP FILESYSTEM PATH]');
+    lines.push('[END MCP FILESYSTEM TARGET]');
     return lines.join('\n');
   }
 
@@ -84,8 +135,13 @@
     if (!context) return '';
     return [
       context,
-      'Routing rule: MCP filesystem/project tools must target the configured MCP File Path, not the MCP tool server itself. If a tool response shows unrelated skill/tool files, treat that as a wrong root and retry with the configured MCP File Path.'
+      'Routing rule: MCP filesystem/project tools must target the configured MCP File Path selected by the user. The target can be either a file or a folder. Never inspect the MCP tool server itself unless the user explicitly asks for tool internals.'
     ].join('\n');
+  }
+
+  function hasMcpMarker(value) {
+    var text = String(value || '');
+    return text.indexOf(MCP_PATH_MARKER) !== -1 || text.indexOf(LEGACY_MCP_PATH_MARKER) !== -1;
   }
 
   function installChatContextPatch() {
@@ -116,14 +172,14 @@
     var current = String(existing || '').trim();
     var next = String(addition || '').trim();
     if (!next) return current;
-    if (current.indexOf(MCP_PATH_MARKER) !== -1) return current;
+    if (hasMcpMarker(current)) return current;
     return [current, next].filter(Boolean).join('\n\n');
   }
 
   function injectIntoStringInput(value) {
     var text = String(value || '');
     var context = formatMcpFilePathContext();
-    if (!context || text.indexOf(MCP_PATH_MARKER) !== -1) return text;
+    if (!context || hasMcpMarker(text)) return text;
     return [context, text].filter(Boolean).join('\n\n');
   }
 
@@ -138,7 +194,7 @@
     } else if (Array.isArray(next.input)) {
       var inserted = false;
       next.input = next.input.map(function (part) {
-        if (!inserted && part && part.type === 'text' && typeof part.text === 'string' && part.text.indexOf(MCP_PATH_MARKER) === -1) {
+        if (!inserted && part && part.type === 'text' && typeof part.text === 'string' && !hasMcpMarker(part.text)) {
           inserted = true;
           return Object.assign({}, part, { text: injectIntoStringInput(part.text) });
         }
@@ -149,7 +205,7 @@
 
     if (Array.isArray(next.messages)) {
       var hasMarker = next.messages.some(function (message) {
-        return String(message && message.content || '').indexOf(MCP_PATH_MARKER) !== -1;
+        return hasMcpMarker(message && message.content);
       });
       if (!hasMarker && systemPrompt) {
         next.messages = [{ role: 'system', content: systemPrompt }].concat(next.messages);
@@ -212,16 +268,44 @@
 
   function pickNativePath(data) {
     if (!data || typeof data !== 'object') return cleanPath(data);
+    if (Array.isArray(data.files) && data.files[0]) return pickNativePath(data.files[0]);
     return cleanPath(data.path || data.rootPath || data.absolutePath || data.filePath || data.folderPath || data.uri || data.name);
   }
 
-  function saveInputPath(input, successMessage) {
+  function updateTargetDetail(input, detail) {
+    if (!detail) return;
     var value = cleanPath(input.value);
-    saveMcpFilePath(value);
+    var settings = readSettings();
+    var targetType = getMcpTargetType(settings);
+    if (!value) {
+      detail.textContent = 'No MCP target selected. Choose any file or folder, then MCP tools will aim at that target.';
+      return;
+    }
+    var label = targetType === 'file' ? 'File target' : targetType === 'folder' ? 'Folder target' : 'Target';
+    detail.textContent = label + ': ' + value;
+  }
+
+  function saveInputPath(input, targetType, successMessage, detail) {
+    var value = cleanPath(input.value);
+    saveMcpFilePath(value, targetType);
     enhanceRequestPreview();
+    updateTargetDetail(input, detail);
     if (!value) showToast('MCP file path cleared.');
-    else if (!pathLooksAbsolute(value)) showToast('Saved, but MCP tools usually need a full absolute path.');
-    else showToast(successMessage || 'MCP file path saved.');
+    else if (!pathLooksAbsolute(value)) showToast('MCP target saved. If the MCP server cannot resolve it, paste the full absolute path.');
+    else showToast(successMessage || 'MCP target saved.');
+  }
+
+  function findNativePicker(bridge, names) {
+    if (!bridge) return null;
+    for (var i = 0; i < names.length; i++) {
+      if (typeof bridge[names[i]] === 'function') return names[i];
+    }
+    return null;
+  }
+
+  function callMaybeAsync(fn) {
+    var result = fn();
+    return result && typeof result.then === 'function' ? result : Promise.resolve(result);
   }
 
   function installMcpPathPanel() {
@@ -232,42 +316,61 @@
 
     var settings = readSettings();
     var card = make('section', 'card');
-    card.appendChild(make('h2', '', 'MCP File Path'));
+    card.appendChild(make('h2', '', 'MCP File Path / Target'));
 
     var group = make('div', 'input-group');
-    var label = make('label', '', 'Filesystem Path For MCP Tools');
+    var label = make('label', '', 'Target File Or Folder For MCP Tools');
     label.setAttribute('for', 'mcp-file-path');
     var input = document.createElement('input');
     input.id = 'mcp-file-path';
     input.value = getMcpFilePath(settings);
-    input.placeholder = '/storage/emulated/0/Download/Signal-LM or C:/Users/you/Signal-LM';
+    input.placeholder = '/storage/emulated/0/Download/file.js or C:/Users/you/project-folder';
     group.appendChild(label);
     group.appendChild(input);
-    group.appendChild(make('p', 'hint', 'This is the real path MCP filesystem/project tools should use as their root. Browser workspace files are separate. If a browser picker only returns a filename, paste the full absolute path manually.'));
+    group.appendChild(make('p', 'hint', 'Choose any file or folder as the active MCP target. File targets are passed as files; folder targets are passed as roots/directories. Browser pickers may only expose names, while the Android/native bridge can return real paths.'));
+    var targetDetail = make('p', 'hint');
+    targetDetail.id = 'mcp-file-target-detail';
+    group.appendChild(targetDetail);
     card.appendChild(group);
 
     var row = make('div', 'button-row');
     var saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.id = 'save-mcp-file-path';
-    saveBtn.textContent = 'Save Path';
+    saveBtn.textContent = 'Save Target';
 
     var browseBtn = document.createElement('button');
     browseBtn.type = 'button';
     browseBtn.className = 'ghost-btn';
     browseBtn.textContent = 'Browse File';
-    browseBtn.addEventListener('click', function () {
+    browseBtn.addEventListener('click', async function () {
+      var bridge = window.lmStudioLiteNative || window.NativeFileBridge || window.SignalLMNativeBridge;
+      var pickerName = findNativePicker(bridge, ['selectFile', 'pickFile', 'openFile', 'chooseFile']);
+      if (pickerName) {
+        try {
+          var result = await callMaybeAsync(function () { return bridge[pickerName](); });
+          var data = typeof result === 'string' ? JSON.parse(result) : result;
+          var selectedPath = pickNativePath(data);
+          if (selectedPath) {
+            input.value = selectedPath;
+            saveInputPath(input, 'file', 'MCP file target updated.', targetDetail);
+          } else {
+            showToast('Native file picker did not return a usable path.');
+          }
+          return;
+        } catch (error) {
+          showToast('Native file picker failed or cancelled.');
+          return;
+        }
+      }
+
       var fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.onchange = function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        if (file.path) {
-          input.value = String(file.path).replace(/[\/\\][^\/\\]+$/, '');
-          saveInputPath(input, 'MCP folder path updated.');
-        } else {
-          showToast('Browser file picker cannot expose the real MCP path. Paste the absolute path manually.');
-        }
+        input.value = cleanPath(file.path || file.webkitRelativePath || file.name);
+        saveInputPath(input, 'file', 'MCP file target updated.', targetDetail);
       };
       fileInput.click();
     });
@@ -278,15 +381,15 @@
     browseDirBtn.textContent = 'Browse Folder';
     browseDirBtn.addEventListener('click', async function () {
       var bridge = window.lmStudioLiteNative || window.NativeFileBridge || window.SignalLMNativeBridge;
-      if (bridge && typeof bridge.selectFolder === 'function') {
+      var pickerName = findNativePicker(bridge, ['selectFolder', 'pickFolder', 'openFolder', 'chooseFolder', 'selectDirectory']);
+      if (pickerName) {
         try {
-          var result = bridge.selectFolder();
-          if (result && typeof result.then === 'function') result = await result;
+          var result = await callMaybeAsync(function () { return bridge[pickerName](); });
           var data = typeof result === 'string' ? JSON.parse(result) : result;
           var selectedPath = pickNativePath(data);
           if (selectedPath) {
             input.value = selectedPath;
-            saveInputPath(input, 'MCP folder path updated.');
+            saveInputPath(input, 'folder', 'MCP folder target updated.', targetDetail);
           } else {
             showToast('Native folder picker did not return a usable path.');
           }
@@ -302,10 +405,10 @@
           if (!file) return;
           if (file.path) {
             input.value = String(file.path).replace(/[\/\\][^\/\\]+$/, '');
-            saveInputPath(input, 'MCP folder path updated.');
           } else {
-            showToast('Browser folder picker only exposes relative names. Paste the absolute MCP File Path manually.');
+            input.value = file.webkitRelativePath ? file.webkitRelativePath.split('/')[0] : file.name;
           }
+          saveInputPath(input, 'folder', 'MCP folder target updated.', targetDetail);
         };
         fileInput.click();
       }
@@ -327,14 +430,16 @@
     if (controlCard && controlCard.nextSibling) firstColumn.insertBefore(card, controlCard.nextSibling);
     else firstColumn.insertBefore(card, firstColumn.firstChild || null);
 
-    saveBtn.addEventListener('click', function () { saveInputPath(input, 'MCP file path saved.'); });
+    updateTargetDetail(input, targetDetail);
+    saveBtn.addEventListener('click', function () { saveInputPath(input, inferTargetType(input.value), 'MCP target saved.', targetDetail); });
     clearBtn.addEventListener('click', function () {
       input.value = '';
-      saveInputPath(input, 'MCP file path cleared.');
+      saveInputPath(input, 'target', 'MCP file path cleared.', targetDetail);
     });
     input.addEventListener('change', function () {
-      saveMcpFilePath(input.value);
+      saveMcpFilePath(input.value, inferTargetType(input.value));
       enhanceRequestPreview();
+      updateTargetDetail(input, targetDetail);
     });
   }
 
@@ -382,6 +487,7 @@
     readSettings: readSettings,
     saveMcpFilePath: saveMcpFilePath,
     getMcpFilePath: getMcpFilePath,
+    getMcpTargetType: getMcpTargetType,
     formatMcpFilePathContext: formatMcpFilePathContext,
     formatMcpFilePathSystemPrompt: formatMcpFilePathSystemPrompt,
     injectMcpFilePathIntoBody: injectMcpFilePathIntoBody,
