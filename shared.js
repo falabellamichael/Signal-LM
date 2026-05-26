@@ -187,7 +187,7 @@
   if (window.__signalLmMcpFilePathLoader) return;
   window.__signalLmMcpFilePathLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-file-path.js';
+  script.src = 'signal-lm-mcp-file-path.js?v=9';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP file path helper was not found.'); };
   document.head.appendChild(script);
@@ -207,7 +207,7 @@
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-chat-bridge.js?v=response-id-fix-1';
+  script.src = 'signal-lm-mcp-chat-bridge.js?v=content-uri-1';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP chat bridge was not found.'); };
   document.head.appendChild(script);

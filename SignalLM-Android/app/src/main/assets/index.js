@@ -2879,6 +2879,8 @@ window.SignalLMChatCommands = {
   stageReplace: stageCommandReplace,
   getContextPreview: getCommandContextPreview,
   getPendingEdits: getCommandPendingEdits,
+  loadNativeWorkspace,
+  refreshWorkspace: loadWorkspaceHandle,
   applyPendingEdits,
   clearPendingEdits,
   clearWorkspace,
@@ -2888,5 +2890,12 @@ window.SignalLMChatCommands = {
 
 window.addEventListener('settingsChanged', () => { settings = loadSettings(); if (settings.model) els.modelDisplay.textContent = settings.model; });
 
-window.addEventListener('workspaceSelected', () => { hydrateFileContext(); loadWorkspaceHandle(); });
+window.addEventListener('workspaceSelected', (event) => {
+  if (event?.detail && Array.isArray(event.detail.files)) {
+    loadNativeWorkspace(event.detail);
+    return;
+  }
+  hydrateFileContext();
+  loadWorkspaceHandle();
+});
 })();

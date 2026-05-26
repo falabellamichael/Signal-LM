@@ -48,19 +48,39 @@
     return String(settings.mcpFilePath || '').trim();
   }
 
+  function mcpFileTargetType(settings) {
+    const type = String(settings.mcpFileTargetType || settings.mcpPathTargetType || '').toLowerCase().trim();
+    if (type === 'file' || type === 'folder' || type === 'directory') return type === 'directory' ? 'folder' : type;
+    return 'target';
+  }
+
+  function isAndroidContentUri(path) {
+    return /^content:\/\//i.test(String(path || '').trim());
+  }
+
   function mcpFilePathContext(settings) {
     const path = mcpFilePath(settings);
+    const targetType = mcpFileTargetType(settings);
     const lines = [
-      '[MCP FILESYSTEM PATH]',
-      'MCP is enabled. Browser folder/workspace access is separate from MCP server filesystem access.'
+      '[SELECTED MCP TARGET]',
+      'This block defines the user-selected filesystem target for MCP tools.',
+      'It is NOT asking you to find an MCP tool file, MCP server path, MCP skill file, MCP config file, package directory, or LM Studio skills directory.'
     ];
     if (path) {
-      lines.push('Filesystem path for MCP tools: ' + path);
-      lines.push('When MCP filesystem/project tools need root/path/file_path arguments, use this exact path unless the user explicitly gives a different path.');
+      lines.push('Selected Target Type: ' + targetType);
+      lines.push('Selected Target Path: ' + path);
+      if (isAndroidContentUri(path)) {
+        lines.push('Selected Target URI Kind: Android Storage Access Framework content URI.');
+        lines.push('Desktop or remote MCP filesystem servers cannot open content:// URIs as normal file paths.');
+        lines.push('Do not translate this URI into a Windows path, LM Studio plugin path, MCP server working directory, skills directory, package directory, or any other desktop path.');
+        lines.push('Use app-attached Android workspace context for list/read/search/edit requests. If no workspace files are attached, ask the user to reselect the folder with /select or the MCP Browse Folder button.');
+      } else {
+        lines.push('When MCP filesystem/project tools need root/path/file_path arguments, use this exact path unless the user explicitly gives a different path.');
+      }
     } else {
-      lines.push('No MCP filesystem path is configured. Folder/workspace context can still work without MCP, but MCP filesystem tools need an explicit local path. Ask the user to set MCP File Path on the MCP page before using filesystem MCP tools.');
+      lines.push('No selected MCP target is configured. Do not use filesystem/project MCP tools yet. Ask the user to choose any file or folder target on the MCP page, or use the browser workspace files already attached by the app.');
     }
-    lines.push('[END MCP FILESYSTEM PATH]');
+    lines.push('[END SELECTED MCP TARGET]');
     return lines.join('\n');
   }
 
@@ -201,7 +221,7 @@
     };
   }
 
-  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, buildRequestBody, runMcpChat, install, nativeTemperature, nativeMaxOutputTokens, nativeContextLength, mcpFilePath, mcpFilePathContext };
+  window.SignalLMMcpChatBridge = { readSettings, buildIntegrations, buildRequestBody, runMcpChat, install, nativeTemperature, nativeMaxOutputTokens, nativeContextLength, mcpFilePath, mcpFileTargetType, mcpFilePathContext };
 
   const timer = setInterval(install, 200);
   setTimeout(() => clearInterval(timer), 8000);

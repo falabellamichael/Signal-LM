@@ -38,6 +38,10 @@
     );
   }
 
+  function isAndroidContentUri(path) {
+    return /^content:\/\//i.test(cleanPath(path));
+  }
+
   function cleanTargetType(value) {
     var type = String(value || '').toLowerCase().trim();
     if (type === 'file' || type === 'folder' || type === 'directory') return type === 'directory' ? 'folder' : type;
@@ -143,6 +147,12 @@
       lines.push('Selected Target Type: ' + targetLabel);
       lines.push('Selected Target Path: ' + path);
       lines.push('Selected Target Path Form: ' + (absolute ? 'absolute or URI-like' : 'browser-visible or relative label'));
+      if (isAndroidContentUri(path)) {
+        lines.push('Selected Target URI Kind: Android Storage Access Framework content URI.');
+        lines.push('Desktop or remote MCP filesystem servers cannot open content:// URIs as normal file paths.');
+        lines.push('Do not translate this URI into a Windows path, LM Studio plugin path, MCP server working directory, skills directory, package directory, or any other desktop path.');
+        lines.push('Use the app-attached Android workspace manifest and file contents for list/read/search/edit requests. If no workspace files are attached, ask the user to reselect the folder with /select or the MCP Browse Folder button.');
+      }
       lines.push('Target Revision: ' + (settings.mcpFileTargetRevision || 'current'));
       lines.push('This selected target supersedes any earlier path remembered in the MCP chat thread. The app resets the native MCP thread when the target changes.');
       if (!absolute) {
@@ -155,7 +165,11 @@
         lines.push('If a tool separates root/cwd/directory from file/path, use Target Parent Folder for root/cwd/directory and Target Filename for the file/path parameter.');
         lines.push('Do not replace the selected file target with an MCP tool file or with the MCP server working directory.');
       } else if (targetType === 'folder') {
-        lines.push('For directory/project/search/list tools, pass the exact Selected Target Path as root/cwd/directory/path.');
+        if (isAndroidContentUri(path)) {
+          lines.push('For directory/project/search/list tools, use the attached Android workspace context from this app. Do not call desktop MCP filesystem tools with the content:// URI.');
+        } else {
+          lines.push('For directory/project/search/list tools, pass the exact Selected Target Path as root/cwd/directory/path.');
+        }
         lines.push('For file-specific tools, operate only inside this selected folder unless the user chooses a different selected target.');
       } else {
         lines.push('Treat the selected path as the active target. If the tool accepts files, pass it exactly. If it requires a directory root and the selected path is a file, use the parent folder and filename separately.');
@@ -431,10 +445,14 @@
     return el;
   }
 
-  function pickNativePath(data) {
+  function pickNativePath(data, targetType) {
     if (!data || typeof data !== 'object') return cleanPath(data);
-    if (Array.isArray(data.files) && data.files[0]) return pickNativePath(data.files[0]);
-    return cleanPath(data.path || data.rootPath || data.absolutePath || data.filePath || data.folderPath || data.uri || data.name);
+    var type = cleanTargetType(targetType);
+    if (type === 'folder') {
+      return cleanPath(data.folderPath || data.rootPath || data.directoryPath || data.treeUri || data.uri || data.path || data.absolutePath || data.name);
+    }
+    if (Array.isArray(data.files) && data.files[0]) return pickNativePath(data.files[0], targetType);
+    return cleanPath(data.path || data.filePath || data.absolutePath || data.uri || data.rootPath || data.folderPath || data.name);
   }
 
   function updateTargetDetail(input, detail) {
@@ -471,6 +489,29 @@
   function callMaybeAsync(fn) {
     var result = fn();
     return result && typeof result.then === 'function' ? result : Promise.resolve(result);
+  }
+
+  function callNativePicker(bridge, pickerName) {
+    if (pickerName === 'triggerSelectFolder') {
+      return new Promise(function (resolve, reject) {
+        window.__selectFolderResolve = resolve;
+        window.__selectFolderReject = reject;
+        bridge.triggerSelectFolder();
+      });
+    }
+    return callMaybeAsync(function () { return bridge[pickerName](); });
+  }
+
+  function loadNativeWorkspaceFromPickerData(data) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.files)) return;
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.loadNativeWorkspace === 'function') {
+      Promise.resolve(api.loadNativeWorkspace(data)).catch(function () {
+        try { window.dispatchEvent(new CustomEvent('workspaceSelected', { detail: data })); } catch (error) { try { window.dispatchEvent(new Event('workspaceSelected')); } catch (ignored) {} }
+      });
+      return;
+    }
+    try { window.dispatchEvent(new CustomEvent('workspaceSelected', { detail: data })); } catch (error) { try { window.dispatchEvent(new Event('workspaceSelected')); } catch (ignored) {} }
   }
 
   function installMcpPathPanel() {
@@ -515,7 +556,7 @@
         try {
           var result = await callMaybeAsync(function () { return bridge[pickerName](); });
           var data = typeof result === 'string' ? JSON.parse(result) : result;
-          var selectedPath = pickNativePath(data);
+          var selectedPath = pickNativePath(data, 'file');
           if (selectedPath) {
             input.value = selectedPath;
             saveInputPath(input, 'file', 'MCP file target updated. MCP thread reset.', targetDetail);
@@ -546,15 +587,16 @@
     browseDirBtn.textContent = 'Browse Folder';
     browseDirBtn.addEventListener('click', async function () {
       var bridge = window.lmStudioLiteNative || window.NativeFileBridge || window.SignalLMNativeBridge;
-      var pickerName = findNativePicker(bridge, ['selectFolder', 'pickFolder', 'openFolder', 'chooseFolder', 'selectDirectory']);
+      var pickerName = findNativePicker(bridge, ['selectFolder', 'pickFolder', 'openFolder', 'chooseFolder', 'selectDirectory', 'triggerSelectFolder']);
       if (pickerName) {
         try {
-          var result = await callMaybeAsync(function () { return bridge[pickerName](); });
+          var result = await callNativePicker(bridge, pickerName);
           var data = typeof result === 'string' ? JSON.parse(result) : result;
-          var selectedPath = pickNativePath(data);
+          var selectedPath = pickNativePath(data, 'folder');
           if (selectedPath) {
             input.value = selectedPath;
             saveInputPath(input, 'folder', 'MCP folder target updated. MCP thread reset.', targetDetail);
+            loadNativeWorkspaceFromPickerData(data);
           } else {
             showToast('Native folder picker did not return a usable path.');
           }
@@ -570,8 +612,11 @@
           if (!file) return;
           if (file.path) {
             input.value = String(file.path).replace(/[\/\\][^\/\\]+$/, '');
+          } else if (file.webkitRelativePath && file.webkitRelativePath.indexOf('/') !== -1) {
+            input.value = file.webkitRelativePath.split('/')[0];
           } else {
-            input.value = file.webkitRelativePath ? file.webkitRelativePath.split('/')[0] : file.name;
+            showToast('Folder picker returned a file without its folder path. Use the native folder picker or paste the folder path.');
+            return;
           }
           saveInputPath(input, 'folder', 'MCP folder target updated. MCP thread reset.', targetDetail);
         };
@@ -659,6 +704,7 @@
     formatMcpFilePathContext: formatMcpFilePathContext,
     formatMcpFilePathSystemPrompt: formatMcpFilePathSystemPrompt,
     injectMcpFilePathIntoBody: injectMcpFilePathIntoBody,
+    isAndroidContentUri: isAndroidContentUri,
     installChatContextPatch: installChatContextPatch,
     installMcpPathPanel: installMcpPathPanel,
     installNativeMcpFetchPatch: installNativeMcpFetchPatch,

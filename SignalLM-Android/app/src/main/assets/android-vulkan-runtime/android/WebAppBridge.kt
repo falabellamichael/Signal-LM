@@ -126,7 +126,12 @@ class WebAppBridge(
 
     // File/workspace bridge stubs. Wire these to Android Storage Access Framework or app sandbox paths.
     @JavascriptInterface
-    fun selectFolder(): String = JSONObject().put("files", JSONArray()).put("writable", false).toString()
+    fun selectFolder(): String = JSONObject()
+        .put("targetType", "folder")
+        .put("name", "Android workspace")
+        .put("files", JSONArray())
+        .put("writable", false)
+        .toString()
 
     @JavascriptInterface
     fun readFile(path: String): String = engine.readWorkspaceFile(path)

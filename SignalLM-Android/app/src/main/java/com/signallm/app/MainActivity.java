@@ -286,6 +286,12 @@ public class MainActivity extends Activity {
 
                     JSONObject workspace = new JSONObject();
                     workspace.put("name", folderName);
+                    workspace.put("path", treeUri.toString());
+                    workspace.put("folderPath", treeUri.toString());
+                    workspace.put("rootPath", treeUri.toString());
+                    workspace.put("uri", treeUri.toString());
+                    workspace.put("treeUri", treeUri.toString());
+                    workspace.put("targetType", "folder");
                     workspace.put("writable", true);
                     workspace.put("files", filesArray);
 
@@ -595,4 +601,3 @@ public class MainActivity extends Activity {
         }
     }
 }
-
