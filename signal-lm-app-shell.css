@@ -827,9 +827,10 @@ body.keyboard-open #view-chat .workspace-strip.collapsed .workspace-body {
 }
 
 #view-chat .workspace-strip.collapsed ~ .input-area .composer-shell {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-radius: 0 0 22px 22px;
   border-top-color: var(--border-color);
+  background-clip: padding-box;
+  overflow: hidden;
 }
 
 html[data-theme="dark"] #view-chat .workspace-strip.collapsed {
@@ -847,5 +848,9 @@ html[data-theme="dark"] #view-chat .workspace-strip.collapsed ~ .input-area .com
     width: calc(100% - 46px);
     max-width: calc(100% - 46px);
     border-radius: 20px 20px 0 0;
+  }
+
+  #view-chat .workspace-strip.collapsed ~ .input-area .composer-shell {
+    border-radius: 0 0 20px 20px;
   }
 }
