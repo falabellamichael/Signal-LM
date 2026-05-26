@@ -461,7 +461,7 @@ main.main-app {
 #view-chat .input-area {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: end;
+  align-items: center;
   gap: 8px;
   width: 100%;
 }
@@ -482,30 +482,26 @@ main.main-app {
   height: 34px;
   min-height: 34px;
   padding: 0 !important;
-  border-radius: 999px;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
   display: inline-grid;
   place-items: center;
   align-self: center;
-  font-size: 0 !important;
-  line-height: 0;
-  color: var(--accent) !important;
-  background: var(--accent-soft);
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
 }
 
-#view-chat .attach-btn::before {
-  content: "";
-  width: 18px;
-  height: 18px;
+#view-chat .attach-btn svg.attach-icon {
+  width: 20px;
+  height: 20px;
   display: block;
-  background: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M21.44%2011.05%2012.25%2020.24a6%206%200%200%201-8.49-8.49l9.19-9.19a4%204%200%200%201%205.66%205.66l-9.2%209.19a2%202%200%200%201-2.83-2.83l8.49-8.48%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M21.44%2011.05%2012.25%2020.24a6%206%200%200%201-8.49-8.49l9.19-9.19a4%204%200%200%201%205.66%205.66l-9.2%209.19a2%202%200%200%201-2.83-2.83l8.49-8.48%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
 }
 
 #view-chat .attach-btn:hover {
-  transform: none;
-  background: var(--accent);
-  color: var(--bg-color) !important;
+  transform: scale(1.08);
+  background: transparent !important;
+  color: var(--accent) !important;
 }
 
 #view-chat #user-input {
@@ -523,7 +519,7 @@ main.main-app {
   min-width: 44px;
   height: 44px;
   min-height: 44px;
-  align-self: end;
+  align-self: center;
   margin: 0;
   border-radius: 999px;
 }
@@ -539,19 +535,20 @@ main.main-app {
 }
 
 html[data-theme="dark"] #view-chat .attach-btn {
-  background: #202024;
-  color: #efe7d8 !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
 }
 
 html[data-theme="dark"] #view-chat .attach-btn:hover {
-  background: #efe7d8;
-  color: #111113 !important;
+  background: transparent !important;
+  color: var(--accent) !important;
 }
 
 @media (max-width: 520px) {
   #view-chat .input-area {
     grid-template-columns: minmax(0, 1fr) 40px;
     gap: 6px;
+    align-items: center;
   }
 
   #view-chat .composer-shell {
@@ -565,11 +562,12 @@ html[data-theme="dark"] #view-chat .attach-btn:hover {
     min-width: 32px;
     height: 32px;
     min-height: 32px;
+    background: transparent !important;
   }
 
-  #view-chat .attach-btn::before {
-    width: 17px;
-    height: 17px;
+  #view-chat .attach-btn svg.attach-icon {
+    width: 18px;
+    height: 18px;
   }
 
   #view-chat #user-input {
@@ -582,5 +580,6 @@ html[data-theme="dark"] #view-chat .attach-btn:hover {
     min-width: 40px;
     height: 40px;
     min-height: 40px;
+    align-self: center;
   }
 }
