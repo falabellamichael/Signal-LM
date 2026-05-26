@@ -190,7 +190,6 @@
       scrollActiveIntoView();
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      e.stopImmediatePropagation();
       selectItem(activeIndex);
     } else if (e.key === 'Escape') {
       e.preventDefault();

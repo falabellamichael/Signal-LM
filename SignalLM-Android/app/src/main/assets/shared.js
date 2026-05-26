@@ -1,3 +1,12 @@
+(function(){
+  var bridge=window.SignalLMNativeBridge||window.lmStudioLiteNative||window.NativeFileBridge||window.NativeInferenceBridge||window.AndroidBridge||window.AndroidFileBridge||window.AndroidWorkspaceBridge||window.AndroidInferenceBridge||null;
+  if(!bridge)return;
+  if(!window.lmStudioLiteNative)window.lmStudioLiteNative=bridge;
+  if(!window.NativeFileBridge)window.NativeFileBridge=bridge;
+  if(!window.NativeInferenceBridge)window.NativeInferenceBridge=bridge;
+  if(!window.AndroidBridge)window.AndroidBridge=bridge;
+})();
+
 (function () {
   if (window.__signalLmThemeLoader) return;
   window.__signalLmThemeLoader = true;
@@ -30,6 +39,7 @@
   window.addEventListener('orientationchange', function () { setTimeout(updateAppViewportHeight, 80); }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', updateAppViewportHeight, { passive: true });
+    window.visualViewport.addEventListener('scroll', updateAppViewportHeight, { passive: true });
   }
 })();
 
@@ -37,7 +47,6 @@
   if (window.__lmStudioLiteNativeFetchPatch) return;
   window.__lmStudioLiteNativeFetchPatch = true;
   const originalFetch = window.fetch ? window.fetch.bind(window) : null;
-
   const LM_STUDIO_CHAT_FORBIDDEN_KEYS = new Set([
     'response_id',
     'previous_response_id',

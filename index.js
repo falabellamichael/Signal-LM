@@ -3,7 +3,8 @@ const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       messages: 'lmStudioLite.messages.v1',
       fileContext: 'lmStudioLite.fileContext.v1',
-      workspaceInfo: 'lmStudioLite.workspaceInfo.v1'
+      workspaceInfo: 'lmStudioLite.workspaceInfo.v1',
+      nativeResponseId: 'lmStudioLite.nativeResponseId.v1'
     };
 
     const DEFAULT_SETTINGS = {
@@ -29,7 +30,10 @@ const STORAGE_KEYS = {
       contextHelperEnabled: true,
       contextHelperMode: 'smart',
       contextHelperMaxSnippets: 16,
-      contextHelperMaxChars: 70000
+      contextHelperMaxChars: 70000,
+      mcpEnabled: false,
+      mcpContextLength: 8000,
+      mcpServers: []
     };
 
     const HANDLE_DB = 'lmStudioLite.filesystem.v1';
@@ -169,7 +173,7 @@ const STORAGE_KEYS = {
     }
 
     function getNativeInferenceBridge() {
-      return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
     }
 
     function runtimeStatusCopy() {
@@ -459,6 +463,87 @@ const STORAGE_KEYS = {
         scrollToBottom();
         return text;
       }
+    }
+
+    function nativeApiBaseUrl() {
+      const base = normalizeBaseUrl(settings.baseUrl);
+      if (/\/api\/v1$/i.test(base)) return base;
+      if (/\/v1$/i.test(base)) return base.replace(/\/v1$/i, '/api/v1');
+      return base + '/api/v1';
+    }
+
+    function getEnabledMcpServers() {
+      return Array.isArray(settings.mcpServers) ? settings.mcpServers.filter(s => s && s.enabled !== false) : [];
+    }
+
+    function buildMcpIntegrations() {
+      return getEnabledMcpServers().map(server => {
+        const tools = Array.isArray(server.allowedTools) ? server.allowedTools.map(t => String(t).trim()).filter(Boolean) : [];
+        if (server.type === 'plugin') return tools.length ? { type: 'plugin', id: server.id, allowed_tools: tools } : server.id;
+        const integration = { type: 'ephemeral_mcp', server_label: server.serverLabel || server.label || 'remote-mcp', server_url: server.serverUrl || '' };
+        if (!integration.server_url) return null;
+        if (tools.length) integration.allowed_tools = tools;
+        if (server.headers && typeof server.headers === 'object' && Object.keys(server.headers).length) integration.headers = server.headers;
+        return integration;
+      }).filter(Boolean);
+    }
+
+    async function runNativeMcpChatCompletion(userInput, assistantUi) {
+      const integrations = buildMcpIntegrations();
+
+      // Convert multimodal input to string if needed, as native /api/v1/chat usually expects input as string
+      let inputString = userInput;
+      if (Array.isArray(userInput)) {
+        inputString = userInput.filter(p => p.type === 'text').map(p => p.text).join('\n');
+      }
+
+      const body = {
+        model: settings.model,
+        input: inputString,
+        integrations,
+        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
+        temperature: Number(settings.temperature),
+        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
+        store: true
+      };
+
+      const responseId = localStorage.getItem(STORAGE_KEYS.nativeResponseId);
+      if (responseId) body.response_id = responseId;
+
+      const systemPrompt = (settings.systemPrompt || '').trim();
+      if (systemPrompt) body.system_prompt = systemPrompt;
+
+      const response = await fetch(nativeApiBaseUrl() + '/chat', {
+        method: 'POST',
+        headers: getHeaders(),
+        signal: abortController.signal,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || `Native MCP API error: HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (payload.response_id) localStorage.setItem(STORAGE_KEYS.nativeResponseId, payload.response_id);
+
+      const text = (payload.output || [])
+        .filter(item => item.type === 'message' && item.content)
+        .map(item => item.content)
+        .join('\n\n')
+        .trim();
+
+      const toolUses = (payload.output || []).filter(item => item.type === 'tool_use');
+      if (toolUses.length) {
+        showToast(`Used ${toolUses.length} tool${toolUses.length === 1 ? '' : 's'}.`);
+      }
+
+      const result = text || '(Tool executed, no message returned.)';
+      assistantUi.setContent(result);
+      assistantUi.streamingFinished();
+      scrollToBottom();
+      return result;
     }
 
     async function testAndroidRuntime() {
@@ -979,14 +1064,11 @@ const STORAGE_KEYS = {
         opt.value = settings.model || '';
         opt.textContent = settings.model || 'Set model in Settings';
         els.modelSelect.appendChild(opt);
-
-        setStatus('error', 'Offline');
-        showToast('Could not reach LM Studio. Check the server URL in Settings.');
       }
     }
 
     function buildWorkspaceEditInstruction() {
-      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced code block with the relative file path as the language identifier, like this: ```relative/path/to/file.html\\ncontent here\\n```. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
+      return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced code block with the relative file path as the language identifier, like this: ```relative/path/to/file.html\ncontent here\n```. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
     }
 
     function contextHelperEnabled() {
@@ -1063,7 +1145,7 @@ const STORAGE_KEYS = {
     }
 
     function isLikelyEditRequest(text) {
-      return /(add|edit|change|fix|update|replace|remove|implement|create|wire|hook|style|polish|restore|convert|rename)/i.test(String(text || ''));
+      return / (add|edit|change|fix|update|replace|remove|implement|create|wire|hook|style|polish|restore|convert|rename) /i.test(String(text || ''));
     }
 
     function countOccurrences(haystack, needle) {
@@ -1373,11 +1455,15 @@ Workspace context is present in the latest user message. Treat those files as at
       setStreamingUI(true);
 
       try {
-        fullResponse = isHybridRuntime()
-          ? await runHybridChatCompletion(requestMessages, assistantUi)
-          : isAndroidRuntime()
-            ? await runNativeChatCompletion(requestMessages, assistantUi)
-            : await runServerChatCompletion(requestMessages, assistantUi);
+        if (settings.mcpEnabled) {
+          fullResponse = await runNativeMcpChatCompletion(requestContent, assistantUi);
+        } else {
+          fullResponse = isHybridRuntime()
+            ? await runHybridChatCompletion(requestMessages, assistantUi)
+            : isAndroidRuntime()
+              ? await runNativeChatCompletion(requestMessages, assistantUi)
+              : await runServerChatCompletion(requestMessages, assistantUi);
+        }
 
         if (!fullResponse.trim()) {
           fullResponse = '(No content returned.)';
@@ -1419,6 +1505,7 @@ Workspace context is present in the latest user message. Treat those files as at
     function clearChat() {
       messages = [];
       localStorage.removeItem(STORAGE_KEYS.messages);
+      localStorage.removeItem(STORAGE_KEYS.nativeResponseId);
       renderMessages();
       showToast('Chat cleared.');
     }
@@ -1593,7 +1680,7 @@ Answer the user request using the workspace files above. When asked to modify fi
 
 
     function getNativeFileBridge() {
-      return window.lmStudioLiteNative || window.NativeFileBridge || null;
+      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeFileBridge || null;
     }
 
     function asPromise(value) {
@@ -1767,7 +1854,8 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     async function loadNativeWorkspace(result) {
-      const data = Array.isArray(result) ? { files: result } : (result || {});
+      const parsed = typeof result === 'string' ? tryParseJson(result) : result;
+      const data = Array.isArray(parsed) ? { files: parsed } : (parsed || {});
       const files = Array.isArray(data.files) ? data.files : [];
       nativeWorkspace = data;
       workspaceHandle = null;
@@ -1913,6 +2001,29 @@ Answer the user request using the workspace files above. When asked to modify fi
         const edits = normalizeEditPayload(parsed);
         if (edits.length) return edits;
       }
+
+      // Fallback: Parse standard code blocks where the first line is a comment with the file path
+      const codeEdits = [];
+      const anyBlocks = raw.matchAll(/```([^\n]*)\n([\s\S]*?)```/gi);
+      for (const match of anyBlocks) {
+        const langInfo = match[1].trim();
+        const fullContent = match[2].trim();
+        let path = '';
+        
+        if (langInfo.includes(':')) {
+          path = langInfo.split(':').slice(1).join(':').trim();
+        } else {
+          const firstLine = fullContent.split('\n')[0].trim();
+          const pathMatch = firstLine.match(/^(?:\/\/|#|\/\*|<!--)\s*([a-zA-Z0-9_\-\.\/\\]+\.[a-zA-Z0-9]+)\s*(?:\*\/|-->)?$/);
+          if (pathMatch) path = pathMatch[1].trim();
+        }
+
+        if (path) codeEdits.push({ path, content: fullContent });
+      }
+      
+      const normalizedCodeEdits = normalizeEditPayload(codeEdits);
+      if (normalizedCodeEdits.length) return normalizedCodeEdits;
+
       return [];
     }
 
@@ -1997,6 +2108,19 @@ Answer the user request using the workspace files above. When asked to modify fi
       } catch {
         workspaceInfo = null;
       }
+
+      const bridge = getNativeFileBridge();
+      if (bridge?.getPersistedWorkspace) {
+        try {
+          const result = await asPromise(bridge.getPersistedWorkspace());
+          const data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (data && data.files && data.files.length) {
+            await loadNativeWorkspace(data);
+            return;
+          }
+        } catch (err) {}
+      }
+
       try {
         workspaceHandle = await idbGet(WORKSPACE_HANDLE_KEY);
         if (workspaceHandle && !workspaceFiles.length) {

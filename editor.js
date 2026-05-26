@@ -76,7 +76,9 @@ const STORAGE_KEYS = {
       return 'showDirectoryPicker' in window && window.isSecureContext;
     }
     function supportsFolderFileInput() { return 'webkitdirectory' in document.createElement('input'); }
-    function getNativeFileBridge() { return window.lmStudioLiteNative || window.NativeFileBridge || null; }
+    function getNativeFileBridge() {
+      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeFileBridge || null;
+    }
     async function asPromise(value) { return value && typeof value.then === 'function' ? await value : value; }
     function setCapabilityStatus() {
       if (getNativeFileBridge()?.selectFolder) {
@@ -363,9 +365,22 @@ const STORAGE_KEYS = {
     }
 
     async function readWorkspaceFile(entry) {
-      if (typeof entry?.content === 'string') return entry.content;
+      if (typeof entry?.content === 'string' && entry.content !== '') return entry.content;
       if (entry.handle) return readFileText(await entry.handle.getFile());
       if (entry.file) return readFileText(entry.file);
+
+      const bridge = getNativeFileBridge();
+      if (bridge?.readFile) {
+        try {
+          const result = await asPromise(bridge.readFile(entry.path));
+          if (typeof result === 'string') return result;
+          if (typeof result?.content === 'string') return result.content;
+          if (typeof result?.text === 'string') return result.text;
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      if (typeof entry?.content === 'string') return entry.content;
       return '';
     }
 
@@ -734,11 +749,25 @@ const STORAGE_KEYS = {
       window.addEventListener('beforeunload', event => { if (!dirty) return; event.preventDefault(); event.returnValue = ''; });
     }
 
-    function init() {
+    async function init() {
       setCapabilityStatus();
       bindEvents();
       updateWorkspaceMeta();
       updateSelectedMeta();
+
+      const bridge = getNativeFileBridge();
+      if (bridge?.getPersistedWorkspace) {
+        try {
+          const result = await asPromise(bridge.getPersistedWorkspace());
+          const data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (data && data.files && data.files.length) {
+            loadNativeWorkspace(data);
+            showToast(`Loaded persisted workspace: ${workspaceLabel}`);
+          }
+        } catch (error) {
+          console.error("Failed to load persisted workspace:", error);
+        }
+      }
     }
     init();
 

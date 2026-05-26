@@ -173,7 +173,7 @@ const STORAGE_KEYS = {
     }
 
     function getNativeInferenceBridge() {
-      return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
     }
 
     function runtimeStatusCopy() {
@@ -1680,7 +1680,7 @@ Answer the user request using the workspace files above. When asked to modify fi
 
 
     function getNativeFileBridge() {
-      return window.lmStudioLiteNative || window.NativeFileBridge || null;
+      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeFileBridge || null;
     }
 
     function asPromise(value) {
@@ -1854,7 +1854,8 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     async function loadNativeWorkspace(result) {
-      const data = Array.isArray(result) ? { files: result } : (result || {});
+      const parsed = typeof result === 'string' ? tryParseJson(result) : result;
+      const data = Array.isArray(parsed) ? { files: parsed } : (parsed || {});
       const files = Array.isArray(data.files) ? data.files : [];
       nativeWorkspace = data;
       workspaceHandle = null;

@@ -655,7 +655,7 @@
       background: transparent;
     }
 
-    .file-header + pre, .code-copy-wrapper + pre, .file-header + .code-copy-wrapper + pre {
+    .file-header + pre, .code-copy-wrapper + pre {
       border-top-left-radius: 0;
       border-top-right-radius: 0;
     }
@@ -666,7 +666,7 @@
       height: 0;
       display: flex;
       justify-content: flex-end;
-      padding: 0.5rem 0.5rem 0 0;
+      padding: 0 0.5rem 0 0;
       z-index: 10;
       pointer-events: none;
     }
