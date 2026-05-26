@@ -624,6 +624,8 @@ html[data-theme="dark"] #view-chat .attach-btn:hover {
    an empty gap. */
 
 #view-chat .composer-stack {
+  --workspace-tab-height: 36px;
+  --workspace-stack-pad-top: 0.6rem;
   overflow: visible !important;
 }
 
@@ -659,12 +661,10 @@ html[data-theme="dark"] #view-chat .attach-btn:hover {
   max-height: min(32dvh, 280px);
 }
 
-body.composer-focused #view-chat #user-input,
 body.keyboard-open #view-chat #user-input {
   max-height: min(38dvh, 190px);
 }
 
-body.composer-focused #view-chat .composer-stack,
 body.keyboard-open #view-chat .composer-stack {
   padding-bottom: calc(0.6rem + var(--safe-bottom, 0px)) !important;
 }
@@ -717,7 +717,6 @@ body.keyboard-open #view-chat .workspace-file-row {
 }
 
 @media (max-width: 520px) {
-  body.composer-focused #view-chat #user-input,
   body.keyboard-open #view-chat #user-input {
     max-height: min(36dvh, 176px);
   }
@@ -737,8 +736,37 @@ body.keyboard-open #view-chat .workspace-file-row {
 }
 
 @media (max-height: 560px) {
-  body.composer-focused #view-chat #user-input,
   body.keyboard-open #view-chat #user-input {
+    max-height: min(34dvh, 160px);
+  }
+}
+
+@media (max-width: 768px) {
+  #view-chat .composer-stack {
+    --workspace-stack-pad-top: 0.5rem;
+  }
+}
+
+#view-chat .composer-stack.workspace-reserved:not(.workspace-attached) {
+  padding-top: calc(var(--workspace-stack-pad-top) + var(--workspace-tab-height)) !important;
+}
+
+#view-chat .composer-stack.workspace-reserved:not(.workspace-attached) .workspace-strip {
+  bottom: calc(100% - var(--workspace-tab-height) + 0.45rem);
+}
+
+#view-chat #user-input {
+  max-height: min(38dvh, 190px);
+}
+
+@media (max-width: 520px) {
+  #view-chat #user-input {
+    max-height: min(36dvh, 176px);
+  }
+}
+
+@media (max-height: 560px) {
+  #view-chat #user-input {
     max-height: min(34dvh, 160px);
   }
 }

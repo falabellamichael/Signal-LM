@@ -950,9 +950,7 @@ const STORAGE_KEYS = {
     function getInputHeightLimit() {
       const maxHeight = parseFloat(getComputedStyle(els.userInput).maxHeight);
       if (Number.isFinite(maxHeight) && maxHeight > 0) return maxHeight;
-      return document.body.classList.contains('keyboard-open') || document.body.classList.contains('composer-focused')
-        ? 190
-        : 150;
+      return 190;
     }
 
     function syncComposerHeightVars(inputHeight) {
@@ -963,6 +961,7 @@ const STORAGE_KEYS = {
     }
 
     function keepComposerVisible() {
+      if (!document.body.classList.contains('keyboard-open')) return;
       if (document.activeElement !== els.userInput || !els.composerStack) return;
       requestAnimationFrame(() => {
         els.composerStack.scrollIntoView({ block: 'end', inline: 'nearest' });
@@ -2179,10 +2178,12 @@ Answer the user request using the workspace files above. When asked to modify fi
       if (!name && !workspaceFiles.length) {
         els.workspaceStrip.classList.remove('show');
         setWorkspaceCollapsedState(false);
+        setWorkspaceReservedState(false);
         renderPendingEdits();
         return;
       }
       els.workspaceStrip.classList.add('show');
+      setWorkspaceReservedState(true);
       const selectedCount = workspaceSelectedPaths.size;
       const access = nativeWorkspace?.writable === false
         ? 'app read-only'
@@ -2641,13 +2642,11 @@ Answer the user request using the workspace files above. When asked to modify fi
 
       els.userInput.addEventListener('input', updateInputHeight);
       els.userInput.addEventListener('focus', () => {
-        document.body.classList.add('composer-focused');
         updateInputHeight();
         setTimeout(keepComposerVisible, 80);
         setTimeout(keepComposerVisible, 260);
       });
       els.userInput.addEventListener('blur', () => {
-        document.body.classList.remove('composer-focused');
         setTimeout(updateInputHeight, 120);
       });
 
@@ -2804,6 +2803,10 @@ Answer the user request using the workspace files above. When asked to modify fi
       els.composerStack?.classList.toggle('workspace-attached', isCollapsed);
       body.style.display = isCollapsed ? 'none' : 'flex';
       btn.textContent = isCollapsed ? 'Show' : 'Hide';
+    }
+
+    function setWorkspaceReservedState(isReserved) {
+      els.composerStack?.classList.toggle('workspace-reserved', isReserved);
     }
 
     function toggleWorkspaceCollapse() {
