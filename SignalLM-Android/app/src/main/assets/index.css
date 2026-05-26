@@ -848,6 +848,12 @@
       background: transparent;
       color: var(--text-primary);
       min-width: 0;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    #user-input::-webkit-scrollbar {
+      display: none;
     }
 
     button {

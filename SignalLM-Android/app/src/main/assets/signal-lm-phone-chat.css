@@ -152,6 +152,12 @@
   font-size: 1rem;
   line-height: 1.4;
   color: var(--text-primary);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#user-input::-webkit-scrollbar {
+  display: none;
 }
 
 .attach-btn {
