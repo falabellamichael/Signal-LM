@@ -121,7 +121,7 @@
       color: #77706a;
     }
 
-    html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle),
+    html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.workspace-file-chip):not(.file-chip):not(.edit-chip),
     html[data-theme="dark"] .file-label {
       background: var(--accent);
       color: #111113;
@@ -1046,14 +1046,14 @@
     }
 
     .workspace-context-status {
-      flex: 1 0 100%;
+      width: 100%;
       color: var(--text-secondary);
       font-size: 0.78rem;
       line-height: 1.35;
     }
 
     .context-helper-status {
-      flex: 1 0 100%;
+      width: 100%;
       color: var(--text-secondary);
       font-size: 0.78rem;
       line-height: 1.35;
@@ -1091,7 +1091,7 @@
 
     .workspace-file-row {
       display: none;
-      flex: 1 0 100%;
+      width: 100%;
       gap: 0.4rem;
       flex-wrap: wrap;
       max-height: 96px;

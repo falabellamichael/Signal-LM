@@ -103,7 +103,7 @@ html[data-theme="dark"] .empty-box {
 }
 
 html[data-theme="dark"] .brand span,
-html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.attach-btn),
+html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.attach-btn):not(.workspace-file-chip):not(.file-chip):not(.edit-chip),
 html[data-theme="dark"] .file-label {
   background: var(--accent) !important;
   color: var(--on-accent) !important;
@@ -249,4 +249,26 @@ html[data-theme="dark"] ::selection {
 
 html[data-theme="dark"] ::-webkit-scrollbar-thumb {
   background: rgba(238, 233, 222, 0.24) !important;
+}
+
+html[data-theme="dark"] .workspace-file-chip,
+html[data-theme="dark"] .file-chip,
+html[data-theme="dark"] .edit-chip {
+  background: var(--surface-muted) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+html[data-theme="dark"] .workspace-file-chip.selected,
+html[data-theme="dark"] .file-chip.selected,
+html[data-theme="dark"] .edit-chip.selected {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: rgba(238, 233, 222, 0.28) !important;
+}
+
+html[data-theme="dark"] .workspace-file-chip span,
+html[data-theme="dark"] .file-chip span,
+html[data-theme="dark"] .edit-chip span {
+  color: inherit !important;
 }

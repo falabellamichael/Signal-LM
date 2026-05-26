@@ -108,7 +108,7 @@
       color: #77706a;
     }
 
-    html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle),
+    html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.workspace-file-chip):not(.file-chip):not(.edit-chip),
     html[data-theme="dark"] .file-label {
       background: var(--accent);
       color: #111113;
