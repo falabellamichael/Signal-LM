@@ -128,21 +128,40 @@
     browseDirBtn.type = 'button';
     browseDirBtn.className = 'ghost-btn';
     browseDirBtn.textContent = 'Browse Folder';
-    browseDirBtn.addEventListener('click', function () {
-      var fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.webkitdirectory = true;
-      fileInput.onchange = function (e) {
-        var file = e.target.files && e.target.files[0];
-        if (file) {
-          var pathStr = file.path ? file.path.replace(/[\/\\][^\/\\]+$/, '') : (file.webkitRelativePath ? file.webkitRelativePath.split('/')[0] : file.name);
-          input.value = pathStr;
-          saveMcpFilePath(input.value);
-          enhanceRequestPreview();
-          showToast('Folder path updated.');
+    browseDirBtn.addEventListener('click', async function () {
+      var bridge = window.lmStudioLiteNative || window.NativeFileBridge;
+      if (bridge && typeof bridge.selectFolder === 'function') {
+        try {
+          var result = bridge.selectFolder();
+          if (result && typeof result.then === 'function') {
+            result = await result;
+          }
+          var data = typeof result === 'string' ? JSON.parse(result) : result;
+          if (data && data.name) {
+            input.value = data.name;
+            saveMcpFilePath(input.value);
+            enhanceRequestPreview();
+            showToast('Folder path updated.');
+          }
+        } catch (error) {
+          showToast('Native folder picker failed or cancelled.');
         }
-      };
-      fileInput.click();
+      } else {
+        var fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.webkitdirectory = true;
+        fileInput.onchange = function (e) {
+          var file = e.target.files && e.target.files[0];
+          if (file) {
+            var pathStr = file.path ? file.path.replace(/[\/\\][^\/\\]+$/, '') : (file.webkitRelativePath ? file.webkitRelativePath.split('/')[0] : file.name);
+            input.value = pathStr;
+            saveMcpFilePath(input.value);
+            enhanceRequestPreview();
+            showToast('Folder path updated.');
+          }
+        };
+        fileInput.click();
+      }
     });
 
     var clearBtn = document.createElement('button');
