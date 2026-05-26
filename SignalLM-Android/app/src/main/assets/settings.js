@@ -1,3 +1,4 @@
+(function() {
 const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       messages: 'lmStudioLite.messages.v1'
@@ -324,3 +325,17 @@ const STORAGE_KEYS = {
     }
 
     fillForm();
+
+// Expose for HTML
+window.saveConnection = saveConnection;
+window.saveAppearance = saveAppearance;
+window.saveRuntimeSettings = saveRuntimeSettings;
+window.testNativeRuntime = testNativeRuntime;
+window.saveHelperSettings = saveHelperSettings;
+window.saveDefaults = saveDefaults;
+window.testConnection = testConnection;
+window.restoreDefaults = restoreDefaults;
+window.clearSavedChat = clearSavedChat;
+
+window.addEventListener('settingsChanged', () => { settings = loadSettings(); fillForm(); });
+})();

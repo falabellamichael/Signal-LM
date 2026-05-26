@@ -1,3 +1,4 @@
+(function() {
 const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       messages: 'lmStudioLite.messages.v1',
@@ -2603,3 +2604,26 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     init();
+
+// Expose for HTML
+window.toggleSidebar = toggleSidebar;
+window.loadModels = loadModels;
+window.testAndroidRuntime = testAndroidRuntime;
+window.exportChat = exportChat;
+window.clearChat = clearChat;
+window.openWorkspaceFromChat = openWorkspaceFromChat;
+window.selectWorkspaceFilesFallback = selectWorkspaceFilesFallback;
+window.previewChatContext = previewChatContext;
+window.toggleContextHelper = toggleContextHelper;
+window.clearWorkspace = clearWorkspace;
+window.openAttachmentPicker = openAttachmentPicker;
+window.applyPendingEdits = applyPendingEdits;
+window.clearPendingEdits = clearPendingEdits;
+window.closeContextPreview = closeContextPreview;
+window.copyContextPreview = copyContextPreview;
+window.toggleWorkspaceCollapse = toggleWorkspaceCollapse;
+
+window.addEventListener('settingsChanged', () => { settings = loadSettings(); if (settings.model) els.modelDisplay.textContent = settings.model; });
+
+window.addEventListener('workspaceSelected', () => { loadWorkspaceContext(); });
+})();

@@ -67,6 +67,10 @@
   <link rel="stylesheet" href="libs/prism.css">
 
   
+
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="mcp.css">
+  <link rel="stylesheet" href="settings.css">
 </head>
 <body>
   <div class="mobile-scrim" id="mobile-scrim" onclick="toggleSidebar(false)"></div>
@@ -75,10 +79,10 @@
     <div class="brand">Signal<span>LM</span></div>
 
     <nav class="nav-stack">
-      <a class="nav-link active" href="index.html">Chat <span>→</span></a>
-      <a class="nav-link" href="editor.html">Folders <span>▣</span></a>
-      <a class="nav-link" href="mcp.html">MCP <span>⌁</span></a>
-      <a class="nav-link" href="settings.html">Settings <span>⚙</span></a>
+      <a class="nav-link active" href="#chat">Chat <span>→</span></a>
+      <a class="nav-link" href="#editor">Folders <span>▣</span></a>
+      <a class="nav-link" href="#mcp">MCP <span>⌁</span></a>
+      <a class="nav-link" href="#settings">Settings <span>⚙</span></a>
     </nav>
 
     <section class="status-card">
@@ -175,7 +179,9 @@
 
   <button class="mobile-toggle" type="button" onclick="toggleSidebar()">☰</button>
 
-  <main class="main-chat">
+  <main class="main-app">
+      <div id="view-chat" class="app-view active">
+        
     <header class="chat-header">
       <div class="chat-title">
         <h1>Chat</h1>
@@ -184,9 +190,9 @@
       <div class="header-actions">
         <button class="ghost-btn" type="button" onclick="LmStudioLiteTheme.toggleTheme()" id="theme-toggle-btn"><span data-theme-label>Theme</span></button>
         <button class="ghost-btn" type="button" onclick="loadModels()">Refresh Models</button>
-        <a href="editor.html"><button class="ghost-btn" type="button">Folders</button></a>
-        <a href="mcp.html"><button class="ghost-btn" type="button">MCP</button></a>
-        <a href="settings.html"><button class="ghost-btn" type="button">Settings</button></a>
+        <a href="#editor"><button class="ghost-btn" type="button">Folders</button></a>
+        <a href="#mcp"><button class="ghost-btn" type="button">MCP</button></a>
+        <a href="#settings"><button class="ghost-btn" type="button">Settings</button></a>
       </div>
     </header>
 
@@ -206,7 +212,7 @@
             <button class="mini-btn ghost-btn" type="button" onclick="previewChatContext()">Debug Context</button>
             <button class="mini-btn ghost-btn" type="button" onclick="toggleContextHelper()" id="context-helper-toggle">Helper On</button>
             <button class="mini-btn ghost-btn" type="button" onclick="clearWorkspace()">Clear</button>
-            <a href="editor.html"><button class="mini-btn ghost-btn" type="button">Folders</button></a>
+            <a href="#editor"><button class="mini-btn ghost-btn" type="button">Folders</button></a>
           </div>
           <div class="workspace-context-status" id="workspace-context-status">Workspace files are injected into the next prompt.</div>
           <div class="context-helper-status" id="context-helper-status"><span class="context-helper-badge on">Silent helper</span><span>Searches selected files and sends compact snippets before the model runs.</span></div>
@@ -259,7 +265,396 @@
       <input class="hidden-input" id="workspace-folder-input" type="file" multiple webkitdirectory directory accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
       <input class="hidden-input" id="workspace-files-input" type="file" multiple accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
     </section>
-  </main>
+  
+      </div>
+      <div id="view-editor" class="app-view" style="display:none;">
+        
+    <header class="page-header">
+      <div>
+        <h1>Folders</h1>
+        <p>Select a folder workspace of compatible text/code files. Send the folder to chat as context, preview AI-generated edits, then apply reviewed changes to writable folders.</p>
+      </div>
+      <span class="status-pill fallback" id="capability-pill"><span class="status-dot"></span><span id="capability-text">Checking support</span></span>
+    </header>
+
+    <section class="grid">
+      <div>
+        <section class="card">
+          <h2>Folder Workspace</h2>
+          <div class="toolbar">
+            <button type="button" onclick="selectFolder()">Select Folder</button>
+            <button type="button" class="ghost-btn" onclick="selectFilesFallback()">Select Files</button>
+            <button type="button" class="ghost-btn" onclick="rescanFolder()" id="rescan-folder-btn" disabled>Rescan</button>
+            <button type="button" class="ghost-btn" onclick="sendWorkspaceToChat()" id="send-workspace-btn" disabled>Send Folder to Chat</button>
+          </div>
+          <input class="hidden" id="fallback-folder" type="file" multiple webkitdirectory directory accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
+          <input class="hidden" id="fallback-files" type="file" multiple accept=".txt,.md,.markdown,.csv,.log,.html,.htm,.css,.js,.mjs,.json,.xml,.yml,.yaml,.py,.ts,.tsx,.jsx,.php,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.sql,.sh,.zsh,.bash,.env,.gitignore,text/plain,text/html,text/css,text/javascript,application/json,text/markdown" />
+          <div class="input-group">
+            <label for="workspace-search">Filter files</label>
+            <input id="workspace-search" placeholder="Search by path, for example .css or index" />
+          </div>
+          <div class="meta-list" style="margin-bottom:0.9rem;">
+            <div class="meta-row"><span>Folder</span><strong id="workspace-folder-meta">None</strong></div>
+            <div class="meta-row"><span>Compatible files</span><strong id="workspace-count-meta">0</strong></div>
+            <div class="meta-row"><span>Access</span><strong id="workspace-access-meta">Not selected</strong></div>
+          </div>
+          <div class="workspace-list" id="workspace-list"><div class="empty-box">Select a folder to scan compatible text and code files.</div></div>
+        </section>
+
+        <section class="card">
+          <h2>Selected File Preview</h2>
+          <div class="toolbar">
+            <button type="button" onclick="saveSelectedFile()" id="save-selected-btn" disabled>Save Selected</button>
+            <button type="button" class="ghost-btn" onclick="downloadSelectedFile()" id="download-selected-btn" disabled>Download Copy</button>
+          </div>
+          <div class="editor-shell">
+            <div class="editor-topbar">
+              <div class="file-title">
+                <strong id="file-name">No file selected</strong>
+                <span id="file-status">Select a file from the folder list.</span>
+              </div>
+              <span class="status-pill connected" id="dirty-pill"><span class="status-dot"></span><span id="dirty-text">Clean</span></span>
+            </div>
+            <textarea class="code-editor" id="editor" spellcheck="false" placeholder="Select a compatible file from the folder list to preview or edit it."></textarea>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>AI Folder Edits</h2>
+          <div class="input-group">
+            <label for="ai-instruction">Edit instruction</label>
+            <textarea id="ai-instruction" placeholder="Example: Add more beige to the chat background CSS, preserving the current layout."></textarea>
+            <p class="hint">The model must return complete replacement contents for changed files. Nothing is written until you apply reviewed edits.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" onclick="previewAiFolderEdits()" id="ai-preview-btn" disabled>Preview AI Edits</button>
+            <button type="button" class="ghost-btn" onclick="applyAiFolderEdits()" id="ai-apply-btn" disabled>Apply Reviewed Edits</button>
+          </div>
+          <div class="change-list" id="change-list"><div class="empty-box">No pending AI edits.</div></div>
+        </section>
+
+        <section class="card">
+          <h2>How this should be used</h2>
+          <p class="hint">Use Chat’s + button for single files and images. Use Folders when you want the assistant to understand or edit multiple compatible files inside a project folder.</p>
+        </section>
+      </aside>
+    </section>
+  
+      </div>
+      <div id="view-mcp" class="app-view" style="display:none;">
+        
+    <header class="page-header">
+      <h1>MCP</h1>
+      <p>Add Model Context Protocol integrations for tool use. Enabled integrations are injected into chat requests only when MCP is turned on.</p>
+    </header>
+
+    <section class="grid">
+      <div>
+        <section class="card">
+          <h2>MCP Control</h2>
+
+          <div class="switch-row">
+            <div>
+              <strong>Enable MCP in chat</strong>
+              <p>When enabled, the chat page uses LM Studio’s native REST chat endpoint and sends the integrations below.</p>
+            </div>
+            <input id="mcp-enabled" type="checkbox" />
+          </div>
+
+          <div class="input-group">
+            <label for="context-length">Context Length</label>
+            <input id="context-length" type="number" min="1024" step="512" />
+            <p class="hint">Higher context is recommended when MCP tools return larger payloads.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveMcpSettings()">Save MCP Settings</button>
+            <button class="ghost-btn" type="button" onclick="resetNativeThread()">Reset MCP Chat Thread</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Add Integration</h2>
+
+          <div class="two-col">
+            <div class="input-group">
+              <label for="new-type">Type</label>
+              <select id="new-type" onchange="syncNewTypeFields()">
+                <option value="ephemeral_mcp">Remote / Ephemeral MCP</option>
+                <option value="plugin">LM Studio mcp.json Plugin</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label for="new-label">Label</label>
+              <input id="new-label" placeholder="huggingface" />
+            </div>
+          </div>
+
+          <div class="input-group" id="new-url-group">
+            <label for="new-url">Server URL</label>
+            <input id="new-url" placeholder="https://huggingface.co/mcp" />
+            <p class="hint">LM Studio will connect to this URL, not the browser.</p>
+          </div>
+
+          <div class="input-group" id="new-plugin-group" style="display:none;">
+            <label for="new-plugin-id">Plugin ID</label>
+            <input id="new-plugin-id" placeholder="mcp/playwright" />
+            <p class="hint">Use the ID configured in LM Studio’s mcp.json, usually <strong>mcp/&lt;server_label&gt;</strong>.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="new-tools">Allowed Tools</label>
+            <input id="new-tools" placeholder="model_search, browser_navigate" />
+            <p class="hint">Optional. Leave blank to allow all tools from the integration.</p>
+          </div>
+
+          <div class="input-group" id="new-headers-group">
+            <label for="new-headers">Headers JSON</label>
+            <textarea id="new-headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
+            <p class="hint">Optional. Only used for remote / ephemeral MCP servers.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="addIntegration()">Add Integration</button>
+            <button class="ghost-btn" type="button" onclick="addHuggingFaceExample()">Add Hugging Face Example</button>
+            <button class="ghost-btn" type="button" onclick="addPlaywrightExample()">Add Playwright Plugin Example</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Configured Integrations</h2>
+          <div class="server-list" id="server-list"></div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Status</h2>
+          <div class="status-box">
+            <span class="badge warn" id="status-badge">Not tested</span>
+            <p class="hint" id="status-detail">Save an integration, then test the native REST endpoint or run a smoke test.</p>
+          </div>
+          <div class="button-row">
+            <button class="ghost-btn" type="button" onclick="testNativeModels()">Test REST API</button>
+            <button class="ghost-btn" type="button" onclick="testMcpChat()">MCP Smoke Test</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Request Preview</h2>
+          <pre class="preview" id="request-preview"></pre>
+          <div class="button-row">
+            <button class="ghost-btn" type="button" onclick="copyPreview()">Copy JSON</button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  
+      </div>
+      <div id="view-settings" class="app-view" style="display:none;">
+        
+    <header class="page-header">
+      <h1>Settings</h1>
+      <p>Configure the server, model defaults, and local chat behavior. These values are saved in this browser and shared with the chat page.</p>
+    </header>
+
+    <section class="grid">
+      <div>
+
+        <section class="card">
+          <h2>Appearance</h2>
+          <div class="input-group">
+            <label for="theme-select">Theme</label>
+            <select id="theme-select" data-theme-select onchange="saveAppearance()">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <p class="hint">System follows the Android or desktop app theme. Light and Dark force the app appearance on every page.</p>
+          </div>
+          <div class="button-row">
+            <button type="button" onclick="saveAppearance()">Save Appearance</button>
+            <button class="ghost-btn" type="button" onclick="LmStudioLiteTheme.toggleTheme()">Toggle Now</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Connection</h2>
+
+          <div class="input-group">
+            <label for="base-url">Base URL</label>
+            <input id="base-url" type="url" placeholder="http://localhost:1234/v1" />
+            <p class="hint">Use <strong>localhost</strong> only when this page is opened on the same computer as LM Studio. For mobile devices, use the server computer’s local network IP.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="api-key">API Key / Bearer Token</label>
+            <input id="api-key" type="password" placeholder="Optional" autocomplete="off" />
+            <p class="hint">Leave blank unless you enabled authentication in LM Studio.</p>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveConnection()">Save Connection</button>
+            <button class="ghost-btn" type="button" onclick="testConnection()">Test + Load Models</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Android Runtime</h2>
+          <div class="input-group">
+            <label for="runtime-mode">Runtime Mode</label>
+            <select id="runtime-mode">
+              <option value="server">LM Studio server</option>
+              <option value="hybrid">Hybrid boost · PC primary + Android support</option>
+              <option value="android-vulkan">Android Vulkan local only</option>
+            </select>
+            <p class="hint">Hybrid uses the PC server first and can use the phone as a fallback or parallel helper through the native Android bridge. It does not combine PC and phone VRAM into one model.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="hybrid-strategy">Hybrid Strategy</label>
+            <select id="hybrid-strategy">
+              <option value="fallback">PC first, phone fallback on slow/fail</option>
+              <option value="race">Run PC + phone in parallel, use first reply</option>
+            </select>
+            <p class="hint">Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
+          </div>
+
+          <div class="input-group">
+            <label for="hybrid-fallback-ms">PC Timeout Before Phone Fallback (ms)</label>
+            <input id="hybrid-fallback-ms" type="number" min="1000" max="120000" step="500" />
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="android-threads">CPU Threads</label>
+              <input id="android-threads" type="number" min="1" max="16" step="1" />
+            </div>
+            <div class="input-group">
+              <label for="android-gpu-layers">GPU Layers</label>
+              <input id="android-gpu-layers" type="number" min="0" max="999" step="1" />
+            </div>
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="android-context-length">Context Length</label>
+              <input id="android-context-length" type="number" min="1024" max="32768" step="512" />
+            </div>
+            <div class="input-group">
+              <label for="android-batch-size">Batch Size</label>
+              <input id="android-batch-size" type="number" min="32" max="2048" step="32" />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveRuntimeSettings()">Save Runtime</button>
+            <button class="ghost-btn" type="button" onclick="testNativeRuntime()">Test Android Runtime</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Silent Helper</h2>
+
+          <div class="switch-row">
+            <div>
+              <strong>Enable silent context helper</strong>
+              <p>Before the model runs, the app searches selected workspace files and sends compact relevant snippets instead of dumping the whole folder.</p>
+            </div>
+            <input id="context-helper-enabled" type="checkbox" />
+          </div>
+
+          <div class="input-group">
+            <label for="context-helper-mode">Context Mode</label>
+            <select id="context-helper-mode">
+              <option value="smart">Smart snippets</option>
+              <option value="full">Full selected files</option>
+            </select>
+            <p class="hint">Smart snippets usually lowers prompt size and KV-cache pressure. Full selected files is better when a small exact file must be rewritten.</p>
+          </div>
+
+          <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="input-group">
+              <label for="context-helper-max-snippets">Max Files/Snippet Groups</label>
+              <input id="context-helper-max-snippets" type="number" min="4" max="40" step="1" />
+            </div>
+            <div class="input-group">
+              <label for="context-helper-max-chars">Max Context Characters</label>
+              <input id="context-helper-max-chars" type="number" min="12000" max="150000" step="1000" />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveHelperSettings()">Save Helper</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Defaults</h2>
+
+          <div class="input-group">
+            <label for="default-model">Default Model</label>
+            <input id="default-model" placeholder="Load models or type a model id" />
+          </div>
+
+          <div class="input-group">
+            <label for="temperature">Temperature</label>
+            <input id="temperature" type="number" min="0" max="2" step="0.1" />
+          </div>
+
+          <div class="input-group">
+            <label for="top-p">Top P</label>
+            <input id="top-p" type="number" min="0" max="1" step="0.05" />
+          </div>
+
+          <div class="input-group">
+            <label for="max-tokens">Max Tokens</label>
+            <input id="max-tokens" type="number" min="1" step="1" />
+          </div>
+
+          <div class="input-group">
+            <label for="system-prompt">System Prompt</label>
+            <textarea id="system-prompt"></textarea>
+          </div>
+
+          <div class="switch-row">
+            <div>
+              <strong>Persist chat history</strong>
+              <p>Keep the conversation in this browser after refresh.</p>
+            </div>
+            <input id="persist-chat" type="checkbox" />
+          </div>
+
+          <div class="button-row">
+            <button type="button" onclick="saveDefaults()">Save Defaults</button>
+            <button class="ghost-btn" type="button" onclick="restoreDefaults()">Restore Defaults</button>
+            <button class="danger-btn" type="button" onclick="clearSavedChat()">Clear Saved Chat</button>
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Runtime Status</h2>
+          <div class="status-card">
+            <span class="status-pill checking" id="status-pill"><span class="status-dot"></span><span id="status-text">Not tested</span></span>
+            <p class="hint" id="status-detail">Run a test to check the selected server or Android runtime.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Available Models</h2>
+          <p class="hint">Testing lists models visible to the selected runtime. Click Use to make one the default.</p>
+          <div class="model-list" id="model-list"></div>
+        </section>
+      </aside>
+    </section>
+  
+      </div>
+    </main>
 
   <div class="toast" id="toast"></div>
 
@@ -267,5 +662,46 @@
   <script src="shared.js"></script>
   <script src="index.js"></script>
   <script src="signal-lm-commands.js"></script>
+
+  <script src="editor.js"></script>
+  <script src="mcp.js"></script>
+  <script src="settings.js"></script>
+  <script src="signal-lm-mcp-file-path.js"></script>
+  <script>
+    // SPA Router
+    function handleRouting() {
+      const hash = window.location.hash || '#chat';
+      const views = document.querySelectorAll('.app-view');
+      views.forEach(v => {
+        v.style.display = 'none';
+        v.classList.remove('active');
+      });
+      
+      const targetView = document.getElementById('view-' + hash.substring(1));
+      if (targetView) {
+        targetView.style.display = 'block';
+        targetView.classList.add('active');
+      } else {
+        document.getElementById('view-chat').style.display = 'block';
+        document.getElementById('view-chat').classList.add('active');
+      }
+
+      // Update active nav link
+      document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('href') === hash) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
+      
+      // Toggle sidebar on mobile when navigating
+      if (typeof window.toggleSidebar === 'function') {
+        window.toggleSidebar(false);
+      }
+    }
+    window.addEventListener('hashchange', handleRouting);
+    document.addEventListener('DOMContentLoaded', handleRouting);
+  </script>
 </body>
 </html>

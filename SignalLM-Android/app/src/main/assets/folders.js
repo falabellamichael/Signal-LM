@@ -498,7 +498,7 @@ const STORAGE_KEYS = {
           content: `Folder: ${workspaceLabel || 'selected folder'}\n\n${blocks}${skippedNote}`,
           updatedAt: new Date().toISOString()
         }));
-        window.location.href = 'index.html';
+        window.location.hash = '#chat'; window.dispatchEvent(new Event('workspaceSelected'));
       } catch (error) {
         console.error(error);
         showToast('Could not send folder context to chat.');

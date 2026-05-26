@@ -1,3 +1,4 @@
+(function() {
 const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       messages: 'lmStudioLite.messages.v1',
@@ -491,3 +492,17 @@ const STORAGE_KEYS = {
 
     syncNewTypeFields();
     renderAll();
+
+// Expose for HTML
+window.saveMcpSettings = saveMcpSettings;
+window.syncNewTypeFields = syncNewTypeFields;
+window.addIntegration = addIntegration;
+window.addHuggingFaceExample = addHuggingFaceExample;
+window.addPlaywrightExample = addPlaywrightExample;
+window.copyPreview = copyPreview;
+window.resetNativeThread = resetNativeThread;
+window.testNativeModels = testNativeModels;
+window.testMcpChat = testMcpChat;
+
+window.addEventListener('settingsChanged', () => { renderAll(); });
+})();

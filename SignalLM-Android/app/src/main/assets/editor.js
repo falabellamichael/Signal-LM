@@ -1,3 +1,4 @@
+(function() {
 const STORAGE_KEYS = {
       settings: 'lmStudioLite.settings.v1',
       fileContext: 'lmStudioLite.fileContext.v1',
@@ -463,7 +464,7 @@ const STORAGE_KEYS = {
           content: `Folder: ${workspaceLabel || 'selected folder'}\n\n${blocks}${skippedNote}`,
           updatedAt: new Date().toISOString()
         }));
-        window.location.href = 'index.html';
+        window.location.hash = '#chat'; window.dispatchEvent(new Event('workspaceSelected'));
       } catch (error) {
         console.error(error);
         showToast('Could not send folder context to chat.');
@@ -740,3 +741,14 @@ const STORAGE_KEYS = {
       updateSelectedMeta();
     }
     init();
+
+// Expose for HTML
+window.selectFolder = selectFolder;
+window.selectFilesFallback = selectFilesFallback;
+window.rescanFolder = rescanFolder;
+window.sendWorkspaceToChat = sendWorkspaceToChat;
+window.saveSelectedFile = saveSelectedFile;
+window.downloadSelectedFile = downloadSelectedFile;
+window.previewAiFolderEdits = previewAiFolderEdits;
+window.applyAiFolderEdits = applyAiFolderEdits;
+})();
