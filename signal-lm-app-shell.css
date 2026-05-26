@@ -527,16 +527,36 @@ main.main-app {
   align-self: center;
   margin: 0;
   border-radius: 999px;
+  transition: all 0.15s ease;
+}
+
+#view-chat .send-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16) !important;
+}
+
+#view-chat .send-btn:active {
+  transform: scale(0.95);
 }
 
 #view-chat .send-btn .send-icon,
 #view-chat .send-btn .stop-icon {
   width: 18px;
   height: 18px;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
 }
 
 #view-chat .send-btn .send-icon {
   transform: translateX(1px);
+}
+
+#view-chat .send-btn:hover .send-icon {
+  transform: translate(2.5px, -1px) scale(1.1) rotate(-6deg);
+}
+
+#view-chat .send-btn:active .send-icon {
+  transform: translate(-1.5px, 0.5px) scale(0.85);
 }
 
 html[data-theme="dark"] #view-chat .attach-btn {
