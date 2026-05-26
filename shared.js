@@ -167,7 +167,7 @@
   if (window.__signalLmWebSearchLoader) return;
   window.__signalLmWebSearchLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-web-search.js?v=3';
+  script.src = 'signal-lm-web-search.js?v=4';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM web search helper was not found.'); };
   document.head.appendChild(script);

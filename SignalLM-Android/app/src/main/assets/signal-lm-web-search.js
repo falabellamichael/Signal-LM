@@ -96,9 +96,12 @@
   }
 
   async function browserGet(url) {
-    const urls = [url];
+    let urls = [url];
     if (url.includes('duckduckgo.com')) {
-      urls.push(corsProxyUrl(url), readerUrl(url), allOriginsUrl(url));
+      const isInstantAnswer = /:\/\/api\.duckduckgo\.com\//i.test(url);
+      urls = isInstantAnswer
+        ? [url, allOriginsUrl(url), readerUrl(url)]
+        : [readerUrl(url), allOriginsUrl(url), corsProxyUrl(url)];
     }
 
     let lastError = null;
