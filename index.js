@@ -70,6 +70,7 @@ const STORAGE_KEYS = {
     let activeInferenceTelemetry = null;
     let lastInferenceTelemetry = loadInferenceTelemetry();
     let inferenceTelemetryPublishTimer = null;
+    let activeInferenceTelemetryView = null;
 
     const els = {
       sidebar: document.getElementById('sidebar'),
@@ -225,6 +226,7 @@ const STORAGE_KEYS = {
         temperature: Number(settings.temperature),
         topP: Number(settings.topP)
       };
+      updateActiveInferenceTelemetryView();
       publishInferenceTelemetry();
       return activeInferenceTelemetry;
     }
@@ -232,6 +234,7 @@ const STORAGE_KEYS = {
     function setInferenceTelemetrySource(source) {
       if (!activeInferenceTelemetry || !source) return;
       activeInferenceTelemetry.source = source;
+      updateActiveInferenceTelemetryView();
       scheduleInferenceTelemetryPublish();
     }
 
@@ -250,22 +253,87 @@ const STORAGE_KEYS = {
       }
       const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
       activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / seconds).toFixed(2));
+      updateActiveInferenceTelemetryView();
       scheduleInferenceTelemetryPublish();
     }
 
     function finishInferenceTelemetry(status, text = '', error = null) {
       if (!activeInferenceTelemetry) return;
-      updateInferenceTelemetryOutput(text, activeInferenceTelemetry.source);
+      const hasFinalText = text !== null && text !== undefined && String(text).length > 0;
+      if (hasFinalText) {
+        updateInferenceTelemetryOutput(text, activeInferenceTelemetry.source);
+      } else {
+        const now = Date.now();
+        const started = Date.parse(activeInferenceTelemetry.startedAt) || now;
+        activeInferenceTelemetry.durationMs = Math.max(0, now - started);
+        const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
+        activeInferenceTelemetry.tokensPerSecond = Number(((activeInferenceTelemetry.outputTokens || 0) / seconds).toFixed(2));
+      }
       activeInferenceTelemetry.status = status;
       activeInferenceTelemetry.endedAt = new Date().toISOString();
       if (error) activeInferenceTelemetry.error = error.message || String(error);
       lastInferenceTelemetry = { ...activeInferenceTelemetry };
+      updateActiveInferenceTelemetryView(lastInferenceTelemetry);
       activeInferenceTelemetry = null;
+      activeInferenceTelemetryView = null;
       if (inferenceTelemetryPublishTimer) {
         clearTimeout(inferenceTelemetryPublishTimer);
         inferenceTelemetryPublishTimer = null;
       }
       publishInferenceTelemetry();
+      return lastInferenceTelemetry;
+    }
+
+    function formatTelemetrySeconds(ms) {
+      const seconds = Math.max(0, Number(ms || 0) / 1000);
+      if (seconds < 10) return `${seconds.toFixed(1)}s`;
+      if (seconds < 100) return `${seconds.toFixed(1)}s`;
+      return `${Math.round(seconds)}s`;
+    }
+
+    function formatTelemetrySpeed(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric <= 0) return '0.0 tok/s';
+      return `${numeric >= 100 ? numeric.toFixed(1) : numeric.toFixed(2)} tok/s`;
+    }
+
+    function inferenceTelemetryMarkup(telemetry) {
+      if (!telemetry) return '';
+      const status = telemetry.status || 'running';
+      const time = formatTelemetrySeconds(telemetry.durationMs);
+      const speed = formatTelemetrySpeed(telemetry.tokensPerSecond);
+      const tokens = Math.max(0, Math.round(Number(telemetry.outputTokens) || 0));
+      return `
+        <span class="chat-telemetry-rule"></span>
+        <span class="chat-telemetry-items">
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⏳</span><strong>Time:</strong> ${escapeHtml(time)}</span>
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⚡</span><strong>Speed:</strong> ${escapeHtml(speed)}</span>
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">◎</span><strong>Tokens:</strong> ${tokens}</span>
+        </span>
+        <span class="sr-only">Inference status: ${escapeHtml(status)}</span>`;
+    }
+
+    function renderInferenceTelemetryElement(element, telemetry) {
+      if (!element) return;
+      if (!telemetry) {
+        element.hidden = true;
+        element.innerHTML = '';
+        return;
+      }
+      element.hidden = false;
+      element.dataset.status = telemetry.status || 'running';
+      element.innerHTML = inferenceTelemetryMarkup(telemetry);
+    }
+
+    function updateActiveInferenceTelemetryView(telemetry = activeInferenceTelemetry) {
+      if (activeInferenceTelemetryView?.setTelemetry) {
+        activeInferenceTelemetryView.setTelemetry(telemetry);
+      }
+    }
+
+    function bindInferenceTelemetryMessage(messageUi) {
+      activeInferenceTelemetryView = messageUi || null;
+      updateActiveInferenceTelemetryView();
     }
 
     function normalizeSidebarWidth(width) {
@@ -1016,6 +1084,14 @@ const STORAGE_KEYS = {
         renderBubbleContent(bubble, content);
       }
 
+      let telemetry = null;
+      if (role === 'ai') {
+        telemetry = document.createElement('div');
+        telemetry.className = 'chat-telemetry';
+        telemetry.hidden = true;
+        renderInferenceTelemetryElement(telemetry, options.telemetry);
+      }
+
       const meta = document.createElement('div');
       meta.className = 'message-meta';
 
@@ -1023,12 +1099,14 @@ const STORAGE_KEYS = {
       copyBtn.className = 'meta-btn';
       copyBtn.type = 'button';
       setCopyButtonLabel(copyBtn);
+      let copyContent = content || '';
       copyBtn.addEventListener('click', () => {
-        copyText(content || bubble.innerText || '', 'Copied message.');
+        copyText(copyContent || bubble.innerText || '', 'Copied message.');
       });
 
       meta.appendChild(copyBtn);
       row.appendChild(bubble);
+      if (telemetry) row.appendChild(telemetry);
       row.appendChild(meta);
       els.msgContainer.appendChild(row);
       scrollToBottom();
@@ -1036,12 +1114,12 @@ const STORAGE_KEYS = {
       const streamRenderer = createStreamRenderer(bubble);
 
       return { row, bubble, setContent: (text) => {
+        copyContent = text || '';
         streamRenderer.update(text);
-        copyBtn.onclick = () => {
-          copyText(text || '', 'Copied message.');
-        };
       }, streamingFinished: () => {
         streamRenderer.finish();
+      }, setTelemetry: (nextTelemetry) => {
+        renderInferenceTelemetryElement(telemetry, nextTelemetry);
       }};
     }
 
@@ -1052,7 +1130,11 @@ const STORAGE_KEYS = {
         return;
       }
 
-      messages.forEach(message => addMessage(message.role === 'assistant' ? 'ai' : 'user', message.displayContent || message.content));
+      messages.forEach(message => addMessage(
+        message.role === 'assistant' ? 'ai' : 'user',
+        message.displayContent || message.content,
+        { telemetry: message.role === 'assistant' ? message.telemetry : null }
+      ));
     }
 
     function renderEmptyState() {
@@ -1742,6 +1824,7 @@ Workspace context is present in the latest user message. Treat those files as at
       let fullResponse = '';
       abortController = new AbortController();
       setStreamingUI(true);
+      bindInferenceTelemetryMessage(assistantUi);
       startInferenceTelemetry({
         inputTokens: settings.mcpEnabled ? estimateTokenCount(requestContent) : estimateRequestTokens(requestMessages),
         source: inferenceRuntimeLabel()
@@ -1771,16 +1854,16 @@ Workspace context is present in the latest user message. Treat those files as at
           showToast(`Ready to apply ${edits.length} edited file${edits.length === 1 ? '' : 's'}.`);
         }
 
-        messages.push({ role: 'assistant', content: fullResponse });
+        const finalTelemetry = finishInferenceTelemetry('complete', fullResponse);
+        messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
         saveMessages();
-        finishInferenceTelemetry('complete', fullResponse);
       } catch (error) {
         if (error.name === 'AbortError') {
           fullResponse = fullResponse || '(Generation stopped.)';
           assistantUi.setContent(fullResponse);
-          messages.push({ role: 'assistant', content: fullResponse });
+          const finalTelemetry = finishInferenceTelemetry('stopped', fullResponse, error);
+          messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
           saveMessages();
-          finishInferenceTelemetry('stopped', fullResponse, error);
         } else {
           console.error(error);
           assistantUi.setContent(usesAndroidSupport() ? 'Error from the selected runtime. Check the PC server, Android native bridge, selected model, and runtime settings.' : 'Error connecting to LM Studio. Check Settings, confirm the server is running, and verify the selected model is loaded.');
