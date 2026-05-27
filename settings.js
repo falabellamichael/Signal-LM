@@ -265,7 +265,7 @@ const STORAGE_KEYS = {
       els.modelList.innerHTML = '';
 
       try {
-        const response = await fetch(endpoint('/models'), {
+        const response = await fetch(endpoint(''), {
           method: 'GET',
           headers: getAuthHeaders()
         });

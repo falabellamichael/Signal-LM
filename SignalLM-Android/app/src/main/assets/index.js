@@ -1072,7 +1072,7 @@ const STORAGE_KEYS = {
       }
 
       try {
-        const response = await fetch(endpoint('/models'), {
+        const response = await fetch(endpoint(''), {
           method: 'GET',
           headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}
         });
