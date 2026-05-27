@@ -93,7 +93,8 @@
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="mcp.css">
   <link rel="stylesheet" href="settings.css">
-  <link rel="stylesheet" href="signal-lm-app-shell.css?v=8">
+  <link rel="stylesheet" href="signal-lm-app-shell.css?v=9">
+  <link rel="stylesheet" href="system-sidebar.css?v=1">
 </head>
 <body>
   <div class="mobile-scrim" id="mobile-scrim" onclick="toggleSidebar(false)"></div>
@@ -687,11 +688,52 @@
       </div>
     </main>
 
+  <aside class="system-sidebar" id="system-sidebar" aria-label="System status">
+    <div class="system-sidebar-header">
+      <div class="system-sidebar-title">
+        <span class="system-sidebar-icon" aria-hidden="true">⌁</span>
+        <span>System Status</span>
+      </div>
+      <button class="system-sidebar-menu" type="button" aria-label="More system options" title="More system options">•••</button>
+    </div>
+
+    <div class="system-tabs" role="tablist" aria-label="System sidebar sections">
+      <button class="system-tab active" type="button" data-system-tab="overview" role="tab" aria-selected="true">Status</button>
+      <button class="system-tab" type="button" data-system-tab="polling" role="tab" aria-selected="false">Polling</button>
+      <button class="system-tab" type="button" data-system-tab="devices" role="tab" aria-selected="false">Devices</button>
+    </div>
+
+    <section class="system-tab-panel active" data-system-panel="overview" role="tabpanel">
+      <div class="system-section-heading">
+        <span class="system-section-icon" aria-hidden="true">ⓘ</span>
+        <h2>Telemetry</h2>
+      </div>
+      <div class="system-metrics-grid" id="system-metrics-grid"></div>
+    </section>
+
+    <section class="system-tab-panel" data-system-panel="polling" role="tabpanel">
+      <div class="system-section-heading">
+        <span class="system-section-icon" aria-hidden="true">↻</span>
+        <h2>Polling Rates</h2>
+      </div>
+      <div class="system-polling-list" id="system-polling-list"></div>
+    </section>
+
+    <section class="system-tab-panel" data-system-panel="devices" role="tabpanel">
+      <div class="system-section-heading">
+        <span class="system-section-icon" aria-hidden="true">▣</span>
+        <h2>Device Snapshot</h2>
+      </div>
+      <div class="system-device-list" id="system-device-list"></div>
+    </section>
+  </aside>
+
   <div class="toast" id="toast"></div>
 
   <script src="libs/prism.js"></script>
   <script src="shared.js?v=7"></script>
-  <script src="index.js?v=12"></script>
+  <script src="index.js?v=13"></script>
+  <script src="system-sidebar.js?v=1"></script>
   <script src="signal-lm-commands.js?v=5"></script>
 
   <script src="editor.js"></script>

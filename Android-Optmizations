@@ -6,6 +6,7 @@ This file tracks Android-only UI optimization decisions for the Signal LM wrappe
 
 - Keep the Android sidebar behavior in its current fixed-width state.
 - Do not add the PC sidebar edge resize handle to `SignalLM-Android/app/src/main/assets/` until Android resizing is explicitly requested.
+- Do not add the PC right-side system status sidebar to `SignalLM-Android/app/src/main/assets/` until Android status telemetry is explicitly requested.
 - Preserve the current Android viewport, keyboard, composer, and drawer behavior while making PC-only layout changes.
 - When adding future Android optimizations, start by matching the current Android asset behavior, then adjust only the Android-specific issue being addressed.
 
