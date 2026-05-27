@@ -1,11 +1,14 @@
 (function () {
   const SYSTEM_SIDEBAR_KEY = 'lmStudioLite.systemSidebar.v1';
+  const INFERENCE_TELEMETRY_KEY = 'lmStudioLite.inferenceTelemetry.v1';
+  const LOCAL_TELEMETRY_URL = 'http://127.0.0.1:8766/status';
   const MAX_SAMPLES = 42;
   const DEFAULT_POLL_SECONDS = {
     cpu: 3,
     gpu: 5,
     memory: 3,
-    storage: 10
+    storage: 10,
+    inference: 2
   };
 
   const METRICS = [
@@ -25,8 +28,8 @@
     },
     {
       id: 'memory',
-      label: 'Memory Usage',
-      eyebrow: 'Browser heap',
+      label: 'System RAM',
+      eyebrow: 'OS memory',
       minPoll: 1,
       maxPoll: 15
     },
@@ -36,10 +39,23 @@
       eyebrow: 'Origin quota',
       minPoll: 5,
       maxPoll: 60
+    },
+    {
+      id: 'inference',
+      label: 'Inference Telemetry',
+      eyebrow: 'Runtime throughput',
+      minPoll: 1,
+      maxPoll: 15
     }
   ];
 
   const state = new Map();
+  const telemetryCache = {
+    data: null,
+    error: '',
+    expiresAt: 0,
+    promise: null
+  };
   const els = {
     sidebar: document.getElementById('system-sidebar'),
     metricsGrid: document.getElementById('system-metrics-grid'),
@@ -153,24 +169,35 @@
     const memory = metricState('memory').lastResult;
     const storage = metricState('storage').lastResult;
     const gpu = metricState('gpu').lastResult;
+    const inference = metricState('inference').lastResult;
+    const helper = telemetryCache.data;
+    const helperGpu = helper?.gpu;
+    const lmStudio = helper?.lmStudio;
     const facts = [
       {
+        label: 'Telemetry Helper',
+        detail: LOCAL_TELEMETRY_URL,
+        value: helperStatusLabel()
+      },
+      {
         label: 'Logical CPU',
-        detail: 'Browser hardware hint',
-        value: navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : 'Not exposed'
+        detail: helper?.cpu?.model || 'Browser hardware hint',
+        value: helper?.cpu?.logicalCores
+          ? `${helper.cpu.logicalCores} cores`
+          : navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : 'Not exposed'
       },
       {
-        label: 'Device Memory',
-        detail: 'Browser memory hint',
-        value: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : 'Not exposed'
+        label: 'System RAM',
+        detail: memory?.detail || 'OS memory from telemetry helper',
+        value: helper?.memory?.totalBytes ? formatBytes(helper.memory.totalBytes) : helperStatusLabel()
       },
       {
-        label: 'JS Heap',
+        label: 'RAM Sample',
         detail: memory?.detail || 'Waiting for memory sample',
         value: memory?.value || 'Pending'
       },
       {
-        label: 'Storage Quota',
+        label: 'Storage Sample',
         detail: storage?.detail || 'Waiting for storage sample',
         value: storage?.value || 'Pending'
       },
@@ -180,9 +207,19 @@
         value: gpu?.value || 'Pending'
       },
       {
-        label: 'WebGPU API',
-        detail: 'Browser capability',
-        value: navigator.gpu ? 'Available' : 'Not exposed'
+        label: 'GPU Source',
+        detail: helperGpu?.devices?.[0]?.name || 'Native/browser fallback',
+        value: helperGpu?.source || 'Browser'
+      },
+      {
+        label: 'Inference',
+        detail: inference?.detail || 'Waiting for inference telemetry',
+        value: inference?.value || 'Pending'
+      },
+      {
+        label: 'LM Studio',
+        detail: lmStudio?.baseUrl || 'Telemetry helper probe',
+        value: lmStudio ? (lmStudio.reachable ? 'Reachable' : lmStudio.authRequired ? 'Needs key' : 'Offline') : 'Pending'
       }
     ];
 
@@ -227,6 +264,58 @@
     try { return JSON.parse(trimmed); } catch { return value; }
   }
 
+  function telemetryPercent(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? clamp(numeric, 0, 100) : null;
+  }
+
+  async function fetchLocalTelemetry() {
+    const now = Date.now();
+    if (telemetryCache.data && now < telemetryCache.expiresAt) return telemetryCache.data;
+    if (telemetryCache.promise) return telemetryCache.promise;
+
+    telemetryCache.promise = (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      try {
+        const response = await fetch(LOCAL_TELEMETRY_URL, {
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        telemetryCache.data = payload;
+        telemetryCache.error = '';
+        telemetryCache.expiresAt = Date.now() + 900;
+        return payload;
+      } catch (error) {
+        telemetryCache.data = null;
+        telemetryCache.error = error.name === 'AbortError' ? 'Timed out' : (error.message || 'Unavailable');
+        telemetryCache.expiresAt = Date.now() + 2500;
+        return null;
+      } finally {
+        clearTimeout(timeout);
+        telemetryCache.promise = null;
+      }
+    })();
+
+    return telemetryCache.promise;
+  }
+
+  function helperStatusLabel() {
+    if (telemetryCache.data?.ok) return 'Connected';
+    return telemetryCache.error ? 'Offline' : 'Pending';
+  }
+
+  function telemetryUsageLine(usedBytes, totalBytes, noun = 'used') {
+    if (usedBytes === null || usedBytes === undefined || totalBytes === null || totalBytes === undefined) return '';
+    const used = Number(usedBytes);
+    const total = Number(totalBytes);
+    if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return '';
+    const percent = clamp((used / total) * 100, 0, 100);
+    return `${Math.round(percent)}% ${noun} of ${formatBytes(total)}`;
+  }
+
   function getNativeTelemetryBridge() {
     return [
       window.NativeTelemetryBridge,
@@ -249,6 +338,17 @@
   }
 
   async function readCpuMetric(def) {
+    const telemetry = await fetchLocalTelemetry();
+    const cpu = telemetry?.cpu;
+    const helperPercent = telemetryPercent(cpu?.usagePercent);
+    if (helperPercent !== null) {
+      return {
+        percent: helperPercent,
+        value: `${Math.round(helperPercent)}%`,
+        detail: `${cpu.logicalCores || navigator.hardwareConcurrency || '?'} cores · ${cpu.model || 'PC telemetry'}`
+      };
+    }
+
     const info = metricState(def.id);
     const now = performance.now();
     const pollMs = getPollSeconds(def) * 1000;
@@ -264,32 +364,46 @@
   }
 
   async function readMemoryMetric() {
-    const memory = performance.memory;
-    if (memory && memory.jsHeapSizeLimit) {
-      const percent = clamp((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100, 0, 100);
+    const telemetry = await fetchLocalTelemetry();
+    const memory = telemetry?.memory;
+    const helperPercent = telemetryPercent(memory?.usagePercent);
+    if (helperPercent !== null) {
       return {
-        percent,
-        value: `${formatBytes(memory.usedJSHeapSize)}`,
-        detail: `${Math.round(percent)}% of ${formatBytes(memory.jsHeapSizeLimit)} JS heap`
+        percent: helperPercent,
+        value: `${formatBytes(memory.usedBytes)}`,
+        detail: `System RAM · ${telemetryUsageLine(memory.usedBytes, memory.totalBytes) || 'OS memory telemetry'}`
       };
     }
 
-    if (navigator.deviceMemory) {
+    const browserMemory = performance.memory;
+    if (browserMemory && browserMemory.jsHeapSizeLimit) {
+      const percent = clamp((browserMemory.usedJSHeapSize / browserMemory.jsHeapSizeLimit) * 100, 0, 100);
       return {
-        percent: null,
-        value: `${navigator.deviceMemory} GB`,
-        detail: 'Device memory hint; live heap unavailable'
+        percent,
+        value: `${formatBytes(browserMemory.usedJSHeapSize)}`,
+        detail: `Helper offline · ${Math.round(percent)}% of ${formatBytes(browserMemory.jsHeapSizeLimit)} JS heap`
       };
     }
 
     return {
       percent: null,
-      value: 'Unavailable',
-      detail: 'Memory usage is not exposed by this browser'
+      value: helperStatusLabel() === 'Offline' ? 'Helper offline' : 'Pending',
+      detail: 'Start telemetry helper for system RAM'
     };
   }
 
   async function readStorageMetric() {
+    const telemetry = await fetchLocalTelemetry();
+    const storage = telemetry?.storage;
+    const helperPercent = telemetryPercent(storage?.usagePercent);
+    if (helperPercent !== null) {
+      return {
+        percent: helperPercent,
+        value: `${formatBytes(storage.usedBytes)}`,
+        detail: `${storage.deviceId || 'Drive'} · ${telemetryUsageLine(storage.usedBytes, storage.totalBytes) || 'PC storage telemetry'}`
+      };
+    }
+
     if (!navigator.storage || !navigator.storage.estimate) {
       return {
         percent: null,
@@ -310,6 +424,31 @@
   }
 
   async function readGpuMetric() {
+    const telemetry = await fetchLocalTelemetry();
+    const gpu = telemetry?.gpu;
+    if (gpu?.source === 'pending') {
+      return {
+        percent: null,
+        value: 'Warming',
+        detail: 'GPU telemetry helper is collecting the first sample'
+      };
+    }
+    const helperPercent = telemetryPercent(gpu?.usagePercent);
+    if (helperPercent !== null) {
+      const gpuName = gpu.devices?.[0]?.name || gpu.source || 'PC GPU';
+      const memoryLine = telemetryUsageLine(gpu.memoryUsedBytes, gpu.memoryTotalBytes, 'VRAM used');
+      const dedicatedBytes = Number(gpu.memoryUsedBytes);
+      const committedBytes = Number(gpu.memoryCommittedBytes);
+      const memoryDetail = memoryLine
+        || (Number.isFinite(dedicatedBytes) && dedicatedBytes > 0 ? `${formatBytes(dedicatedBytes)} dedicated VRAM` : '')
+        || (Number.isFinite(committedBytes) && committedBytes > 0 ? `${formatBytes(committedBytes)} GPU memory committed` : '');
+      return {
+        percent: helperPercent,
+        value: `${Math.round(helperPercent)}%`,
+        detail: `${gpuName} · ${memoryDetail || gpu.source || 'telemetry helper'}`
+      };
+    }
+
     const bridge = getNativeTelemetryBridge();
     if (bridge) {
       try {
@@ -344,11 +483,68 @@
     };
   }
 
+  function readInferenceSnapshot() {
+    if (window.SignalLMInferenceTelemetry && typeof window.SignalLMInferenceTelemetry.snapshot === 'function') {
+      return window.SignalLMInferenceTelemetry.snapshot();
+    }
+    try { return JSON.parse(localStorage.getItem(INFERENCE_TELEMETRY_KEY) || '{}') || {}; }
+    catch { return {}; }
+  }
+
+  async function readInferenceMetric() {
+    const snapshot = readInferenceSnapshot();
+    const run = snapshot.active || snapshot.last;
+    const telemetry = await fetchLocalTelemetry();
+    const lmStudio = telemetry?.lmStudio;
+
+    if (!run) {
+      if (lmStudio?.reachable) {
+        return {
+          percent: null,
+          value: 'Idle',
+          detail: `${lmStudio.modelCount || 0} LM Studio model${lmStudio.modelCount === 1 ? '' : 's'} reachable`
+        };
+      }
+      if (lmStudio?.authRequired) {
+        return {
+          percent: null,
+          value: 'Idle',
+          detail: 'LM Studio telemetry needs SIGNAL_LM_API_KEY'
+        };
+      }
+      return {
+        percent: null,
+        value: 'Idle',
+        detail: 'No inference run captured yet'
+      };
+    }
+
+    const active = Boolean(snapshot.active);
+    const tokensPerSecond = Number(run.tokensPerSecond);
+    const percent = Number.isFinite(tokensPerSecond)
+      ? clamp((tokensPerSecond / 80) * 100, 0, 100)
+      : null;
+    const latency = run.firstTokenMs === null || run.firstTokenMs === undefined
+      ? ''
+      : ` · first token ${Math.round(run.firstTokenMs)}ms`;
+    const status = active ? 'Running' : run.status || 'Complete';
+    const tokenText = Number.isFinite(tokensPerSecond) && tokensPerSecond > 0
+      ? `${tokensPerSecond.toFixed(tokensPerSecond >= 10 ? 0 : 1)} tok/s`
+      : status;
+
+    return {
+      percent,
+      value: tokenText,
+      detail: `${status} · ${run.source || run.runtime || 'runtime'} · ${run.outputTokens || 0} out / ${run.inputTokens || 0} in${latency}`
+    };
+  }
+
   async function readMetric(def) {
     if (def.id === 'cpu') return readCpuMetric(def);
     if (def.id === 'memory') return readMemoryMetric();
     if (def.id === 'storage') return readStorageMetric();
     if (def.id === 'gpu') return readGpuMetric();
+    if (def.id === 'inference') return readInferenceMetric();
     return { percent: null, value: 'Unavailable', detail: 'Metric reader missing' };
   }
 
@@ -459,6 +655,11 @@
 
     window.addEventListener('resize', () => {
       METRICS.forEach(def => drawChart(def));
+    });
+
+    window.addEventListener('signal-lm-inference-telemetry', () => {
+      const def = METRICS.find(metric => metric.id === 'inference');
+      if (def) scheduleMetric(def, true);
     });
   }
 
