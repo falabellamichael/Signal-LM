@@ -151,6 +151,11 @@
       border-color: var(--border-color);
     }
 
+    html[data-theme="dark"] .tel-item {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
     html[data-theme="dark"] .code-copy-btn {
       background: rgba(239, 231, 216, 0.1);
       color: #f4f1ea;
@@ -722,6 +727,30 @@
       margin-top: 0.35rem;
       opacity: 1;
       transition: opacity 0.2s;
+    }
+
+    .message-telemetry {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .tel-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .tel-val {
+      font-weight: 600;
+      color: var(--text-primary);
     }
 
     .message-row:hover .message-meta {
