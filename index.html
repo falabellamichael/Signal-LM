@@ -113,10 +113,11 @@
         <div class="input-group" id="hybrid-strategy-group">
           <label for="hybrid-strategy">Hybrid Strategy</label>
           <select id="hybrid-strategy">
+            <option value="off">Off - PC server only</option>
             <option value="fallback">PC first, phone fallback on slow/fail</option>
             <option value="race">Run PC + phone in parallel, use first reply</option>
           </select>
-          <p class="runtime-status-line">Hybrid does not combine VRAM. It uses the phone as a helper worker or fallback runtime.</p>
+          <p class="runtime-status-line">Off keeps every request on the LM Studio server. Fallback and race use the phone through the native Android inference bridge.</p>
         </div>
         <div class="input-group" id="hybrid-timeout-group">
           <label for="hybrid-fallback-ms">PC Timeout Before Phone Fallback (ms)</label>
@@ -522,10 +523,11 @@
           <div class="input-group">
             <label for="settings-hybrid-strategy">Hybrid Strategy</label>
             <select id="settings-hybrid-strategy">
+              <option value="off">Off - PC server only</option>
               <option value="fallback">PC first, phone fallback on slow/fail</option>
               <option value="race">Run PC + phone in parallel, use first reply</option>
             </select>
-            <p class="hint">Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
+            <p class="hint">Off keeps every request on the LM Studio server. Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
           </div>
 
           <div class="input-group">
@@ -664,8 +666,8 @@
   <div class="toast" id="toast"></div>
 
   <script src="libs/prism.js"></script>
-  <script src="shared.js?v=6"></script>
-  <script src="index.js?v=10"></script>
+  <script src="shared.js?v=7"></script>
+  <script src="index.js?v=11"></script>
   <script src="signal-lm-commands.js?v=5"></script>
 
   <script src="editor.js"></script>

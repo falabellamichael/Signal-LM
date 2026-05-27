@@ -1,9 +1,22 @@
 (function(){
+  function hasAnyMethod(bridge, names) {
+    if (!bridge) return false;
+    return names.some(function (name) { return typeof bridge[name] === 'function'; });
+  }
+
+  function isInferenceBridge(bridge) {
+    return hasAnyMethod(bridge, ['chatCompletion', 'generate']);
+  }
+
+  function isFileBridge(bridge) {
+    return hasAnyMethod(bridge, ['selectFolder', 'triggerSelectFolder', 'readFile', 'triggerReadFile', 'writeFile', 'triggerWriteFile']);
+  }
+
   var bridge=window.SignalLMNativeBridge||window.lmStudioLiteNative||window.NativeFileBridge||window.NativeInferenceBridge||window.AndroidBridge||window.AndroidFileBridge||window.AndroidWorkspaceBridge||window.AndroidInferenceBridge||null;
   if(!bridge)return;
   if(!window.lmStudioLiteNative)window.lmStudioLiteNative=bridge;
-  if(!window.NativeFileBridge)window.NativeFileBridge=bridge;
-  if(!window.NativeInferenceBridge)window.NativeInferenceBridge=bridge;
+  if(!window.NativeFileBridge&&isFileBridge(bridge))window.NativeFileBridge=bridge;
+  if(!window.NativeInferenceBridge&&isInferenceBridge(bridge))window.NativeInferenceBridge=bridge;
   if(!window.AndroidBridge)window.AndroidBridge=bridge;
 })();
 
@@ -46,6 +59,7 @@
 (function () {
   if (window.__lmStudioLiteNativeFetchPatch) return;
   window.__lmStudioLiteNativeFetchPatch = true;
+  const SETTINGS_KEY = 'lmStudioLite.settings.v1';
   const originalFetch = window.fetch ? window.fetch.bind(window) : null;
   const LM_STUDIO_CHAT_FORBIDDEN_KEYS = new Set([
     'response_id',
@@ -57,12 +71,27 @@
   ]);
 
   function getBridge() {
-    return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+    return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeFileBridge || window.AndroidBridge || window.AndroidFileBridge || window.AndroidWorkspaceBridge || null;
+  }
+
+  function readSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function nativeHttpBridgeEnabled() {
+    const settings = readSettings();
+    const mode = settings.runtimeMode || 'server';
+    const hybridStrategy = settings.hybridStrategy || 'off';
+    return mode === 'hybrid' && hybridStrategy !== 'off';
   }
 
   function bridgeCanRequest(url) {
     const bridge = getBridge();
-    return Boolean(bridge && /^https?:\/\//i.test(String(url || '')) && (bridge.httpRequest || bridge.request || bridge.fetchJson));
+    return Boolean(nativeHttpBridgeEnabled() && bridge && /^https?:\/\//i.test(String(url || '')) && (bridge.httpRequest || bridge.request || bridge.fetchJson));
   }
 
   function isLmStudioChatRequest(url) {

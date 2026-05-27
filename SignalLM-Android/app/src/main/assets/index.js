@@ -18,7 +18,7 @@ const STORAGE_KEYS = {
       persistChat: true,
       theme: 'system',
       runtimeMode: 'server',
-      hybridStrategy: 'fallback',
+      hybridStrategy: 'off',
       hybridFallbackMs: 12000,
       androidBackend: 'vulkan',
       androidGpuLayers: 99,
@@ -168,30 +168,53 @@ const STORAGE_KEYS = {
       return getRuntimeMode() === 'hybrid';
     }
 
+    function getHybridStrategy() {
+      return settings.hybridStrategy || DEFAULT_SETTINGS.hybridStrategy;
+    }
+
+    function hybridPhoneSupportEnabled() {
+      return isHybridRuntime() && getHybridStrategy() !== 'off';
+    }
+
     function usesAndroidSupport() {
-      return isAndroidRuntime() || isHybridRuntime();
+      return isAndroidRuntime() || hybridPhoneSupportEnabled();
+    }
+
+    function isNativeInferenceBridge(bridge) {
+      return Boolean(bridge && (typeof bridge.chatCompletion === 'function' || typeof bridge.generate === 'function'));
     }
 
     function getNativeInferenceBridge() {
-      return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+      return [
+        window.NativeInferenceBridge,
+        window.AndroidInferenceBridge,
+        window.SignalLMInferenceBridge,
+        window.SignalLMNativeBridge,
+        window.lmStudioLiteNative
+      ].find(isNativeInferenceBridge) || null;
     }
 
     function runtimeStatusCopy() {
       if (isAndroidRuntime()) return 'Android Vulkan local runtime';
-      if (isHybridRuntime()) return `Hybrid: ${normalizeBaseUrl(settings.baseUrl)} + Android support`;
+      if (isHybridRuntime() && hybridPhoneSupportEnabled()) return `Hybrid: ${normalizeBaseUrl(settings.baseUrl)} + Android support`;
+      if (isHybridRuntime()) return `${normalizeBaseUrl(settings.baseUrl)} · phone boost off`;
       return normalizeBaseUrl(settings.baseUrl);
     }
 
     function updateRuntimeUi() {
       const androidOnly = isAndroidRuntime();
       const hybrid = isHybridRuntime();
+      const strategy = getHybridStrategy();
+      const phoneBoost = hybridPhoneSupportEnabled();
       const phoneSupport = usesAndroidSupport();
       if (els.androidRuntimeFields) els.androidRuntimeFields.classList.toggle('hidden', !phoneSupport);
       if (els.hybridStrategyGroup) els.hybridStrategyGroup.classList.toggle('hidden', !hybrid);
-      if (els.hybridTimeoutGroup) els.hybridTimeoutGroup.classList.toggle('hidden', !hybrid || (settings.hybridStrategy || DEFAULT_SETTINGS.hybridStrategy) !== 'fallback');
+      if (els.hybridTimeoutGroup) els.hybridTimeoutGroup.classList.toggle('hidden', !phoneBoost || strategy !== 'fallback');
       if (els.runtimeStatusLine) {
         const bridge = getNativeInferenceBridge();
-        if (hybrid) {
+        if (hybrid && strategy === 'off') {
+          els.runtimeStatusLine.textContent = 'Phone boost is off. Requests use the configured LM Studio server only.';
+        } else if (hybrid) {
           els.runtimeStatusLine.textContent = bridge
             ? 'Hybrid boost ready: PC server is primary, phone GPU/CPU/RAM can act as fallback or parallel helper.'
             : 'Hybrid selected. PC server will run; phone support needs the native Android inference bridge in the app build.';
@@ -200,11 +223,11 @@ const STORAGE_KEYS = {
             ? 'Native Android bridge detected. Requests use the phone GPU/CPU/RAM through the app runtime.'
             : 'Android runtime selected, but the native bridge is not exposed by this app build yet.';
         } else {
-          els.runtimeStatusLine.textContent = 'Server mode uses the configured LM Studio API.';
+          els.runtimeStatusLine.textContent = 'Server mode uses the configured LM Studio API only.';
         }
       }
       els.serverUrlCopy.textContent = runtimeStatusCopy();
-      const suffix = androidOnly ? ' · Android Vulkan' : hybrid ? ' · Hybrid boost' : '';
+      const suffix = androidOnly ? ' · Android Vulkan' : phoneBoost ? ' · Hybrid boost' : '';
       els.modelDisplay.textContent = settings.model ? `${settings.model}${suffix}` : 'No model selected';
     }
 
@@ -398,13 +421,16 @@ const STORAGE_KEYS = {
     }
 
     async function runHybridChatCompletion(requestMessages, assistantUi) {
-      const bridge = getNativeInferenceBridge();
-      if (!bridge) {
-        showToast('Phone boost bridge unavailable. Using PC server only.');
+      const strategy = getHybridStrategy();
+      if (strategy === 'off') {
         return await runServerChatCompletion(requestMessages, assistantUi);
       }
 
-      const strategy = settings.hybridStrategy || DEFAULT_SETTINGS.hybridStrategy;
+      const bridge = getNativeInferenceBridge();
+      if (!bridge) {
+        showToast('Phone boost inference bridge unavailable. Using PC server only.');
+        return await runServerChatCompletion(requestMessages, assistantUi);
+      }
 
       if (strategy === 'race') {
         assistantUi.setContent('Hybrid boost running PC + phone. Using the first completed answer…');
@@ -548,7 +574,7 @@ const STORAGE_KEYS = {
 
     async function testAndroidRuntime() {
       if (!usesAndroidSupport()) {
-        showToast('Switch Runtime to Android Vulkan local or Hybrid boost first.');
+        showToast(isHybridRuntime() ? 'Phone boost is off. Choose fallback or race before testing Android runtime.' : 'Switch Runtime to Android Vulkan local or Hybrid boost first.');
         return;
       }
       const bridge = getNativeInferenceBridge();
@@ -2774,7 +2800,7 @@ Answer the user request using the workspace files above. When asked to modify fi
 
       if (els.hybridStrategy) {
         els.hybridStrategy.addEventListener('change', () => {
-          settings.hybridStrategy = els.hybridStrategy.value;
+          settings.hybridStrategy = els.hybridStrategy.value || DEFAULT_SETTINGS.hybridStrategy;
           saveSettings();
           updateRuntimeUi();
         });
@@ -2944,7 +2970,10 @@ window.SignalLMChatCommands = {
   submitPrompt: submitCommandPrompt
 };
 
-window.addEventListener('settingsChanged', () => { settings = loadSettings(); if (settings.model) els.modelDisplay.textContent = settings.model; });
+window.addEventListener('settingsChanged', () => {
+  settings = loadSettings();
+  applySettingsToUI();
+});
 
 window.addEventListener('workspaceSelected', (event) => {
   if (event?.detail && Array.isArray(event.detail.files)) {

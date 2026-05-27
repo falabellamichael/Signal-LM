@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
       persistChat: true,
       theme: 'system',
       runtimeMode: 'server',
-      hybridStrategy: 'fallback',
+      hybridStrategy: 'off',
       hybridFallbackMs: 12000,
       androidBackend: 'vulkan',
       androidGpuLayers: 99,
@@ -136,8 +136,26 @@ const STORAGE_KEYS = {
       showToast('Appearance saved.');
     }
 
+    function getHybridStrategy() {
+      return settings.hybridStrategy || DEFAULT_SETTINGS.hybridStrategy;
+    }
+
+    function hybridPhoneSupportEnabled() {
+      return (settings.runtimeMode || DEFAULT_SETTINGS.runtimeMode) === 'hybrid' && getHybridStrategy() !== 'off';
+    }
+
+    function isNativeInferenceBridge(bridge) {
+      return Boolean(bridge && (typeof bridge.chatCompletion === 'function' || typeof bridge.generate === 'function'));
+    }
+
     function getNativeInferenceBridge() {
-      return window.lmStudioLiteNative || window.NativeInferenceBridge || window.AndroidInferenceBridge || null;
+      return [
+        window.NativeInferenceBridge,
+        window.AndroidInferenceBridge,
+        window.SignalLMInferenceBridge,
+        window.SignalLMNativeBridge,
+        window.lmStudioLiteNative
+      ].find(isNativeInferenceBridge) || null;
     }
 
     function asPromise(value) {
@@ -167,11 +185,16 @@ const STORAGE_KEYS = {
 
     async function testNativeRuntime() {
       saveRuntimeSettings();
+      if (!hybridPhoneSupportEnabled() && settings.runtimeMode !== 'android-vulkan') {
+        setStatus('checking', 'Phone off', 'Phone boost is off. LM Studio server requests stay on the configured PC server.');
+        renderModels([]);
+        return;
+      }
       setStatus('checking', 'Checking', 'Testing Android native Vulkan runtime bridge.');
       els.modelList.innerHTML = '';
       const bridge = getNativeInferenceBridge();
       if (!bridge) {
-        setStatus('error', 'No bridge', 'The app wrapper has not exposed window.lmStudioLiteNative, NativeInferenceBridge, or AndroidInferenceBridge.');
+        setStatus('error', 'No bridge', 'The app wrapper has not exposed a native inference bridge with chatCompletion(payload) or generate(payload).');
         renderModels([]);
         return;
       }
@@ -238,7 +261,7 @@ const STORAGE_KEYS = {
         await testNativeRuntime();
         return;
       }
-      setStatus('checking', 'Checking', mode === 'hybrid' ? `Testing PC server plus Android bridge` : `Testing ${normalizeBaseUrl(settings.baseUrl)}/models`);
+      setStatus('checking', 'Checking', hybridPhoneSupportEnabled() ? `Testing PC server plus Android inference bridge` : `Testing ${normalizeBaseUrl(settings.baseUrl)}/models`);
       els.modelList.innerHTML = '';
 
       try {
@@ -258,9 +281,11 @@ const STORAGE_KEYS = {
             ? payload.models.map(model => model.id || model.name).filter(Boolean)
             : [];
 
-        if (mode === 'hybrid') {
+        if (mode === 'hybrid' && getHybridStrategy() === 'off') {
+          setStatus('connected', 'PC only', `${models.length} PC model${models.length === 1 ? '' : 's'} returned. Phone boost is off.`);
+        } else if (mode === 'hybrid') {
           const bridge = getNativeInferenceBridge();
-          const phoneText = bridge ? 'Android bridge detected for phone support.' : 'Android bridge not detected; PC server only until the app exposes it.';
+          const phoneText = bridge ? 'Android inference bridge detected for phone support.' : 'Android inference bridge not detected; PC server only until the app exposes it.';
           setStatus('connected', 'Hybrid', `${models.length} PC model${models.length === 1 ? '' : 's'} returned. ${phoneText}`);
         } else {
           setStatus('connected', 'Connected', `${models.length} model${models.length === 1 ? '' : 's'} returned by LM Studio.`);
