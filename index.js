@@ -7,6 +7,10 @@ const STORAGE_KEYS = {
       nativeResponseId: 'lmStudioLite.nativeResponseId.v1'
     };
 
+    const SIDEBAR_WIDTH_MIN = 280;
+    const SIDEBAR_WIDTH_MAX = 460;
+    const SIDEBAR_WIDTH_DEFAULT = 290;
+
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
@@ -27,6 +31,7 @@ const STORAGE_KEYS = {
       androidBatchSize: 512,
       androidUseMmap: true,
       androidUseMlock: false,
+      sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
       contextHelperEnabled: true,
       contextHelperMode: 'smart',
       contextHelperMaxSnippets: 16,
@@ -80,6 +85,7 @@ const STORAGE_KEYS = {
       androidGpuLayers: document.getElementById('android-gpu-layers'),
       androidContextLength: document.getElementById('android-context-length'),
       androidBatchSize: document.getElementById('android-batch-size'),
+      sidebarResizeHandle: document.getElementById('sidebar-resize-handle'),
       tempRange: document.getElementById('temp-range'),
       tempInput: document.getElementById('temp-input'),
       tempValue: document.getElementById('temp-value'),
@@ -140,6 +146,19 @@ const STORAGE_KEYS = {
       if (settings.persistChat) {
         localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages));
       }
+    }
+
+    function normalizeSidebarWidth(width) {
+      const parsed = parseInt(width, 10);
+      const numeric = Number.isFinite(parsed) ? parsed : SIDEBAR_WIDTH_DEFAULT;
+      return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, numeric));
+    }
+
+    function applySidebarWidth(width = settings.sidebarWidth) {
+      const clean = normalizeSidebarWidth(width);
+      settings.sidebarWidth = clean;
+      document.documentElement.style.setProperty('--sidebar-width', `${clean}px`);
+      return clean;
     }
 
     function normalizeBaseUrl(url) {
@@ -599,6 +618,8 @@ const STORAGE_KEYS = {
     }
 
     function applySettingsToUI() {
+      applySidebarWidth(settings.sidebarWidth);
+
       els.tempRange.value = settings.temperature;
       els.tempInput.value = settings.temperature;
       els.tempValue.textContent = settings.temperature;
@@ -1015,6 +1036,64 @@ const STORAGE_KEYS = {
 
       rangeEl.addEventListener('input', () => update(rangeEl.value));
       numberEl.addEventListener('input', () => update(numberEl.value));
+    }
+
+    function bindSidebarResize() {
+      const handle = els.sidebarResizeHandle;
+      if (!handle || !els.sidebar) return;
+
+      let pointerId = null;
+      let startX = 0;
+      let startWidth = SIDEBAR_WIDTH_DEFAULT;
+
+      const desktopQuery = window.matchMedia ? window.matchMedia('(min-width: 1041px)') : null;
+      const canResize = () => !desktopQuery || desktopQuery.matches;
+      const updateWidth = (width) => {
+        return applySidebarWidth(width);
+      };
+      const commitWidth = (width) => {
+        updateWidth(width);
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerdown', (event) => {
+        if (!canResize()) return;
+        event.preventDefault();
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startWidth = normalizeSidebarWidth(settings.sidebarWidth || els.sidebar.getBoundingClientRect().width);
+        document.body.classList.add('sidebar-resizing');
+        handle.setPointerCapture?.(pointerId);
+      });
+
+      handle.addEventListener('pointermove', (event) => {
+        if (pointerId !== event.pointerId) return;
+        updateWidth(startWidth + event.clientX - startX);
+      });
+
+      const stopResize = (event) => {
+        if (pointerId === null || (event?.pointerId && event.pointerId !== pointerId)) return;
+        try { handle.releasePointerCapture?.(pointerId); } catch {}
+        pointerId = null;
+        document.body.classList.remove('sidebar-resizing');
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerup', stopResize);
+      handle.addEventListener('pointercancel', stopResize);
+      handle.addEventListener('lostpointercapture', stopResize);
+
+      handle.addEventListener('keydown', (event) => {
+        if (!canResize()) return;
+        let nextWidth = settings.sidebarWidth || SIDEBAR_WIDTH_DEFAULT;
+        if (event.key === 'ArrowLeft') nextWidth -= 10;
+        else if (event.key === 'ArrowRight') nextWidth += 10;
+        else if (event.key === 'Home') nextWidth = SIDEBAR_WIDTH_MIN;
+        else if (event.key === 'End') nextWidth = SIDEBAR_WIDTH_MAX;
+        else return;
+        event.preventDefault();
+        commitWidth(nextWidth);
+      });
     }
 
     async function loadModels() {
@@ -2824,6 +2903,7 @@ Answer the user request using the workspace files above. When asked to modify fi
         saveSettings();
       });
 
+      bindSidebarResize();
       syncRangeAndNumber(els.tempRange, els.tempInput, els.tempValue, 'temperature', 0, 2);
       syncRangeAndNumber(els.topPRange, els.topPInput, els.topPValue, 'topP', 0, 1);
     }

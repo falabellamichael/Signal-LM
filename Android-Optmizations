@@ -1,0 +1,14 @@
+# Android Optmizations
+
+This file tracks Android-only UI optimization decisions for the Signal LM wrapper.
+
+## Current baseline
+
+- Keep the Android sidebar behavior in its current fixed-width state.
+- Do not add the PC sidebar edge resize handle to `SignalLM-Android/app/src/main/assets/` until Android resizing is explicitly requested.
+- Preserve the current Android viewport, keyboard, composer, and drawer behavior while making PC-only layout changes.
+- When adding future Android optimizations, start by matching the current Android asset behavior, then adjust only the Android-specific issue being addressed.
+
+## Sidebar width
+
+The PC web UI can expose a user-controlled sidebar width from the sidebar edge. The Android app should continue using the existing `--sidebar-width: 290px` baseline and the mobile drawer cap from the current Android CSS.

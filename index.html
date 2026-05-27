@@ -8,6 +8,9 @@
   <script>
     (function () {
       const SETTINGS_KEY = 'lmStudioLite.settings.v1';
+      const SIDEBAR_WIDTH_MIN = 280;
+      const SIDEBAR_WIDTH_MAX = 460;
+      const SIDEBAR_WIDTH_DEFAULT = 290;
       const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
       function readSettings() {
@@ -49,15 +52,35 @@
         setTheme(current === 'dark' ? 'light' : 'dark');
       }
 
+      function normalizeSidebarWidth(width) {
+        const parsed = parseInt(width, 10);
+        const numeric = Number.isFinite(parsed) ? parsed : SIDEBAR_WIDTH_DEFAULT;
+        return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, numeric));
+      }
+
+      function applySidebarWidth(width) {
+        document.documentElement.style.setProperty('--sidebar-width', `${normalizeSidebarWidth(width)}px`);
+      }
+
       window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, applyTheme, setTheme, toggleTheme };
+      applySidebarWidth(readSettings().sidebarWidth);
       applyTheme();
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => applyTheme());
+        document.addEventListener('DOMContentLoaded', () => {
+          applySidebarWidth(readSettings().sidebarWidth);
+          applyTheme();
+        });
       } else {
+        applySidebarWidth(readSettings().sidebarWidth);
         applyTheme();
       }
       if (media && media.addEventListener) media.addEventListener('change', () => applyTheme());
-      window.addEventListener('storage', event => { if (event.key === SETTINGS_KEY) applyTheme(); });
+      window.addEventListener('storage', event => {
+        if (event.key === SETTINGS_KEY) {
+          applySidebarWidth(readSettings().sidebarWidth);
+          applyTheme();
+        }
+      });
     })();
   </script>
   
@@ -70,7 +93,7 @@
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="mcp.css">
   <link rel="stylesheet" href="settings.css">
-  <link rel="stylesheet" href="signal-lm-app-shell.css?v=7">
+  <link rel="stylesheet" href="signal-lm-app-shell.css?v=8">
 </head>
 <body>
   <div class="mobile-scrim" id="mobile-scrim" onclick="toggleSidebar(false)"></div>
@@ -176,6 +199,7 @@
       <button class="ghost-btn" type="button" onclick="exportChat()">Export</button>
       <button class="danger-btn" type="button" onclick="clearChat()">Clear</button>
     </div>
+    <button class="sidebar-resize-handle" id="sidebar-resize-handle" type="button" aria-label="Resize sidebar" title="Drag to resize sidebar"></button>
   </aside>
 
   <button class="mobile-toggle" type="button" onclick="toggleSidebar()">☰</button>
@@ -667,7 +691,7 @@
 
   <script src="libs/prism.js"></script>
   <script src="shared.js?v=7"></script>
-  <script src="index.js?v=11"></script>
+  <script src="index.js?v=12"></script>
   <script src="signal-lm-commands.js?v=5"></script>
 
   <script src="editor.js"></script>
