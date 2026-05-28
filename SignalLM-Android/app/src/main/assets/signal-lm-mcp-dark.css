@@ -23,6 +23,16 @@ html[data-theme="dark"] {
   --success: #65d790;
   --warning: #e9b768;
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.44);
+
+  /* Midnight telemetry — deep teal / forest */
+  --telemetry-bg: #0b1210;
+  --telemetry-text: #4ade80;
+  --telemetry-border: rgba(74, 222, 128, 0.22);
+  --telemetry-rule: rgba(74, 222, 128, 0.28);
+  --telemetry-icon: #fbbf24;
+  --telemetry-glow: inset 0 0 0 1px rgba(74, 222, 128, 0.07), 0 8px 22px rgba(0, 0, 0, 0.28);
+  --telemetry-error-text: #ff7c7c;
+  --telemetry-error-border: rgba(255, 124, 124, 0.32);
 }
 
 html[data-theme="dark"][data-theme-variant="classic-dark"] {
@@ -43,6 +53,16 @@ html[data-theme="dark"][data-theme-variant="classic-dark"] {
   --user-msg-bg: #2a2722;
   --ai-msg-bg: #1d1d20;
   --shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+
+  /* Classic Dark telemetry — neon-green matrix terminal */
+  --telemetry-bg: #020705;
+  --telemetry-text: #00b934;
+  --telemetry-border: rgba(0, 170, 58, 0.28);
+  --telemetry-rule: rgba(0, 185, 52, 0.38);
+  --telemetry-icon: #ffd15c;
+  --telemetry-glow: inset 0 0 0 1px rgba(0, 185, 52, 0.07), 0 8px 22px rgba(0, 0, 0, 0.18);
+  --telemetry-error-text: #ff6f6f;
+  --telemetry-error-border: rgba(255, 111, 111, 0.32);
 }
 
 html[data-theme="dark"] body {
