@@ -1,19 +1,19 @@
 # Signal LM Telemetry Helper
 
-The browser cannot read real GPU usage, full-system CPU usage, VRAM, or disk capacity by itself. `signal-lm-telemetry-server.js` is a local-only helper that exposes those metrics to the right-side System Status panel.
+The browser cannot read real GPU usage, full-system CPU usage, VRAM, or disk capacity by itself. `tel-server.js` is a local-only helper that exposes those metrics to the right-side System Status panel.
 
 ## Start
 
 From the project folder:
 
 ```powershell
-node signal-lm-telemetry-server.js
+node tel-server.js
 ```
 
 Or double-click:
 
 ```text
-start-telemetry-server.bat
+tel-server.bat
 ```
 
 The helper listens on:
