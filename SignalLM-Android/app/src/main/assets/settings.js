@@ -268,40 +268,23 @@ const STORAGE_KEYS = {
         await testNativeRuntime();
         return;
       }
-      setStatus('checking', 'Checking', hybridPhoneSupportEnabled() ? `Testing PC server plus Android inference bridge` : `Testing ${normalizeBaseUrl(settings.baseUrl)}/models`);
+      setStatus('checking', 'Checking', hybridPhoneSupportEnabled() ? `Testing PC server plus Android inference bridge` : `Testing ${nativeApiBaseUrl()}/models`);
       els.modelList.innerHTML = '';
 
       try {
         let response;
         let payload;
-        let usedNative = false;
         const headers = getAuthHeaders();
 
-        try {
-          const nativeUrl = nativeApiBaseUrl() + '/models';
-          response = await fetch(nativeUrl, { method: 'GET', headers });
-        if (response.ok) {
-          payload = await response.json();
-          usedNative = true;
-        }
-      } catch (err) {
-        console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
-      }
-
-      if (!usedNative) {
-        try {
-          response = await fetch(endpoint('/models'), { method: 'GET', headers });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          payload = await response.json();
-        } catch (err) {
-          throw err;
-        }
-      }
+        const nativeUrl = nativeApiBaseUrl() + '/models';
+        response = await fetch(nativeUrl, { method: 'GET', headers });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        payload = await response.json();
 
       const models = Array.isArray(payload.data)
-        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.key || model.name || model.model)).filter(Boolean)
         : Array.isArray(payload.models)
-          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.key || model.name || model.model)).filter(Boolean)
           : [];
 
         if (mode === 'hybrid' && getHybridStrategy() === 'off') {
