@@ -782,15 +782,15 @@
     .chat-telemetry {
       width: min(760px, calc(100vw - 3rem));
       max-width: 100%;
-      margin-top: 0.48rem;
-      padding: 0.52rem 0.68rem 0.62rem;
-      border: 1px solid var(--telemetry-border);
-      border-radius: 8px;
-      background: var(--telemetry-bg);
-      color: var(--telemetry-text);
-      box-shadow: var(--telemetry-glow);
+      margin-top: 0.38rem;
+      padding: 0.16rem 0 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      box-shadow: none;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: 0.86rem;
+      font-size: 0.78rem;
       line-height: 1.35;
     }
 
@@ -802,8 +802,8 @@
       display: block;
       width: 100%;
       border-top: 1px dashed var(--telemetry-rule);
-      opacity: 0.72;
-      margin-bottom: 0.42rem;
+      opacity: 0.5;
+      margin-bottom: 0.34rem;
     }
 
     .chat-telemetry-items {
@@ -823,18 +823,19 @@
     }
 
     .chat-telemetry-item strong {
-      font-weight: 700;
+      color: var(--text-primary);
+      font-weight: 650;
     }
 
     .chat-telemetry-icon {
-      color: var(--telemetry-icon);
+      color: var(--text-secondary);
+      opacity: 0.84;
       line-height: 1;
       flex: 0 0 auto;
     }
 
     .chat-telemetry[data-status="error"] {
       color: var(--telemetry-error-text);
-      border-color: var(--telemetry-error-border);
     }
 
     .meta-btn {
@@ -1578,7 +1579,7 @@
       .chat-telemetry {
         width: 100%;
         font-size: 0.78rem;
-        padding: 0.48rem 0.55rem 0.55rem;
+        padding: 0.16rem 0 0;
       }
 
       .chat-telemetry-items {

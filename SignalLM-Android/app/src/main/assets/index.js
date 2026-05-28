@@ -178,6 +178,108 @@ const STORAGE_KEYS = {
       return requestMessages.reduce((total, message) => total + estimateTokenCount(message?.content || ''), 0);
     }
 
+    function finiteNumber(value) {
+      if (value === null || value === undefined || value === '') return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function firstFiniteNumber(...values) {
+      for (const value of values) {
+        const number = finiteNumber(value);
+        if (number !== null) return number;
+      }
+      return null;
+    }
+
+    function msFromSeconds(value) {
+      const seconds = finiteNumber(value);
+      return seconds === null ? null : Math.max(0, Math.round(seconds * 1000));
+    }
+
+    function extractLmStudioTelemetryStats(payload) {
+      if (!payload || typeof payload !== 'object') return null;
+      const roots = [payload, payload.result, payload.response, payload.data].filter(root => root && typeof root === 'object');
+
+      for (const root of roots) {
+        const stats = root.stats && typeof root.stats === 'object' ? root.stats : {};
+        const usage = root.usage && typeof root.usage === 'object' ? root.usage : {};
+        const timings = root.timings && typeof root.timings === 'object' ? root.timings : {};
+
+        let tokensPerSecond = firstFiniteNumber(
+          stats.tokens_per_second,
+          stats.tokensPerSecond,
+          stats.token_per_second,
+          stats.output_tokens_per_second,
+          stats.predicted_per_second,
+          stats.eval_per_second,
+          usage.tokens_per_second,
+          usage.tokensPerSecond,
+          root.tokens_per_second,
+          root.tokensPerSecond,
+          timings.predicted_per_second,
+          timings.eval_per_second
+        );
+
+        const outputTokens = firstFiniteNumber(
+          stats.total_output_tokens,
+          stats.output_tokens,
+          stats.completion_tokens,
+          usage.completion_tokens,
+          usage.output_tokens,
+          usage.total_output_tokens,
+          root.completion_tokens,
+          timings.predicted_n,
+          timings.eval_count
+        );
+
+        const inputTokens = firstFiniteNumber(
+          stats.input_tokens,
+          stats.prompt_tokens,
+          usage.prompt_tokens,
+          usage.input_tokens,
+          root.prompt_tokens,
+          timings.prompt_n,
+          timings.prompt_eval_count
+        );
+
+        const generationMs = firstFiniteNumber(
+          msFromSeconds(stats.generation_time_seconds),
+          msFromSeconds(stats.generation_time),
+          msFromSeconds(root.generation_time_seconds),
+          msFromSeconds(root.generation_time),
+          timings.predicted_ms,
+          timings.eval_ms
+        );
+
+        if ((tokensPerSecond === null || tokensPerSecond <= 0) && outputTokens !== null && generationMs && generationMs > 0) {
+          tokensPerSecond = outputTokens / (generationMs / 1000);
+        }
+
+        const firstTokenMs = firstFiniteNumber(
+          msFromSeconds(stats.time_to_first_token_seconds),
+          msFromSeconds(stats.time_to_first_token),
+          stats.time_to_first_token_ms,
+          stats.ttft_ms,
+          msFromSeconds(stats.ttft),
+          msFromSeconds(root.time_to_first_token_seconds),
+          msFromSeconds(root.time_to_first_token)
+        );
+
+        if (tokensPerSecond !== null || outputTokens !== null || inputTokens !== null || firstTokenMs !== null || generationMs !== null) {
+          return {
+            tokensPerSecond,
+            outputTokens,
+            inputTokens,
+            firstTokenMs,
+            generationMs
+          };
+        }
+      }
+
+      return null;
+    }
+
     function inferenceRuntimeLabel() {
       if (settings.mcpEnabled) return 'Native MCP';
       if (isHybridRuntime()) return 'Hybrid';
@@ -220,6 +322,9 @@ const STORAGE_KEYS = {
         outputTokens: 0,
         outputChars: 0,
         tokensPerSecond: 0,
+        tokensPerSecondSource: 'estimated',
+        outputTokensSource: 'estimated',
+        inputTokensSource: 'estimated',
         firstTokenMs: null,
         durationMs: 0,
         maxTokens: Number(settings.maxTokens),
@@ -246,15 +351,46 @@ const STORAGE_KEYS = {
       const output = String(text || '');
       const outputTokens = estimateTokenCount(output);
       activeInferenceTelemetry.outputChars = output.length;
-      activeInferenceTelemetry.outputTokens = outputTokens;
+      if (activeInferenceTelemetry.outputTokensSource !== 'lm-studio') {
+        activeInferenceTelemetry.outputTokens = outputTokens;
+      }
       activeInferenceTelemetry.durationMs = Math.max(0, now - started);
       if (outputTokens > 0 && activeInferenceTelemetry.firstTokenMs === null) {
         activeInferenceTelemetry.firstTokenMs = activeInferenceTelemetry.durationMs;
       }
       const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
-      activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / seconds).toFixed(2));
+      if (activeInferenceTelemetry.tokensPerSecondSource !== 'lm-studio') {
+        activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / seconds).toFixed(2));
+      }
       updateActiveInferenceTelemetryView();
       scheduleInferenceTelemetryPublish();
+    }
+
+    function applyInferenceTelemetryStats(payload, source = null) {
+      if (!activeInferenceTelemetry) return false;
+      const stats = extractLmStudioTelemetryStats(payload);
+      if (!stats) return false;
+      if (source) activeInferenceTelemetry.source = source;
+
+      if (stats.inputTokens !== null) {
+        activeInferenceTelemetry.inputTokens = Math.max(0, Math.round(stats.inputTokens));
+        activeInferenceTelemetry.inputTokensSource = 'lm-studio';
+      }
+      if (stats.outputTokens !== null) {
+        activeInferenceTelemetry.outputTokens = Math.max(0, Math.round(stats.outputTokens));
+        activeInferenceTelemetry.outputTokensSource = 'lm-studio';
+      }
+      if (stats.tokensPerSecond !== null && stats.tokensPerSecond > 0) {
+        activeInferenceTelemetry.tokensPerSecond = Number(stats.tokensPerSecond.toFixed(2));
+        activeInferenceTelemetry.tokensPerSecondSource = 'lm-studio';
+      }
+      if (stats.firstTokenMs !== null) {
+        activeInferenceTelemetry.firstTokenMs = Math.max(0, Math.round(stats.firstTokenMs));
+      }
+
+      updateActiveInferenceTelemetryView();
+      scheduleInferenceTelemetryPublish();
+      return true;
     }
 
     function finishInferenceTelemetry(status, text = '', error = null) {
@@ -266,8 +402,10 @@ const STORAGE_KEYS = {
         const now = Date.now();
         const started = Date.parse(activeInferenceTelemetry.startedAt) || now;
         activeInferenceTelemetry.durationMs = Math.max(0, now - started);
-        const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
-        activeInferenceTelemetry.tokensPerSecond = Number(((activeInferenceTelemetry.outputTokens || 0) / seconds).toFixed(2));
+        if (activeInferenceTelemetry.tokensPerSecondSource !== 'lm-studio') {
+          const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
+          activeInferenceTelemetry.tokensPerSecond = Number(((activeInferenceTelemetry.outputTokens || 0) / seconds).toFixed(2));
+        }
       }
       activeInferenceTelemetry.status = status;
       activeInferenceTelemetry.endedAt = new Date().toISOString();
@@ -294,7 +432,7 @@ const STORAGE_KEYS = {
     function formatTelemetrySpeed(value) {
       const numeric = Number(value);
       if (!Number.isFinite(numeric) || numeric <= 0) return '0.0 tok/s';
-      return `${numeric >= 100 ? numeric.toFixed(1) : numeric.toFixed(2)} tok/s`;
+      return `${numeric.toFixed(2)} tok/s`;
     }
 
     function inferenceTelemetryMarkup(telemetry) {
@@ -361,6 +499,63 @@ const STORAGE_KEYS = {
       const headers = { 'Content-Type': 'application/json' };
       if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
       return headers;
+    }
+
+    function lmStudioRestBaseUrl(version = 'v0') {
+      const base = normalizeBaseUrl(settings.baseUrl);
+      if (/\/api\/v\d+$/i.test(base)) return base.replace(/\/api\/v\d+$/i, `/api/${version}`);
+      if (/\/v\d+$/i.test(base)) return base.replace(/\/v\d+$/i, `/api/${version}`);
+      return `${base}/api/${version}`;
+    }
+
+    function chatCompletionUrls() {
+      const enhancedUrl = `${lmStudioRestBaseUrl('v0')}/chat/completions`;
+      const configuredUrl = endpoint('/chat/completions');
+      return enhancedUrl === configuredUrl ? [configuredUrl] : [enhancedUrl, configuredUrl];
+    }
+
+    function shouldTryConfiguredChatEndpoint(response) {
+      return response && (response.status === 404 || response.status === 405);
+    }
+
+    function buildChatCompletionBody(requestMessages, stream) {
+      return {
+        model: settings.model,
+        messages: requestMessages,
+        stream,
+        temperature: Number(settings.temperature),
+        top_p: Number(settings.topP),
+        max_tokens: Number(settings.maxTokens)
+      };
+    }
+
+    async function fetchServerChatCompletion(requestMessages, stream, signal) {
+      const urls = chatCompletionUrls();
+      let lastError = null;
+
+      for (const url of urls) {
+        let response;
+        try {
+          response = await fetch(url, {
+            method: 'POST',
+            headers: getHeaders(),
+            signal,
+            body: JSON.stringify(buildChatCompletionBody(requestMessages, stream))
+          });
+        } catch (error) {
+          lastError = error;
+          if (error?.name === 'AbortError' || url === urls[urls.length - 1]) throw error;
+          continue;
+        }
+
+        if (response.ok) return response;
+
+        const errorText = await response.text().catch(() => '');
+        lastError = new Error(errorText || `LM Studio API error: HTTP ${response.status}`);
+        if (url === urls[urls.length - 1] || !shouldTryConfiguredChatEndpoint(response)) throw lastError;
+      }
+
+      throw lastError || new Error('LM Studio API request failed.');
     }
 
     function getRuntimeMode() {
@@ -530,9 +725,20 @@ const STORAGE_KEYS = {
 
     function extractOpenAiCompletionText(payload) {
       if (!payload || typeof payload !== 'object') return '';
+      const root = payload.result && typeof payload.result === 'object' ? payload.result : payload;
+      const output = root.output;
+      if (Array.isArray(output)) {
+        return output
+          .filter(item => item?.type === 'message' && item.content)
+          .map(item => item.content)
+          .join('\n\n')
+          .trim();
+      }
       if (typeof payload.text === 'string') return payload.text;
       if (typeof payload.content === 'string') return payload.content;
-      const choice = payload.choices?.[0];
+      if (typeof root.text === 'string') return root.text;
+      if (typeof root.content === 'string') return root.content;
+      const choice = root.choices?.[0];
       const content = choice?.message?.content ?? choice?.delta?.content ?? choice?.text ?? '';
       if (Array.isArray(content)) return content.map(part => part?.text || '').join('');
       return content;
@@ -541,24 +747,7 @@ const STORAGE_KEYS = {
     async function runServerChatCompletion(requestMessages, assistantUi) {
       setInferenceTelemetrySource('LM Studio server');
       let fullResponse = '';
-      const response = await fetch(endpoint('/chat/completions'), {
-        method: 'POST',
-        headers: getHeaders(),
-        signal: abortController.signal,
-        body: JSON.stringify({
-          model: settings.model,
-          messages: requestMessages,
-          stream: true,
-          temperature: Number(settings.temperature),
-          top_p: Number(settings.topP),
-          max_tokens: Number(settings.maxTokens)
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(errorText || `LM Studio API error: HTTP ${response.status}`);
-      }
+      const response = await fetchServerChatCompletion(requestMessages, true, abortController.signal);
 
       if (!response.body) throw new Error('This browser does not support streamed responses.');
 
@@ -570,6 +759,13 @@ const STORAGE_KEYS = {
         if (!data || data === '[DONE]') return;
         try {
           const json = JSON.parse(data);
+          const finalText = json.type === 'chat.end' ? extractOpenAiCompletionText(json) : '';
+          if (finalText) {
+            fullResponse = finalText;
+            updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
+            assistantUi.setContent(fullResponse);
+            scrollToBottom();
+          }
           const delta = extractDelta(json);
           if (delta) {
             fullResponse += delta;
@@ -577,6 +773,7 @@ const STORAGE_KEYS = {
             assistantUi.setContent(fullResponse);
             scrollToBottom();
           }
+          applyInferenceTelemetryStats(json, 'LM Studio server');
         } catch {}
       };
 
@@ -594,28 +791,12 @@ const STORAGE_KEYS = {
 
     async function runServerChatCompletionText(requestMessages, signal = null) {
       setInferenceTelemetrySource('PC server');
-      const response = await fetch(endpoint('/chat/completions'), {
-        method: 'POST',
-        headers: getHeaders(),
-        signal: signal || abortController?.signal,
-        body: JSON.stringify({
-          model: settings.model,
-          messages: requestMessages,
-          stream: false,
-          temperature: Number(settings.temperature),
-          top_p: Number(settings.topP),
-          max_tokens: Number(settings.maxTokens)
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(errorText || `LM Studio API error: HTTP ${response.status}`);
-      }
+      const response = await fetchServerChatCompletion(requestMessages, false, signal || abortController?.signal);
 
       const payload = await response.json();
       const text = extractOpenAiCompletionText(payload) || '(No content returned.)';
       updateInferenceTelemetryOutput(text, 'PC server');
+      applyInferenceTelemetryStats(payload, 'PC server');
       return text;
     }
 
@@ -789,6 +970,7 @@ const STORAGE_KEYS = {
       const result = text || '(Tool executed, no message returned.)';
       assistantUi.setContent(result);
       updateInferenceTelemetryOutput(result, 'Native MCP API');
+      applyInferenceTelemetryStats(payload, 'Native MCP API');
       assistantUi.streamingFinished();
       scrollToBottom();
       return result;
@@ -1781,6 +1963,7 @@ Workspace context is present in the latest user message. Treat those files as at
     }
 
     function extractDelta(json) {
+      if (json?.type === 'message.delta' && typeof json.content === 'string') return json.content;
       const choice = json.choices?.[0];
       return choice?.delta?.content
         ?? choice?.message?.content
