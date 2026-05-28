@@ -35,7 +35,7 @@
   window.__signalLmMcpDarkCssLoader = true;
   var link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'signal-lm-mcp-dark.css';
+  link.href = 'signal-lm-mcp-dark.css?v=2';
   link.onerror = function () { console.warn('Signal-LM MCP dark stylesheet was not found.'); };
   document.head.appendChild(link);
 })();

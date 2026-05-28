@@ -322,7 +322,12 @@ main.main-app {
 
 html[data-theme="dark"] .sidebar-resize-handle {
   background: transparent !important;
-  color: var(--text-primary);
+  color: transparent !important;
+}
+
+html[data-theme="dark"] .sidebar-resize-handle::before {
+  background: var(--sidebar-resize-thumb, var(--border-color));
+  opacity: 0.9;
 }
 
 .sidebar-resize-handle::before {
@@ -344,6 +349,13 @@ html[data-theme="dark"] .sidebar-resize-handle {
 body.sidebar-resizing .sidebar-resize-handle::before {
   height: 64px;
   background: var(--accent);
+  opacity: 1;
+}
+
+html[data-theme="dark"] .sidebar-resize-handle:hover::before,
+html[data-theme="dark"] .sidebar-resize-handle:focus-visible::before,
+html[data-theme="dark"] body.sidebar-resizing .sidebar-resize-handle::before {
+  background: var(--sidebar-resize-thumb-active, var(--border-color));
   opacity: 1;
 }
 
