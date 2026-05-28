@@ -10,10 +10,19 @@ const LM_STUDIO_BASE_URL = (process.env.SIGNAL_LM_API_BASE_URL || 'http://localh
 const LM_STUDIO_API_KEY = process.env.SIGNAL_LM_API_KEY || process.env.LM_STUDIO_API_KEY || '';
 const GPU_CACHE_MS = Number(process.env.SIGNAL_LM_GPU_CACHE_MS || 5000);
 const WINDOWS_GPU_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_TIMEOUT_MS || 12000);
+const WINDOWS_GPU_DEVICE_CACHE_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_CACHE_MS || 10 * 60 * 1000);
+const WINDOWS_GPU_DEVICE_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_TIMEOUT_MS || 25000);
 const LM_STUDIO_TIMEOUT_MS = Number(process.env.SIGNAL_LM_TIMEOUT_MS || 900);
 
 let lastCpuSnapshot = readCpuSnapshot();
+let lastCpuSnapshotAt = Date.now();
+let latestCpuTelemetry = null;
 const gpuCache = {
+  data: null,
+  expiresAt: 0,
+  promise: null
+};
+const windowsGpuDeviceCache = {
   data: null,
   expiresAt: 0,
   promise: null
@@ -31,15 +40,20 @@ function readCpuSnapshot() {
 
 function readCpuTelemetry() {
   const next = readCpuSnapshot();
+  const now = Date.now();
   const idleDelta = next.idle - lastCpuSnapshot.idle;
   const totalDelta = next.total - lastCpuSnapshot.total;
+  const sampleMs = Math.max(0, now - lastCpuSnapshotAt);
   lastCpuSnapshot = next;
+  lastCpuSnapshotAt = now;
   const usagePercent = totalDelta > 0 ? Math.max(0, Math.min(100, (1 - idleDelta / totalDelta) * 100)) : 0;
   const cpus = os.cpus();
   return {
+    source: 'node-os-cpu-times',
     usagePercent: Number(usagePercent.toFixed(2)),
+    sampleMs,
     logicalCores: cpus.length,
-    model: cpus[0]?.model || 'Unknown CPU',
+    model: (cpus[0]?.model || 'Unknown CPU').trim(),
     loadAverage: os.loadavg()
   };
 }
@@ -49,12 +63,27 @@ function readMemoryTelemetry() {
   const freeBytes = os.freemem();
   const usedBytes = Math.max(0, totalBytes - freeBytes);
   return {
+    source: 'node-os-memory',
     totalBytes,
     freeBytes,
     usedBytes,
     usagePercent: totalBytes ? Number(((usedBytes / totalBytes) * 100).toFixed(2)) : null
   };
 }
+
+function refreshCpuTelemetry() {
+  latestCpuTelemetry = readCpuTelemetry();
+  return latestCpuTelemetry;
+}
+
+const cpuSampler = setInterval(() => {
+  try {
+    refreshCpuTelemetry();
+  } catch {
+    // Keep the telemetry helper alive even if one OS sample fails.
+  }
+}, 1000);
+if (typeof cpuSampler.unref === 'function') cpuSampler.unref();
 
 function execFileText(file, args, timeoutMs = 2500) {
   return new Promise((resolve, reject) => {
@@ -94,6 +123,23 @@ function numberOrNull(value) {
 function compactErrorMessage(error) {
   const raw = error?.stderr || error?.message || String(error || '');
   return String(raw).replace(/\s+/g, ' ').trim().slice(0, 360);
+}
+
+function normalizeDeviceName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function promiseWithTimeout(promise, timeoutMs, fallback) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise(resolve => {
+      timer = setTimeout(() => resolve(fallback), timeoutMs);
+    })
+  ]).finally(() => clearTimeout(timer));
 }
 
 function unavailableGpuTelemetry(error, source = 'unavailable') {
@@ -146,64 +192,219 @@ async function readNvidiaTelemetry() {
   };
 }
 
+async function readWindowsGpuDevices() {
+  const script = `
+$controllers = @(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object Name,AdapterRAM,DriverVersion,VideoProcessor,PNPDeviceID)
+$dxDevices = @()
+$tmp = Join-Path $env:TEMP ("signal-lm-dxdiag-" + [guid]::NewGuid().ToString() + ".txt")
+$dx = $null
+try {
+  $dxPath = Join-Path $env:WINDIR "System32\\dxdiag.exe"
+  $dx = Start-Process -FilePath $dxPath -ArgumentList @('/whql:off', '/t', $tmp) -WindowStyle Hidden -PassThru -ErrorAction Stop
+  $deadline = (Get-Date).AddMilliseconds(${WINDOWS_GPU_DEVICE_TIMEOUT_MS})
+  $lastLength = -1
+  $stableTicks = 0
+  while ((Get-Date) -lt $deadline) {
+    if (Test-Path $tmp) {
+      $item = Get-Item $tmp -ErrorAction SilentlyContinue
+      if ($item -and $item.Length -gt 0) {
+        if ($item.Length -eq $lastLength) {
+          $stableTicks += 1
+        } else {
+          $stableTicks = 0
+          $lastLength = $item.Length
+        }
+        if ($stableTicks -ge 3) { break }
+      }
+    }
+    Start-Sleep -Milliseconds 500
+  }
+
+  if (Test-Path $tmp) {
+    $current = $null
+    foreach ($line in (Get-Content -Path $tmp -ErrorAction SilentlyContinue)) {
+      if ($line -match '^\\s*Card name:\\s*(.+?)\\s*$') {
+        if ($current) { $dxDevices += [pscustomobject]$current }
+        $current = @{ name = $Matches[1].Trim() }
+      } elseif ($current -and $line -match '^\\s*Display Memory:\\s*([0-9,]+)\\s*MB') {
+        $current.displayMemoryBytes = [double]($Matches[1].Replace(',', '')) * 1MB
+      } elseif ($current -and $line -match '^\\s*Dedicated Memory:\\s*([0-9,]+)\\s*MB') {
+        $current.dedicatedMemoryBytes = [double]($Matches[1].Replace(',', '')) * 1MB
+      } elseif ($current -and $line -match '^\\s*Shared Memory:\\s*([0-9,]+)\\s*MB') {
+        $current.sharedMemoryBytes = [double]($Matches[1].Replace(',', '')) * 1MB
+      }
+    }
+    if ($current) { $dxDevices += [pscustomobject]$current }
+  }
+} catch {
+  $dxDevices = @()
+} finally {
+  if ($dx -and -not $dx.HasExited) {
+    Stop-Process -Id $dx.Id -Force -ErrorAction SilentlyContinue
+  }
+  Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+}
+
+[pscustomobject]@{
+  controllers = $controllers
+  dxdiag = $dxDevices
+} | ConvertTo-Json -Compress -Depth 6
+`;
+  const output = await execPowerShell(script, WINDOWS_GPU_DEVICE_TIMEOUT_MS + 5000);
+  const parsed = JSON.parse(output || '{}');
+  const controllers = (Array.isArray(parsed.controllers) ? parsed.controllers : parsed.controllers ? [parsed.controllers] : [])
+    .map(device => ({
+      name: device.Name || device.name || 'Windows GPU',
+      adapterRamBytes: numberOrNull(device.AdapterRAM ?? device.adapterRamBytes),
+      driverVersion: device.DriverVersion || device.driverVersion || '',
+      videoProcessor: device.VideoProcessor || device.videoProcessor || '',
+      pnpDeviceId: device.PNPDeviceID || device.pnpDeviceId || ''
+    }));
+  const dxDevices = (Array.isArray(parsed.dxdiag) ? parsed.dxdiag : parsed.dxdiag ? [parsed.dxdiag] : [])
+    .map(device => ({
+      name: device.name || 'Windows GPU',
+      displayMemoryBytes: numberOrNull(device.displayMemoryBytes),
+      dedicatedMemoryBytes: numberOrNull(device.dedicatedMemoryBytes),
+      sharedMemoryBytes: numberOrNull(device.sharedMemoryBytes)
+    }))
+    .filter(device => device.name || device.dedicatedMemoryBytes);
+
+  const merged = controllers.map(controller => {
+    const normalized = normalizeDeviceName(controller.name);
+    const dxMatch = dxDevices.find(device => {
+      const dxName = normalizeDeviceName(device.name);
+      return normalized && dxName && (normalized.includes(dxName) || dxName.includes(normalized));
+    });
+    const memoryTotalBytes = dxMatch?.dedicatedMemoryBytes || controller.adapterRamBytes || null;
+    return {
+      name: controller.name || dxMatch?.name || 'Windows GPU',
+      memoryTotalBytes,
+      memoryTotalSource: dxMatch?.dedicatedMemoryBytes ? 'dxdiag-dedicated-memory' : (controller.adapterRamBytes ? 'win32-adapter-ram' : 'unavailable'),
+      displayMemoryBytes: dxMatch?.displayMemoryBytes || null,
+      sharedMemoryBytes: dxMatch?.sharedMemoryBytes || null,
+      adapterRamBytes: controller.adapterRamBytes || null,
+      driverVersion: controller.driverVersion,
+      videoProcessor: controller.videoProcessor,
+      pnpDeviceId: controller.pnpDeviceId
+    };
+  });
+
+  dxDevices.forEach(device => {
+    const normalized = normalizeDeviceName(device.name);
+    const exists = merged.some(entry => {
+      const entryName = normalizeDeviceName(entry.name);
+      return normalized && entryName && (normalized.includes(entryName) || entryName.includes(normalized));
+    });
+    if (!exists) {
+      merged.push({
+        name: device.name,
+        memoryTotalBytes: device.dedicatedMemoryBytes || null,
+        memoryTotalSource: device.dedicatedMemoryBytes ? 'dxdiag-dedicated-memory' : 'unavailable',
+        displayMemoryBytes: device.displayMemoryBytes || null,
+        sharedMemoryBytes: device.sharedMemoryBytes || null,
+        adapterRamBytes: null,
+        driverVersion: '',
+        videoProcessor: '',
+        pnpDeviceId: ''
+      });
+    }
+  });
+
+  return merged;
+}
+
+function readCachedWindowsGpuDevices() {
+  if (process.platform !== 'win32') return Promise.resolve([]);
+  const now = Date.now();
+  if (windowsGpuDeviceCache.data && now < windowsGpuDeviceCache.expiresAt) {
+    return Promise.resolve(windowsGpuDeviceCache.data);
+  }
+  if (!windowsGpuDeviceCache.promise) {
+    windowsGpuDeviceCache.promise = readWindowsGpuDevices()
+      .then(devices => {
+        windowsGpuDeviceCache.data = devices;
+        windowsGpuDeviceCache.expiresAt = Date.now() + WINDOWS_GPU_DEVICE_CACHE_MS;
+        return devices;
+      })
+      .catch(error => {
+        const fallback = windowsGpuDeviceCache.data || [];
+        windowsGpuDeviceCache.error = compactErrorMessage(error);
+        windowsGpuDeviceCache.expiresAt = Date.now() + Math.min(WINDOWS_GPU_DEVICE_CACHE_MS, 60000);
+        return fallback;
+      })
+      .finally(() => {
+        windowsGpuDeviceCache.promise = null;
+      });
+  }
+  return windowsGpuDeviceCache.promise;
+}
+
 async function readWindowsGpuTelemetry() {
   const script = `
+$engineGroups = @{}
 $engines = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue)
-$active = $engines | Where-Object { $_.UtilizationPercentage -gt 0 }
-$sum = ($active | Measure-Object -Property UtilizationPercentage -Sum).Sum
-if ($null -eq $sum) {
-  $samples = (Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction Stop).CounterSamples
-  $active = $samples | Where-Object { $_.CookedValue -gt 0 }
-  $sum = ($active | Measure-Object -Property CookedValue -Sum).Sum
+foreach ($engine in $engines) {
+  $value = [double]$engine.UtilizationPercentage
+  if ($value -le 0) { continue }
+  $name = [string]$engine.Name
+  $adapter = 'gpu'
+  $engineType = 'unknown'
+  if ($name -match '(luid_.*?_phys_\\d+)') { $adapter = $Matches[1].ToLowerInvariant() }
+  if ($name -match 'engtype_([^_]+)$') { $engineType = $Matches[1].ToLowerInvariant() }
+  $key = "$adapter|$engineType"
+  if (-not $engineGroups.ContainsKey($key)) { $engineGroups[$key] = 0.0 }
+  $engineGroups[$key] += $value
 }
-if ($null -eq $sum) { $sum = 0 }
-$memorySamples = @()
-try {
-  $memorySamples = (Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage','\\GPU Adapter Memory(*)\\Shared Usage','\\GPU Adapter Memory(*)\\Total Committed' -ErrorAction Stop).CounterSamples
-} catch {
-  $memorySamples = @()
-}
-$dedicatedUsage = ($memorySamples | Where-Object { $_.Path -like '*\\dedicated usage' } | Measure-Object -Property CookedValue -Sum).Sum
-$sharedUsage = ($memorySamples | Where-Object { $_.Path -like '*\\shared usage' } | Measure-Object -Property CookedValue -Sum).Sum
-$totalCommitted = ($memorySamples | Where-Object { $_.Path -like '*\\total committed' } | Measure-Object -Property CookedValue -Sum).Sum
+$engineBreakdown = @($engineGroups.GetEnumerator() | ForEach-Object {
+  $parts = $_.Key -split '\\|', 2
+  [pscustomobject]@{
+    adapter = $parts[0]
+    engineType = $parts[1]
+    usagePercent = [math]::Min(100, [math]::Round([double]$_.Value, 2))
+  }
+} | Sort-Object -Property usagePercent -Descending)
+$usage = ($engineBreakdown | Measure-Object -Property usagePercent -Maximum).Maximum
+if ($null -eq $usage) { $usage = 0 }
+
+$memoryRows = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue)
+$dedicatedUsage = ($memoryRows | Measure-Object -Property DedicatedUsage -Sum).Sum
+$sharedUsage = ($memoryRows | Measure-Object -Property SharedUsage -Sum).Sum
+$totalCommitted = ($memoryRows | Measure-Object -Property TotalCommitted -Sum).Sum
 if ($null -eq $dedicatedUsage) { $dedicatedUsage = 0 }
 if ($null -eq $sharedUsage) { $sharedUsage = 0 }
 if ($null -eq $totalCommitted) { $totalCommitted = 0 }
-$controllers = @(Get-CimInstance Win32_VideoController | Select-Object -First 6 Name,AdapterRAM)
-$devices = @($controllers | ForEach-Object {
-  $adapterRam = [double]$_.AdapterRAM
-  $memoryTotal = if ($adapterRam -gt 0 -and $adapterRam -lt 4293918720) { $adapterRam } else { $null }
-  [pscustomobject]@{
-    name = $_.Name
-    memoryTotalBytes = $memoryTotal
-    adapterRamBytes = $adapterRam
-  }
-})
 [pscustomobject]@{
-  source = 'windows-gpu-counter'
-  usagePercent = [math]::Min(100, [math]::Round([double]$sum, 2))
+  source = 'windows-performance-counters'
+  usagePercent = [math]::Round([double]$usage, 2)
   memoryUsedBytes = [double]$dedicatedUsage
   sharedMemoryBytes = [double]$sharedUsage
   memoryCommittedBytes = [double]$totalCommitted
-  devices = $devices
+  engineBreakdown = @($engineBreakdown | Select-Object -First 8)
 } | ConvertTo-Json -Compress -Depth 5
 `;
-  const output = await execPowerShell(script, WINDOWS_GPU_TIMEOUT_MS);
+  const [output, devices] = await Promise.all([
+    execPowerShell(script, WINDOWS_GPU_TIMEOUT_MS),
+    promiseWithTimeout(readCachedWindowsGpuDevices(), 1400, windowsGpuDeviceCache.data || [])
+  ]);
   const parsed = JSON.parse(output);
-  const devices = Array.isArray(parsed.devices) ? parsed.devices.map(device => ({
-    name: device.name || 'Windows GPU',
-    memoryTotalBytes: numberOrNull(device.memoryTotalBytes),
-    adapterRamBytes: numberOrNull(device.adapterRamBytes)
-  })) : [];
-  const totalMemory = devices.reduce((sum, device) => sum + (Number.isFinite(device.memoryTotalBytes) && device.memoryTotalBytes > 0 ? device.memoryTotalBytes : 0), 0);
+  const memoryUsedBytes = numberOrNull(parsed.memoryUsedBytes);
+  let totalMemory = devices.reduce((sum, device) => sum + (Number.isFinite(device.memoryTotalBytes) && device.memoryTotalBytes > 0 ? device.memoryTotalBytes : 0), 0);
+  let memoryTotalSource = devices.find(device => device.memoryTotalBytes)?.memoryTotalSource || 'unavailable';
+  if (totalMemory && Number.isFinite(memoryUsedBytes) && memoryUsedBytes > totalMemory * 1.05) {
+    totalMemory = 0;
+    memoryTotalSource = 'unavailable';
+  }
   return {
     source: parsed.source || 'windows-gpu-counter',
     usagePercent: numberOrNull(parsed.usagePercent),
-    memoryUsedBytes: numberOrNull(parsed.memoryUsedBytes),
+    memoryUsedBytes,
     memoryTotalBytes: totalMemory || null,
+    memoryTotalSource,
     sharedMemoryBytes: numberOrNull(parsed.sharedMemoryBytes),
     memoryCommittedBytes: numberOrNull(parsed.memoryCommittedBytes),
-    devices
+    engineBreakdown: Array.isArray(parsed.engineBreakdown) ? parsed.engineBreakdown : [],
+    devices,
+    deviceProbePending: Boolean(windowsGpuDeviceCache.promise)
   };
 }
 
@@ -404,7 +605,7 @@ async function buildStatus() {
       release: os.release(),
       arch: os.arch()
     },
-    cpu: readCpuTelemetry(),
+    cpu: latestCpuTelemetry || refreshCpuTelemetry(),
     memory: readMemoryTelemetry(),
     storage,
     gpu,
@@ -452,6 +653,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Signal LM telemetry server listening on http://${HOST}:${PORT}/status`);
   console.log(`LM Studio probe: ${LM_STUDIO_BASE_URL}/models`);
+  if (process.platform === 'win32') {
+    readCachedWindowsGpuDevices().catch(() => {});
+  }
 });
 
 process.on('SIGINT', () => {

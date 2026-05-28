@@ -166,13 +166,22 @@
   }
 
   function renderDeviceList() {
+    const cpu = metricState('cpu').lastResult;
     const memory = metricState('memory').lastResult;
     const storage = metricState('storage').lastResult;
     const gpu = metricState('gpu').lastResult;
     const inference = metricState('inference').lastResult;
     const helper = telemetryCache.data;
+    const helperCpu = helper?.cpu;
+    const helperMemory = helper?.memory;
     const helperGpu = helper?.gpu;
     const lmStudio = helper?.lmStudio;
+    const ramLine = helperMemory?.totalBytes
+      ? `${formatBytes(helperMemory.usedBytes)} used / ${formatBytes(helperMemory.totalBytes)} total`
+      : memory?.detail || 'Waiting for memory sample';
+    const gpuMemoryLine = helperGpu?.memoryTotalBytes
+      ? telemetryUsageLine(helperGpu.memoryUsedBytes, helperGpu.memoryTotalBytes, 'VRAM used')
+      : helperGpu?.memoryUsedBytes ? `${formatBytes(helperGpu.memoryUsedBytes)} dedicated VRAM used` : 'Waiting for GPU memory';
     const facts = [
       {
         label: 'Telemetry Helper',
@@ -181,20 +190,27 @@
       },
       {
         label: 'Logical CPU',
-        detail: helper?.cpu?.model || 'Browser hardware hint',
-        value: helper?.cpu?.logicalCores
-          ? `${helper.cpu.logicalCores} cores`
+        detail: helperCpu?.model || cpu?.detail || 'Waiting for local helper',
+        value: helperCpu?.logicalCores
+          ? `${helperCpu.logicalCores} cores`
           : navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : 'Not exposed'
       },
       {
-        label: 'System RAM',
-        detail: memory?.detail || 'OS memory from telemetry helper',
-        value: helper?.memory?.totalBytes ? formatBytes(helper.memory.totalBytes) : helperStatusLabel()
+        label: 'CPU Sample',
+        detail: cpu?.detail || 'Waiting for CPU sample',
+        value: cpu?.value || 'Pending'
       },
       {
-        label: 'RAM Sample',
-        detail: memory?.detail || 'Waiting for memory sample',
-        value: memory?.value || 'Pending'
+        label: 'System RAM',
+        detail: ramLine,
+        value: helperMemory?.usagePercent !== null && helperMemory?.usagePercent !== undefined
+          ? `${Math.round(helperMemory.usagePercent)}%`
+          : memory?.value || helperStatusLabel()
+      },
+      {
+        label: 'RAM Free',
+        detail: helperMemory?.source || 'OS memory telemetry',
+        value: helperMemory?.freeBytes ? formatBytes(helperMemory.freeBytes) : 'Pending'
       },
       {
         label: 'Storage Sample',
@@ -207,8 +223,13 @@
         value: gpu?.value || 'Pending'
       },
       {
+        label: 'GPU Memory',
+        detail: gpuMemoryLine,
+        value: helperGpu?.memoryTotalBytes ? formatBytes(helperGpu.memoryTotalBytes) : (helperGpu?.deviceProbePending ? 'Probing' : 'Unknown')
+      },
+      {
         label: 'GPU Source',
-        detail: helperGpu?.devices?.[0]?.name || 'Native/browser fallback',
+        detail: helperGpu?.devices?.[0]?.name || helperGpu?.error || 'Native/browser fallback',
         value: helperGpu?.source || 'Browser'
       },
       {
@@ -313,7 +334,7 @@
     const total = Number(totalBytes);
     if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return '';
     const percent = clamp((used / total) * 100, 0, 100);
-    return `${Math.round(percent)}% ${noun} of ${formatBytes(total)}`;
+    return `${formatBytes(used)} ${noun} / ${formatBytes(total)} total (${Math.round(percent)}%)`;
   }
 
   function getNativeTelemetryBridge() {
@@ -345,21 +366,14 @@
       return {
         percent: helperPercent,
         value: `${Math.round(helperPercent)}%`,
-        detail: `${cpu.logicalCores || navigator.hardwareConcurrency || '?'} cores · ${cpu.model || 'PC telemetry'}`
+        detail: `${cpu.logicalCores || navigator.hardwareConcurrency || '?'} cores · ${cpu.model || 'PC telemetry'} · ${cpu.source || 'OS sampler'}`
       };
     }
 
-    const info = metricState(def.id);
-    const now = performance.now();
-    const pollMs = getPollSeconds(def) * 1000;
-    const drift = info.lastSampleAt ? Math.max(0, now - info.lastSampleAt - pollMs) : 0;
-    info.lastSampleAt = now;
-    const percent = clamp(Math.round((drift / Math.max(250, pollMs)) * 400), 0, 100);
-    const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} logical cores` : 'CPU cores not exposed';
     return {
-      percent,
-      value: `${percent}%`,
-      detail: `${cores} · main thread pressure`
+      percent: null,
+      value: helperStatusLabel(),
+      detail: telemetryCache.error ? `Telemetry helper offline · ${telemetryCache.error}` : 'Waiting for CPU telemetry helper'
     };
   }
 
@@ -370,25 +384,15 @@
     if (helperPercent !== null) {
       return {
         percent: helperPercent,
-        value: `${formatBytes(memory.usedBytes)}`,
-        detail: `System RAM · ${telemetryUsageLine(memory.usedBytes, memory.totalBytes) || 'OS memory telemetry'}`
-      };
-    }
-
-    const browserMemory = performance.memory;
-    if (browserMemory && browserMemory.jsHeapSizeLimit) {
-      const percent = clamp((browserMemory.usedJSHeapSize / browserMemory.jsHeapSizeLimit) * 100, 0, 100);
-      return {
-        percent,
-        value: `${formatBytes(browserMemory.usedJSHeapSize)}`,
-        detail: `Helper offline · ${Math.round(percent)}% of ${formatBytes(browserMemory.jsHeapSizeLimit)} JS heap`
+        value: `${Math.round(helperPercent)}%`,
+        detail: `System RAM · ${telemetryUsageLine(memory.usedBytes, memory.totalBytes) || 'OS memory telemetry'} · ${formatBytes(memory.freeBytes)} free`
       };
     }
 
     return {
       percent: null,
       value: helperStatusLabel() === 'Offline' ? 'Helper offline' : 'Pending',
-      detail: 'Start telemetry helper for system RAM'
+      detail: telemetryCache.error ? `System RAM needs local helper · ${telemetryCache.error}` : 'Waiting for system RAM telemetry'
     };
   }
 
@@ -430,7 +434,7 @@
       return {
         percent: null,
         value: 'Warming',
-        detail: 'GPU telemetry helper is collecting the first sample'
+        detail: gpu.error || 'GPU telemetry helper is collecting the first sample'
       };
     }
     const helperPercent = telemetryPercent(gpu?.usagePercent);
@@ -439,13 +443,23 @@
       const memoryLine = telemetryUsageLine(gpu.memoryUsedBytes, gpu.memoryTotalBytes, 'VRAM used');
       const dedicatedBytes = Number(gpu.memoryUsedBytes);
       const committedBytes = Number(gpu.memoryCommittedBytes);
+      const topEngine = gpu.engineBreakdown?.[0];
+      const engineLine = topEngine?.engineType ? `${topEngine.engineType.toUpperCase()} engine` : '';
       const memoryDetail = memoryLine
         || (Number.isFinite(dedicatedBytes) && dedicatedBytes > 0 ? `${formatBytes(dedicatedBytes)} dedicated VRAM` : '')
         || (Number.isFinite(committedBytes) && committedBytes > 0 ? `${formatBytes(committedBytes)} GPU memory committed` : '');
       return {
         percent: helperPercent,
         value: `${Math.round(helperPercent)}%`,
-        detail: `${gpuName} · ${memoryDetail || gpu.source || 'telemetry helper'}`
+        detail: `${gpuName} · ${[engineLine, memoryDetail || gpu.source || 'telemetry helper'].filter(Boolean).join(' · ')}`
+      };
+    }
+
+    if (gpu?.error) {
+      return {
+        percent: null,
+        value: 'Unavailable',
+        detail: `${gpu.source || 'GPU telemetry'} · ${gpu.error}`
       };
     }
 
