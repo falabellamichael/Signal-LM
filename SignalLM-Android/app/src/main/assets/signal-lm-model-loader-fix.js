@@ -85,8 +85,15 @@
     return { models: models, source: 'Android native bridge' };
   }
 
-  async function urlModels(url) {
-    var response = await fetch(url, { method: 'GET', cache: 'no-store' });
+  function requestHeaders(settings) {
+    var headers = { Accept: 'application/json' };
+    var key = settings && settings.apiKey ? String(settings.apiKey).trim() : '';
+    if (key) headers.Authorization = /^Bearer\s+/i.test(key) ? key : 'Bearer ' + key;
+    return headers;
+  }
+
+  async function urlModels(url, settings) {
+    var response = await fetch(url, { method: 'GET', cache: 'no-store', headers: requestHeaders(settings) });
     if (!response.ok) throw new Error('HTTP ' + response.status + ' from ' + url);
     var models = normalizeModels(await response.json());
     if (!models.length) throw new Error('No models returned by ' + url);
@@ -97,7 +104,7 @@
     var urls = unique([apiBase(settings) + '/models', openAiBase(settings) + '/models', cleanBase(settings.baseUrl) + '/models']);
     var lastError = null;
     for (var i = 0; i < urls.length; i++) {
-      try { return await urlModels(urls[i]); }
+      try { return await urlModels(urls[i], settings); }
       catch (error) { lastError = error; try { console.warn('Model endpoint failed:', urls[i], error); } catch (ignored) {} }
     }
     throw lastError || new Error('No model endpoint responded');
@@ -106,9 +113,11 @@
   function saveVisibleFields() {
     var settings = readSettings();
     var baseUrl = document.getElementById('base-url');
+    var apiKey = document.getElementById('api-key');
     var runtimeMode = document.getElementById('settings-runtime-mode') || document.getElementById('runtime-mode');
     var hybridStrategy = document.getElementById('settings-hybrid-strategy') || document.getElementById('hybrid-strategy');
     if (baseUrl) settings.baseUrl = cleanBase(baseUrl.value || settings.baseUrl || DEFAULT_BASE_URL);
+    if (apiKey) settings.apiKey = String(apiKey.value || '').trim();
     if (runtimeMode) settings.runtimeMode = runtimeMode.value || settings.runtimeMode || 'server';
     if (hybridStrategy) settings.hybridStrategy = hybridStrategy.value || settings.hybridStrategy || 'off';
     writeSettings(settings);
