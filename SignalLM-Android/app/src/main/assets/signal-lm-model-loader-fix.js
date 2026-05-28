@@ -94,10 +94,23 @@
 
   async function urlModels(url, settings) {
     var response = await fetch(url, { method: 'GET', cache: 'no-store', headers: requestHeaders(settings) });
-    if (!response.ok) throw new Error('HTTP ' + response.status + ' from ' + url);
+    if (!response.ok) {
+      var error = new Error('HTTP ' + response.status + ' from ' + url);
+      error.status = response.status;
+      error.url = url;
+      error.authRequired = response.status === 401 || response.status === 403;
+      throw error;
+    }
     var models = normalizeModels(await response.json());
     if (!models.length) throw new Error('No models returned by ' + url);
     return { models: models, source: url };
+  }
+
+  function authErrorMessage(settings, error) {
+    if (settings && settings.apiKey) {
+      return 'LM Studio rejected the saved API key. Re-enter the API Key / Bearer Token in Settings, save it, then load models again.';
+    }
+    return 'LM Studio requires an API key. Enter the API Key / Bearer Token in Settings, save it, then load models again.';
   }
 
   async function serverModels(settings) {
@@ -105,7 +118,14 @@
     var lastError = null;
     for (var i = 0; i < urls.length; i++) {
       try { return await urlModels(urls[i], settings); }
-      catch (error) { lastError = error; try { console.warn('Model endpoint failed:', urls[i], error); } catch (ignored) {} }
+      catch (error) {
+        lastError = error;
+        if (error && error.authRequired) {
+          error.message = authErrorMessage(settings, error);
+          throw error;
+        }
+        try { console.warn('Model endpoint failed:', urls[i], error); } catch (ignored) {}
+      }
     }
     throw lastError || new Error('No model endpoint responded');
   }
@@ -146,7 +166,7 @@
     var hybridStrategyValue = valueOf(hybridStrategy);
 
     settings.baseUrl = cleanBase(wasTouched(baseUrl) && baseUrlValue ? baseUrlValue : settings.baseUrl || DEFAULT_BASE_URL);
-    if (wasTouched(apiKey)) settings.apiKey = apiKeyValue;
+    if (wasTouched(apiKey) || (!settings.apiKey && apiKeyValue)) settings.apiKey = apiKeyValue;
     if (!settings.apiKey) settings.apiKey = '';
     if (wasTouched(runtimeMode) && runtimeModeValue) settings.runtimeMode = runtimeModeValue;
     else settings.runtimeMode = settings.runtimeMode || 'server';
@@ -182,7 +202,7 @@
     if (!models.length) {
       var empty = document.createElement('option');
       empty.value = settings.model || '';
-      empty.textContent = settings.model || 'No models returned';
+      empty.textContent = settings.emptyModelLabel || settings.model || 'No models returned';
       select.appendChild(empty);
       return;
     }
@@ -249,11 +269,13 @@
       setStatus('connected', settings.runtimeMode === 'android-vulkan' ? 'Android' : 'Connected', result.models.length + ' model' + (result.models.length === 1 ? '' : 's') + ' returned from ' + result.source + '.');
       return result.models;
     } catch (error) {
-      console.error(error);
-      renderSelect([], settings);
+      if (error && error.authRequired) console.warn(error.message);
+      else console.error(error);
+      var authFailed = error && error.authRequired;
+      renderSelect([], authFailed ? Object.assign({}, settings, { emptyModelLabel: 'API key required' }) : settings);
       renderSettingsList([], settings);
       updateDisplay(settings);
-      setStatus('error', 'Offline', 'Could not load models. ' + (error && error.message ? error.message : ''));
+      setStatus('error', authFailed ? 'Auth required' : 'Offline', authFailed ? error.message : 'Could not load models. ' + (error && error.message ? error.message : ''));
       return [];
     }
   }

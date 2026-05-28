@@ -1372,22 +1372,36 @@ const STORAGE_KEYS = {
         let payload;
         let usedNative = false;
         const headers = settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
+        const authMessage = settings.apiKey
+          ? 'LM Studio rejected the saved API key. Re-enter the API Key / Bearer Token in Settings.'
+          : 'LM Studio requires an API key. Enter the API Key / Bearer Token in Settings.';
+        const modelRequestError = (response, url) => {
+          const error = new Error(response.status === 401 || response.status === 403 ? authMessage : `Model request failed: HTTP ${response.status}`);
+          error.status = response.status;
+          error.url = url;
+          error.authRequired = response.status === 401 || response.status === 403;
+          return error;
+        };
 
         try {
           const nativeUrl = nativeApiBaseUrl() + '/models';
           response = await fetch(nativeUrl, { method: 'GET', headers });
-        if (response.ok) {
-          payload = await response.json();
-          usedNative = true;
-        }
+          if (response.ok) {
+            payload = await response.json();
+            usedNative = true;
+          } else if (response.status === 401 || response.status === 403) {
+            throw modelRequestError(response, nativeUrl);
+          }
       } catch (err) {
+        if (err && err.authRequired) throw err;
         console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
       }
 
       if (!usedNative) {
         try {
-          response = await fetch(endpoint('/models'), { method: 'GET', headers });
-          if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+          const modelsUrl = endpoint('/models');
+          response = await fetch(modelsUrl, { method: 'GET', headers });
+          if (!response.ok) throw modelRequestError(response, modelsUrl);
           payload = await response.json();
         } catch (err) {
           throw err;
@@ -1431,10 +1445,11 @@ const STORAGE_KEYS = {
 
         const opt = document.createElement('option');
         opt.value = settings.model || '';
-        opt.textContent = settings.model || 'Server offline';
+        opt.textContent = settings.model || (error && error.authRequired ? 'API key required' : 'Server offline');
         els.modelSelect.appendChild(opt);
-        setStatus('error', 'Offline');
+        setStatus('error', error && error.authRequired ? 'Auth required' : 'Offline');
         updateRuntimeUi();
+        if (error && error.authRequired) showToast(error.message);
       }
     }
 
