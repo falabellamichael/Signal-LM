@@ -31,9 +31,9 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p _site
-          cp index.html folders.html .nojekyll README.md ANDROID_VULKAN_RUNTIME.md SILENT_CONTEXT_HELPER.md TELEMETRY_HELPER.md start-telemetry-server.bat _site/
+          cp index.html folders.html .nojekyll README.md ANDROID_VULKAN_RUNTIME.md SILENT_CONTEXT_HELPER.md TELEMETRY_HELPER.md tel-server.bat _site/
           cp shared.css index.css editor.css mcp.css settings.css folders.css signal-lm-mcp-dark.css signal-lm-app-shell.css system-sidebar.css _site/
-          cp shared.js index.js system-sidebar.js signal-lm-telemetry-server.js signal-lm-commands.js editor.js mcp.js settings.js folders.js _site/
+          cp shared.js index.js system-sidebar.js tel-server.js signal-lm-commands.js editor.js mcp.js settings.js folders.js _site/
           cp signal-lm-theme.js signal-lm-runtime-fix.js signal-lm-model-loader-fix.js signal-lm-web-search.js signal-lm-mcp-pipeline.js _site/
           cp signal-lm-mcp-file-path.js signal-lm-json-edit-enforcer.js signal-lm-mcp-chat-bridge.js _site/
           cp -r libs _site/
