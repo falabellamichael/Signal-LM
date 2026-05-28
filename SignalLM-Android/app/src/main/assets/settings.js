@@ -7,7 +7,7 @@ const STORAGE_KEYS = {
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
-      model: '',
+      model: 'auto-detect',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -311,12 +311,39 @@ const STORAGE_KEYS = {
     }
 
     function renderModels(models) {
+      els.modelList.innerHTML = '';
+
+      // Auto-Detect option
+      const autoRow = document.createElement('div');
+      autoRow.className = 'model-option';
+
+      const autoName = document.createElement('strong');
+      autoName.textContent = 'Auto-Detect';
+
+      const autoBtn = document.createElement('button');
+      autoBtn.type = 'button';
+      autoBtn.textContent = settings.model === 'auto-detect' ? 'Selected' : 'Use';
+      autoBtn.disabled = settings.model === 'auto-detect';
+      autoBtn.addEventListener('click', () => {
+        settings.model = 'auto-detect';
+        saveSettings();
+        fillForm();
+        renderModels(models);
+        showToast('Default model updated.');
+      });
+
+      autoRow.appendChild(autoName);
+      autoRow.appendChild(autoBtn);
+      els.modelList.appendChild(autoRow);
+
       if (!models.length) {
-        els.modelList.innerHTML = '<p class="hint">No models loaded yet, or the selected runtime is unavailable.</p>';
+        const hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = 'No other models loaded yet, or the selected runtime is unavailable.';
+        els.modelList.appendChild(hint);
         return;
       }
 
-      els.modelList.innerHTML = '';
       models.forEach(model => {
         const row = document.createElement('div');
         row.className = 'model-option';

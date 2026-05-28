@@ -153,10 +153,19 @@
     ].filter(Boolean).join('\n\n');
   }
 
+  function getResolvedModelName() {
+    const loaded = window.__signalLmLoadedModels || [];
+    if (loaded.length > 0) return loaded[0];
+    return '';
+  }
+
   function buildRequestBody(settings, requestMessages) {
     const path = mcpFilePath(settings);
+    const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
+      ? getResolvedModelName()
+      : settings.model;
     const body = {
-      model: settings.model,
+      model: resolvedModel,
       input: messagesToInput(requestMessages, settings),
       integrations: buildIntegrations(settings),
       context_length: nativeContextLength(settings),
@@ -190,6 +199,21 @@
     const settings = readSettings();
     const integrations = buildIntegrations(settings);
     if (!settings.mcpEnabled || !integrations.length) return null;
+
+    if (settings.model === 'auto-detect' || !settings.model) {
+      try {
+        if (typeof window.loadModels === 'function') {
+          await window.loadModels({ force: true });
+        }
+      } catch (error) {
+        console.warn('Failed to refresh models in runMcpChat:', error);
+      }
+      const resolved = getResolvedModelName();
+      if (!resolved) {
+        showToast('No models are currently loaded in LM Studio. Please load a model first.');
+        throw new Error('No models are currently loaded in LM Studio.');
+      }
+    }
 
     const body = buildRequestBody(settings, requestMessages);
 

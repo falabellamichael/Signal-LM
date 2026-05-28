@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
-      model: '',
+      model: 'auto-detect',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -183,9 +183,10 @@ const STORAGE_KEYS = {
     }
 
     function modelIdFromEntry(model) {
-      if (typeof model === 'string') return model;
+      if (typeof model === 'string') return model.replace(/:\d+$/, '');
       if (!model || typeof model !== 'object') return '';
-      return model.id || model.key || model.name || model.model || model.path || '';
+      const id = model.id || model.key || model.name || model.model || model.path || '';
+      return id.replace(/:\d+$/, '');
     }
 
     function loadedModelIdsFromEntry(model) {
@@ -193,7 +194,8 @@ const STORAGE_KEYS = {
       const loadedInstances = Array.isArray(model.loaded_instances) ? model.loaded_instances : [];
       return compactUnique(loadedInstances.map(instance => {
         if (typeof instance === 'string') return instance;
-        return instance?.id || instance?.key || instance?.name || modelIdFromEntry(model);
+        const id = instance?.id || instance?.key || instance?.name || model.id || model.key || model.name || model.model || model.path || '';
+        return id;
       }));
     }
 
@@ -206,16 +208,26 @@ const STORAGE_KEYS = {
             ? payload
             : [];
       const llmModels = rawModels.filter(model => !model || typeof model !== 'object' || model.type !== 'embedding');
-      const loaded = compactUnique(llmModels.flatMap(loadedModelIdsFromEntry));
+      const supportsLoadedInstances = llmModels.some(model => model && typeof model === 'object' && 'loaded_instances' in model);
+      const loaded = supportsLoadedInstances
+        ? compactUnique(llmModels.flatMap(loadedModelIdsFromEntry))
+        : (llmModels.length ? [modelIdFromEntry(llmModels[0])] : []);
       const all = compactUnique(llmModels.map(modelIdFromEntry));
       return { all, loaded };
     }
 
+    function getResolvedModelName() {
+      const loaded = window.__signalLmLoadedModels || [];
+      if (loaded.length > 0) return loaded[0];
+      return '';
+    }
+
     function chooseModel({ all = [], loaded = [] }) {
       const candidates = loaded.length ? loaded : all;
-      if (!candidates.length) return settings.model || '';
+      if (settings.model === 'auto-detect') return 'auto-detect';
+      if (!candidates.length) return settings.model || 'auto-detect';
       if (settings.model && candidates.includes(settings.model)) return settings.model;
-      return candidates[0];
+      return 'auto-detect';
     }
 
     function finiteNumber(value) {
@@ -559,8 +571,9 @@ const STORAGE_KEYS = {
     }
 
     function buildChatCompletionBody(requestMessages, stream) {
+      const modelName = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
       return {
-        model: settings.model,
+        model: modelName,
         messages: requestMessages,
         stream,
         temperature: Number(settings.temperature),
@@ -670,7 +683,12 @@ const STORAGE_KEYS = {
       }
       els.serverUrlCopy.textContent = runtimeStatusCopy();
       const suffix = androidOnly ? ' · Android Vulkan' : phoneBoost ? ' · Hybrid boost' : '';
-      els.modelDisplay.textContent = settings.model ? `${settings.model}${suffix}` : 'No model selected';
+      let modelText = settings.model || 'No model selected';
+      if (settings.model === 'auto-detect') {
+        const resolved = getResolvedModelName();
+        modelText = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+      }
+      els.modelDisplay.textContent = modelText + suffix;
     }
 
     function getAndroidRuntimeOptions() {
@@ -721,8 +739,9 @@ const STORAGE_KEYS = {
     }
 
     function buildNativeCompletionPayload(requestMessages) {
+      const modelName = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
       return {
-        model: settings.model,
+        model: modelName,
         messages: requestMessages,
         prompt: messagesToPlainPrompt(requestMessages),
         temperature: Number(settings.temperature),
@@ -965,8 +984,9 @@ const STORAGE_KEYS = {
         inputString = userInput.filter(p => p.type === 'text').map(p => p.text).join('\n');
       }
 
+      const resolvedModel = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
       const body = {
-        model: settings.model,
+        model: resolvedModel,
         input: inputString,
         integrations,
         context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
@@ -1106,6 +1126,10 @@ const STORAGE_KEYS = {
       els.scrim.classList.toggle('show', shouldOpen);
       document.documentElement.classList.toggle('sidebar-open', shouldOpen);
       document.body.classList.toggle('sidebar-open', shouldOpen);
+      const toggleBtn = document.querySelector('.mobile-toggle');
+      if (toggleBtn) {
+        toggleBtn.textContent = shouldOpen ? '✕' : '☰';
+      }
     }
 
     function escapeHtml(value) {
@@ -1541,11 +1565,19 @@ const STORAGE_KEYS = {
       if (isAndroidRuntime()) {
         const bridge = getNativeInferenceBridge();
         els.modelSelect.innerHTML = '';
+
+        const autoOpt = document.createElement('option');
+        autoOpt.value = 'auto-detect';
+        autoOpt.textContent = 'Auto-Detect';
+        els.modelSelect.appendChild(autoOpt);
+
         if (!bridge) {
-          const opt = document.createElement('option');
-          opt.value = settings.model || '';
-          opt.textContent = settings.model || 'Native bridge unavailable';
-          els.modelSelect.appendChild(opt);
+          if (settings.model && settings.model !== 'auto-detect') {
+            const opt = document.createElement('option');
+            opt.value = settings.model;
+            opt.textContent = settings.model;
+            els.modelSelect.appendChild(opt);
+          }
           setStatus('error', 'No bridge');
           updateRuntimeUi();
           return;
@@ -1562,7 +1594,7 @@ const STORAGE_KEYS = {
                 ? parsed.models.map(model => model.id || model.name).filter(Boolean)
                 : [];
 
-          const names = models.length ? models : [settings.model || 'Select model in native app'];
+          const names = models.length ? models : [];
           names.forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
@@ -1570,19 +1602,25 @@ const STORAGE_KEYS = {
             els.modelSelect.appendChild(opt);
           });
 
-          if (!settings.model && models[0]) {
-            settings.model = models[0];
-            saveSettings();
-          }
-          els.modelSelect.value = settings.model || names[0] || '';
+          window.__signalLmLastModelFetchResult = names;
+          window.__signalLmLoadedModels = names;
+          window.__signalLmLastModelFetchTime = Date.now();
+          els.modelSelect.value = settings.model || 'auto-detect';
           setStatus('connected', 'Android');
           updateRuntimeUi();
         } catch (error) {
           console.error(error);
-          const opt = document.createElement('option');
-          opt.value = settings.model || '';
-          opt.textContent = settings.model || 'Native model unavailable';
-          els.modelSelect.appendChild(opt);
+          if (settings.model && settings.model !== 'auto-detect') {
+            const opt = document.createElement('option');
+            opt.value = settings.model;
+            opt.textContent = settings.model;
+            els.modelSelect.appendChild(opt);
+          } else {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Native model unavailable';
+            els.modelSelect.appendChild(opt);
+          }
           setStatus('error', 'Runtime error');
           showToast(error.message || 'Could not load Android runtime models.');
         }
@@ -1611,43 +1649,64 @@ const STORAGE_KEYS = {
 
         const { all: availableModels, loaded: loadedModels } = extractModelIds(payload);
         const models = compactUnique([...loadedModels, ...availableModels]);
+        window.__signalLmLoadedModels = loadedModels;
         const preferredModel = chooseModel({ all: availableModels, loaded: loadedModels });
 
         els.modelSelect.innerHTML = '';
 
-        if (!models.length) {
-          const opt = document.createElement('option');
-          opt.value = settings.model || '';
-          opt.textContent = settings.model || 'No models returned';
-          els.modelSelect.appendChild(opt);
-        } else {
+        const autoOpt = document.createElement('option');
+        autoOpt.value = 'auto-detect';
+        const resolved = getResolvedModelName();
+        autoOpt.textContent = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        els.modelSelect.appendChild(autoOpt);
+
+        if (models.length) {
           models.forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = name;
             els.modelSelect.appendChild(opt);
           });
-
-          if (preferredModel && settings.model !== preferredModel) {
-            settings.model = preferredModel;
-            saveSettings();
-          }
-
-          els.modelSelect.value = settings.model || preferredModel;
-          els.modelDisplay.textContent = settings.model || preferredModel;
         }
 
+        if (preferredModel && settings.model !== preferredModel && settings.model !== 'auto-detect') {
+          settings.model = preferredModel;
+          saveSettings();
+        }
+
+        els.modelSelect.value = settings.model || preferredModel || 'auto-detect';
+
+        let modelDisplay = settings.model || preferredModel || 'auto-detect';
+        if (modelDisplay === 'auto-detect') {
+          const resolved = getResolvedModelName();
+          modelDisplay = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        }
+        els.modelDisplay.textContent = modelDisplay;
+
+        window.__signalLmLastModelFetchResult = models;
+        window.__signalLmLastModelFetchTime = Date.now();
         setStatus('connected', 'Connected');
         updateRuntimeUi();
-        window.__signalLmLastModelFetchTime = Date.now();
-        window.__signalLmLastModelFetchResult = models;
       } catch (error) {
         els.modelSelect.innerHTML = '';
 
-        const opt = document.createElement('option');
-        opt.value = settings.model || '';
-        opt.textContent = settings.model || (error && error.authRequired ? 'API key required' : 'Server offline');
-        els.modelSelect.appendChild(opt);
+        const autoOpt = document.createElement('option');
+        autoOpt.value = 'auto-detect';
+        const resolved = getResolvedModelName();
+        autoOpt.textContent = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        els.modelSelect.appendChild(autoOpt);
+
+        if (settings.model && settings.model !== 'auto-detect') {
+          const opt = document.createElement('option');
+          opt.value = settings.model;
+          opt.textContent = settings.model;
+          els.modelSelect.appendChild(opt);
+        } else {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = error && error.authRequired ? 'API key required' : 'Server offline';
+          els.modelSelect.appendChild(opt);
+        }
         setStatus('error', error && error.authRequired ? 'Auth required' : 'Offline');
         updateRuntimeUi();
         if (error && error.authRequired) showToast(error.message);
@@ -2022,6 +2081,24 @@ Workspace context is present in the latest user message. Treat those files as at
       if (!settings.model) {
         showToast('Select or load a model first.');
         return;
+      }
+
+      if (settings.model === 'auto-detect') {
+        try {
+          if (typeof window.loadModels === 'function') {
+            await window.loadModels({ force: true });
+          } else if (typeof loadModels === 'function') {
+            await loadModels();
+          }
+        } catch (error) {
+          console.warn('Auto-detect model refresh failed:', error);
+        }
+
+        const resolved = getResolvedModelName();
+        if (!resolved) {
+          showToast('No models are currently loaded in LM Studio. Please load a model first.');
+          return;
+        }
       }
 
       let userTurn;
@@ -3525,5 +3602,15 @@ window.addEventListener('workspaceSelected', (event) => {
   }
   hydrateFileContext();
   loadWorkspaceHandle();
+});
+
+window.addEventListener('focus', () => {
+  if (settings.model === 'auto-detect') {
+    if (typeof window.loadModels === 'function') {
+      window.loadModels({ force: true }).catch(console.error);
+    } else if (typeof loadModels === 'function') {
+      loadModels().catch(console.error);
+    }
+  }
 });
 })();

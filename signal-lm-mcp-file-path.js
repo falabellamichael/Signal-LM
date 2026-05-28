@@ -360,18 +360,67 @@
     if (!response.ok) return [];
     var payload = await response.json().catch(function () { return null; });
     var models = parseNativeModels(payload);
-    nativeModelsCache = { url: url, at: Date.now(), models: models.slice() };
+    var loaded = [];
+    try {
+      var rawModels = Array.isArray(payload.models) ? payload.models : Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      var llmModels = rawModels.filter(function (m) {
+        return m && typeof m === 'object' && m.type !== 'embedding';
+      });
+      var supportsLoadedInstances = llmModels.some(function (m) {
+        return m && typeof m === 'object' && 'loaded_instances' in m;
+      });
+      if (supportsLoadedInstances) {
+        llmModels.forEach(function (m) {
+          if (Array.isArray(m.loaded_instances)) {
+            m.loaded_instances.forEach(function (inst) {
+              var id = inst && (inst.id || inst.key || inst.name || m.id || m.key || m.name || '');
+              if (id) {
+                var cleanId = String(id).trim();
+                if (cleanId && loaded.indexOf(cleanId) === -1) {
+                  loaded.push(cleanId);
+                }
+              }
+            });
+          }
+        });
+      } else {
+        if (models.length) {
+          loaded.push(models[0]);
+        }
+      }
+    } catch (e) {}
+    nativeModelsCache = { url: url, at: Date.now(), models: models.slice(), loaded: loaded };
     return models;
   }
 
   async function resolveNativeMcpModel(originalFetch, resource, init, body, force) {
-    var current = body && body.model ? body.model : readSettings().model;
+    var settings = readSettings();
+    var current = body && body.model ? body.model : settings.model;
     var models = await fetchNativeModels(originalFetch, resource, init, force);
-    var selected = selectReplacementModel(current, models);
+    
+    var loadedModels = nativeModelsCache.loaded || [];
+    var targetList = current === 'auto-detect' ? loadedModels : models;
+    
+    var selected = selectReplacementModel(current, targetList);
+    
+    if (current === 'auto-detect' && !selected) {
+      showToast('No models are currently loaded in LM Studio. Please load a model first.');
+      return '';
+    }
+
     if (selected && selected !== current) {
-      updateSelectedModel(selected);
-      resetNativeMcpThread();
-      showToast('MCP model changed to downloaded model: ' + selected);
+      if (current !== 'auto-detect') {
+        updateSelectedModel(selected);
+        resetNativeMcpThread();
+        showToast('MCP model changed to downloaded model: ' + selected);
+      } else {
+        var display = document.getElementById('model-display');
+        if (display) {
+          var suffix = settings.runtimeMode === 'android-vulkan' ? ' · Android Vulkan' : 
+                       (settings.runtimeMode === 'hybrid' && settings.hybridStrategy !== 'off') ? ' · Hybrid boost' : '';
+          display.textContent = 'Auto-Detect (' + selected + ')' + suffix;
+        }
+      }
     }
     return selected;
   }
@@ -387,9 +436,13 @@
     syncThreadToCurrentTarget();
     var injected = injectMcpFilePathIntoBody(parsed);
 
-    if (!injected.model) {
-      var initialModel = await resolveNativeMcpModel(originalFetch, resource, init, injected, false);
-      if (initialModel) injected.model = initialModel;
+    if (!injected.model || injected.model === 'auto-detect') {
+      var initialModel = await resolveNativeMcpModel(originalFetch, resource, init, injected, true);
+      if (initialModel) {
+        injected.model = initialModel;
+      } else {
+        throw new Error('No models are currently loaded in LM Studio.');
+      }
     }
 
     var firstResponse = await originalFetch(resource, cloneFetchInit(init, injected));

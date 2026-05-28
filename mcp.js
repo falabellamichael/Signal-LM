@@ -8,7 +8,7 @@ const STORAGE_KEYS = {
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
-      model: '',
+      model: 'auto-detect',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -144,8 +144,11 @@ const STORAGE_KEYS = {
     }
 
     function buildPreviewRequest() {
+      const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
+        ? (window.__signalLmLoadedModels?.[0] || 'auto-detect')
+        : settings.model;
       const body = {
-        model: settings.model || '<select-model-in-settings>',
+        model: resolvedModel,
         input: 'Your message here',
         integrations: buildMcpIntegrations(),
         context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
@@ -435,8 +438,20 @@ const STORAGE_KEYS = {
     async function testMcpChat() {
       saveMcpSettings();
       const integrations = buildMcpIntegrations();
-      if (!settings.model) {
-        showToast('Choose a model in Settings first.');
+      if (settings.model === 'auto-detect' || !settings.model) {
+        try {
+          if (typeof window.loadModels === 'function') {
+            await window.loadModels({ force: true });
+          }
+        } catch (error) {
+          console.warn('Failed to refresh models in MCP:', error);
+        }
+      }
+      const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
+        ? (window.__signalLmLoadedModels?.[0] || '')
+        : settings.model;
+      if (!resolvedModel) {
+        showToast('No active model loaded. Start LM Studio or select a model first.');
         return;
       }
       if (!integrations.length) {
@@ -450,7 +465,7 @@ const STORAGE_KEYS = {
           method: 'POST',
           headers: getHeaders(),
           body: JSON.stringify({
-            model: settings.model,
+            model: resolvedModel,
             input: 'Reply with exactly: MCP ready',
             integrations,
             context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),

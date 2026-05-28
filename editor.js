@@ -12,7 +12,7 @@ const STORAGE_KEYS = {
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
-      model: '',
+      model: 'auto-detect',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -498,7 +498,19 @@ const STORAGE_KEYS = {
       if (!task) { showToast('Describe what should change first.'); els.aiInstruction.focus(); return; }
       if (dirty) { showToast('Save or discard the selected-file changes before running folder edits.'); return; }
       const settings = loadSettings();
-      if (!settings.model) { showToast('Choose a model in Settings before running AI folder edits.'); return; }
+      if (settings.model === 'auto-detect' || !settings.model) {
+        try {
+          if (typeof window.loadModels === 'function') {
+            await window.loadModels({ force: true });
+          }
+        } catch (error) {
+          console.warn('Failed to refresh models in editor:', error);
+        }
+      }
+      const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
+        ? (window.__signalLmLoadedModels?.[0] || '')
+        : settings.model;
+      if (!resolvedModel) { showToast('No active model loaded. Start LM Studio or select a model first.'); return; }
 
       setAiEditing(true);
       pendingAiChanges = [];
@@ -511,7 +523,7 @@ const STORAGE_KEYS = {
           method: 'POST',
           headers: getHeaders(settings),
           body: JSON.stringify({
-            model: settings.model,
+            model: resolvedModel,
             messages: [
               { role: 'system', content: 'You are a precise code editor. Return only strict JSON that follows the requested schema.' },
               { role: 'user', content: buildAiPrompt(task, files, skipped) }

@@ -42,9 +42,10 @@
 
   function modelName(model) {
     if (!model) return '';
-    if (typeof model === 'string') return model.trim();
+    if (typeof model === 'string') return model.replace(/:\d+$/, '').trim();
     if (typeof model !== 'object') return '';
-    return String(model.id || model.name || model.model || model.identifier || model.path || model.filename || '').trim();
+    var name = String(model.id || model.name || model.model || model.identifier || model.path || model.filename || '').trim();
+    return name.replace(/:\d+$/, '');
   }
 
   function unique(values) {
@@ -82,7 +83,7 @@
     var payload = bridge.listModels ? await toPromise(bridge.listModels()) : bridge.getModels ? await toPromise(bridge.getModels()) : [];
     var models = normalizeModels(payload);
     if (!models.length) throw new Error('No native models returned');
-    return { models: models, source: 'Android native bridge' };
+    return { models: models, loaded: models.slice(), source: 'Android native bridge' };
   }
 
   function requestHeaders(settings) {
@@ -101,9 +102,39 @@
       error.authRequired = response.status === 401 || response.status === 403;
       throw error;
     }
-    var models = normalizeModels(await response.json());
+    var payload = await response.json();
+    var models = normalizeModels(payload);
+    var loaded = [];
+    try {
+      var rawModels = Array.isArray(payload.models) ? payload.models : Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      var llmModels = rawModels.filter(function (m) {
+        return m && typeof m === 'object' && m.type !== 'embedding';
+      });
+      var supportsLoadedInstances = llmModels.some(function (m) {
+        return m && typeof m === 'object' && 'loaded_instances' in m;
+      });
+      if (supportsLoadedInstances) {
+        llmModels.forEach(function (m) {
+          if (Array.isArray(m.loaded_instances)) {
+            m.loaded_instances.forEach(function (inst) {
+              var id = inst && (inst.id || inst.key || inst.name || m.id || m.key || m.name || '');
+              if (id) {
+                var cleanId = String(id).trim();
+                if (cleanId && loaded.indexOf(cleanId) === -1) {
+                  loaded.push(cleanId);
+                }
+              }
+            });
+          }
+        });
+      } else {
+        if (models.length) {
+          loaded.push(models[0]);
+        }
+      }
+    } catch (e) {}
     if (!models.length) throw new Error('No models returned by ' + url);
-    return { models: models, source: url };
+    return { models: models, loaded: loaded, source: url };
   }
 
   function authErrorMessage(settings, error) {
@@ -114,7 +145,7 @@
   }
 
   async function serverModels(settings) {
-    var urls = unique([cleanBase(settings.baseUrl) + '/models', openAiBase(settings) + '/models', apiBase(settings) + '/models']);
+    var urls = unique([apiBase(settings) + '/models', cleanBase(settings.baseUrl) + '/models', openAiBase(settings) + '/models']);
     var lastError = null;
     for (var i = 0; i < urls.length; i++) {
       try { return await urlModels(urls[i], settings); }
@@ -177,6 +208,7 @@
   }
 
   function selectModel(settings, models) {
+    if (settings.model === 'auto-detect') return 'auto-detect';
     if (settings.model && models.indexOf(settings.model) !== -1) return settings.model;
     return models[0] || settings.model || '';
   }
@@ -199,11 +231,21 @@
     var select = document.getElementById('model-select');
     if (!select) return;
     select.innerHTML = '';
+
+    var autoOpt = document.createElement('option');
+    autoOpt.value = 'auto-detect';
+    var resolved = window.__signalLmLoadedModels && window.__signalLmLoadedModels[0];
+    autoOpt.textContent = resolved ? 'Auto-Detect (' + resolved + ')' : 'Auto-Detect';
+    select.appendChild(autoOpt);
+
     if (!models.length) {
-      var empty = document.createElement('option');
-      empty.value = settings.model || '';
-      empty.textContent = settings.emptyModelLabel || settings.model || 'No models returned';
-      select.appendChild(empty);
+      if (settings.model && settings.model !== 'auto-detect') {
+        var empty = document.createElement('option');
+        empty.value = settings.model;
+        empty.textContent = settings.emptyModelLabel || settings.model || 'No models returned';
+        select.appendChild(empty);
+      }
+      select.value = settings.model || 'auto-detect';
       return;
     }
     models.forEach(function (model) {
@@ -248,7 +290,14 @@
 
   function updateDisplay(settings) {
     var display = document.getElementById('model-display');
-    if (display) display.textContent = settings.model || 'No model selected';
+    if (display) {
+      var modelText = settings.model || 'No model selected';
+      if (settings.model === 'auto-detect') {
+        var resolved = window.__signalLmLoadedModels && window.__signalLmLoadedModels[0];
+        modelText = resolved ? 'Auto-Detect (' + resolved + ')' : 'Auto-Detect';
+      }
+      display.textContent = modelText;
+    }
     var copy = document.getElementById('server-url-copy');
     if (copy) copy.textContent = settings.runtimeMode === 'android-vulkan' ? 'Android Vulkan local runtime' : cleanBase(settings.baseUrl || DEFAULT_BASE_URL);
   }
@@ -285,15 +334,16 @@
         settings.model = selected;
         writeSettings(settings);
       }
-      renderSelect(result.models, settings);
-      renderSettingsList(result.models, settings);
-      updateDisplay(settings);
-      setStatus('connected', settings.runtimeMode === 'android-vulkan' ? 'Android' : 'Connected', result.models.length + ' model' + (result.models.length === 1 ? '' : 's') + ' returned from ' + result.source + '.');
-      
       lastFetchTime = Date.now();
       lastFetchResult = result.models;
       window.__signalLmLastModelFetchTime = lastFetchTime;
       window.__signalLmLastModelFetchResult = lastFetchResult;
+      window.__signalLmLoadedModels = result.loaded || [];
+
+      renderSelect(result.models, settings);
+      renderSettingsList(result.models, settings);
+      updateDisplay(settings);
+      setStatus('connected', settings.runtimeMode === 'android-vulkan' ? 'Android' : 'Connected', result.models.length + ' model' + (result.models.length === 1 ? '' : 's') + ' returned from ' + result.source + '.');
 
       return result.models;
     } catch (error) {

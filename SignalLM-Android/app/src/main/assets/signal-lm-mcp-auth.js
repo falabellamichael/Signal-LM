@@ -15,6 +15,17 @@
   function endpoint(path){return apiBaseUrl()+path}
   function nativeEndpoint(path){return nativeApiBaseUrl()+path}
   async function testModels(){var url=nativeEndpoint('/models');var r=await fetch(url,{method:'GET',headers:authHeaders()});var txt=await r.clone().text().catch(function(){return''});var p=null;try{p=txt?JSON.parse(txt):null}catch(e){}var n=Array.isArray(p&&p.data)?p.data.length:Array.isArray(p&&p.models)?p.models.length:0;return{ok:r.ok,status:r.status,url:url,models:n,detail:r.ok?'Model request succeeded.':txt}}
-  async function testMcpChat(model){var url=nativeEndpoint('/chat');var body={model:model||readSettings().model||'',input:'Reply with exactly: MCP ready',integrations:[],temperature:0,max_output_tokens:24,store:false};var r=await fetch(url,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(body)});var txt=await r.clone().text().catch(function(){return''});return{ok:r.ok,status:r.status,url:url,detail:r.ok?'MCP chat endpoint reached.':txt}}
+  async function testMcpChat(model){
+    var settings = readSettings();
+    var rawModel = model || settings.model || '';
+    var resolvedModel = (rawModel === 'auto-detect' || !rawModel)
+      ? (window.__signalLmLastModelFetchResult && window.__signalLmLastModelFetchResult[0] || '')
+      : rawModel;
+    var url=nativeEndpoint('/chat');
+    var body={model:resolvedModel,input:'Reply with exactly: MCP ready',integrations:[],temperature:0,max_output_tokens:24,store:false};
+    var r=await fetch(url,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(body)});
+    var txt=await r.clone().text().catch(function(){return''});
+    return{ok:r.ok,status:r.status,url:url,detail:r.ok?'MCP chat endpoint reached.':txt};
+  }
   window.SignalLMMcpAuth={readSettings:readSettings,writeSettings:writeSettings,normalizeBaseUrl:cleanBase,apiBaseUrl:apiBaseUrl,nativeApiBaseUrl:nativeApiBaseUrl,endpoint:endpoint,nativeEndpoint:nativeEndpoint,token:savedKey,setToken:setSavedKey,authHeaders:authHeaders,jsonHeaders:jsonHeaders,bridgeAuthPayload:bridgeAuthPayload,testModels:testModels,testMcpChat:testMcpChat};
 })();

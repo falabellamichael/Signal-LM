@@ -186,14 +186,14 @@
 
     /* Dark-mode app chrome refinements: keep mobile controls and composer fully dark. */
     html[data-theme="dark"] .mobile-toggle {
-      background: #1d1d20;
-      color: #f4f1ea;
-      border-color: #3b3b42;
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38);
+      background: var(--sidebar-bg);
+      color: var(--accent);
+      border-color: var(--border-color);
+      box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
     }
 
     html[data-theme="dark"] .mobile-toggle:hover {
-      background: #28282d;
+      background: var(--accent-soft);
       opacity: 1;
     }
 
@@ -299,6 +299,14 @@
       align-items: center;
       gap: 8px;
       letter-spacing: -0.02em;
+    }
+
+    .brand-logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      object-fit: cover;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     }
 
     .brand span {
@@ -1566,18 +1574,24 @@
 
       .mobile-toggle {
         display: inline-flex;
-        position: absolute;
-        top: calc(0.76rem + var(--safe-top));
-        left: calc(0.75rem + var(--safe-left));
-        z-index: 20;
-        background: white;
+        position: fixed;
+        top: calc(0.55rem + var(--safe-top));
+        left: 0;
+        z-index: 70;
+        background: var(--sidebar-bg);
         color: var(--accent);
-        border: 1px solid #ddd;
-        padding: 6px 10px;
-        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        border-left: none;
+        padding: 0;
+        width: 36px;
+        height: 40px;
+        border-radius: 0 8px 8px 0;
         cursor: pointer;
         font-size: 1.15rem;
-        min-height: 40px;
+        justify-content: center;
+        align-items: center;
+        transition: transform 0.3s ease, background-color 0.2s, border-color 0.2s, color 0.2s;
+        box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
       }
 
       .chat-header {
@@ -1727,6 +1741,10 @@
       .mobile-toggle {
         position: fixed;
         z-index: 70;
+      }
+
+      .sidebar-open .mobile-toggle {
+        transform: translateX(min(var(--sidebar-width, 290px), calc(100vw - 1.25rem)));
       }
 
       html.sidebar-open .composer-stack,
