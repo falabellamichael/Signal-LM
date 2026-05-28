@@ -13,7 +13,7 @@ const WINDOWS_GPU_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_TIMEOUT_
 const WINDOWS_GPU_DEVICE_CACHE_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_CACHE_MS || 10 * 60 * 1000);
 const WINDOWS_GPU_DEVICE_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_TIMEOUT_MS || 25000);
 const LM_STUDIO_TIMEOUT_MS = Number(process.env.SIGNAL_LM_TIMEOUT_MS || 900);
-const LM_STUDIO_CACHE_MS = Number(process.env.SIGNAL_LM_LM_STUDIO_CACHE_MS || 15000);
+const LM_STUDIO_CACHE_MS = Number(process.env.SIGNAL_LM_LM_STUDIO_CACHE_MS || 60000);
 const STORAGE_CACHE_MS = Number(process.env.SIGNAL_LM_STORAGE_CACHE_MS || 15000);
 
 let lastCpuSnapshot = readCpuSnapshot();
@@ -609,13 +609,13 @@ async function fetchJson(url, timeoutMs = 1400, headers = {}) {
 }
 
 async function readLmStudioTelemetry() {
-  if (process.env.SIGNAL_LM_DISABLE_LM_STUDIO_PROBE === 'true') {
+  if (process.env.SIGNAL_LM_DISABLE_LM_STUDIO_PROBE === 'true' || process.env.SIGNAL_LM_ENABLE_LM_STUDIO_PROBE !== 'true') {
     return {
       baseUrl: LM_STUDIO_BASE_URL,
       reachable: false,
       disabled: true,
       authConfigured: Boolean(LM_STUDIO_API_KEY),
-      error: 'LM Studio probe disabled by environment variable'
+      error: 'LM Studio probe disabled by default'
     };
   }
   const headers = LM_STUDIO_API_KEY ? { Authorization: `Bearer ${LM_STUDIO_API_KEY}` } : {};

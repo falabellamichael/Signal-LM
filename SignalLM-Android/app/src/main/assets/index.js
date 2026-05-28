@@ -1639,6 +1639,8 @@ const STORAGE_KEYS = {
 
         setStatus('connected', 'Connected');
         updateRuntimeUi();
+        window.__signalLmLastModelFetchTime = Date.now();
+        window.__signalLmLastModelFetchResult = models;
       } catch (error) {
         els.modelSelect.innerHTML = '';
 

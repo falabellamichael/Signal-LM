@@ -119,7 +119,7 @@
 
     <div class="settings-panel">
       <div class="input-group">
-        <label for="model-select">Model <button class="meta-btn" type="button" onclick="loadModels()">Refresh</button></label>
+        <label for="model-select">Model <button class="meta-btn" type="button" onclick="loadModels({ force: true })">Refresh</button></label>
         <select id="model-select"></select>
       </div>
 
@@ -215,7 +215,7 @@
       </div>
       <div class="header-actions">
         <button class="ghost-btn" type="button" onclick="LmStudioLiteTheme.toggleTheme()" id="theme-toggle-btn"><span data-theme-label>Theme</span></button>
-        <button class="ghost-btn" type="button" onclick="loadModels()">Refresh Models</button>
+        <button class="ghost-btn" type="button" onclick="loadModels({ force: true })">Refresh Models</button>
         <a class="button-link ghost-link" href="https://github.com/falabellamichael/Signal-LM/releases/latest/download/Signal-LM-Setup.exe" target="_blank" rel="noopener">Desktop</a>
         <a href="#editor"><button class="ghost-btn" type="button">Folders</button></a>
         <a href="#mcp"><button class="ghost-btn" type="button">MCP</button></a>

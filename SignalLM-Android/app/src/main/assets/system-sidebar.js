@@ -245,8 +245,8 @@
       },
       {
         label: 'LM Studio',
-        detail: lmStudio?.baseUrl || 'Telemetry helper probe',
-        value: lmStudio ? (lmStudio.reachable ? 'Reachable' : lmStudio.authRequired ? 'Needs key' : 'Offline') : 'Pending'
+        detail: lmStudio?.disabled ? 'Probe disabled' : (lmStudio?.baseUrl || 'Telemetry helper probe'),
+        value: lmStudio ? (lmStudio.disabled ? 'Disabled' : lmStudio.reachable ? 'Reachable' : lmStudio.authRequired ? 'Needs key' : 'Offline') : 'Pending'
       }
     ];
 
@@ -368,7 +368,7 @@
         const payload = await response.json();
         telemetryCache.data = payload;
         telemetryCache.error = '';
-        telemetryCache.expiresAt = Date.now() + 900;
+        telemetryCache.expiresAt = Date.now() + 1900;
         return payload;
       } catch (error) {
         telemetryCache.data = null;
@@ -421,7 +421,7 @@
         const status = parseMaybeJson(await asPromise(bridge.getHardwareStatus()));
         nativeStatusCache.data = status && typeof status === 'object' ? status : {};
         nativeStatusCache.error = '';
-        nativeStatusCache.expiresAt = Date.now() + 900;
+        nativeStatusCache.expiresAt = Date.now() + 1900;
         return nativeStatusCache.data;
       } catch (error) {
         nativeStatusCache.data = null;

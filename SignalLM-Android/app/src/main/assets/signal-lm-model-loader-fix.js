@@ -253,8 +253,30 @@
     if (copy) copy.textContent = settings.runtimeMode === 'android-vulkan' ? 'Android Vulkan local runtime' : cleanBase(settings.baseUrl || DEFAULT_BASE_URL);
   }
 
-  async function loadModels() {
+  var lastFetchTime = 0;
+  var lastFetchResult = null;
+
+  async function loadModels(options) {
     var settings = saveVisibleFields();
+    var force = options && options.force;
+    var now = Date.now();
+
+    // 10 second throttle on fetching models
+    if (!force && lastFetchResult && (now - lastFetchTime < 10000)) {
+      return lastFetchResult;
+    }
+
+    // Check if index.js already fetched recently
+    if (!force && window.__signalLmLastModelFetchResult && (now - window.__signalLmLastModelFetchTime < 10000)) {
+      lastFetchTime = window.__signalLmLastModelFetchTime;
+      lastFetchResult = window.__signalLmLastModelFetchResult;
+      renderSelect(lastFetchResult, settings);
+      renderSettingsList(lastFetchResult, settings);
+      updateDisplay(settings);
+      setStatus('connected', settings.runtimeMode === 'android-vulkan' ? 'Android' : 'Connected', lastFetchResult.length + ' model' + (lastFetchResult.length === 1 ? '' : 's') + ' returned.');
+      return lastFetchResult;
+    }
+
     setStatus('checking', 'Checking', 'Loading models...');
     try {
       var result = settings.runtimeMode === 'android-vulkan' ? await nativeModels() : await serverModels(settings);
@@ -267,6 +289,12 @@
       renderSettingsList(result.models, settings);
       updateDisplay(settings);
       setStatus('connected', settings.runtimeMode === 'android-vulkan' ? 'Android' : 'Connected', result.models.length + ' model' + (result.models.length === 1 ? '' : 's') + ' returned from ' + result.source + '.');
+      
+      lastFetchTime = Date.now();
+      lastFetchResult = result.models;
+      window.__signalLmLastModelFetchTime = lastFetchTime;
+      window.__signalLmLastModelFetchResult = lastFetchResult;
+
       return result.models;
     } catch (error) {
       if (error && error.authRequired) console.warn(error.message);
