@@ -4,6 +4,14 @@ The browser cannot read real GPU usage, full-system CPU usage, VRAM, or disk cap
 
 ## Start
 
+The desktop app starts this helper automatically:
+
+```powershell
+npm run desktop
+```
+
+For the browser/static site, start the helper manually from the project folder:
+
 From the project folder:
 
 ```powershell

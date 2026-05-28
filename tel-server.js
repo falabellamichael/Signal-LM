@@ -626,38 +626,72 @@ function sendJson(res, statusCode, payload) {
   res.end(body);
 }
 
-const server = http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') {
-    sendJson(res, 204, {});
-    return;
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
-  if (url.pathname === '/health') {
-    sendJson(res, 200, { ok: true, timestamp: new Date().toISOString() });
-    return;
-  }
-
-  if (url.pathname === '/' || url.pathname === '/status') {
-    try {
-      sendJson(res, 200, await buildStatus());
-    } catch (error) {
-      sendJson(res, 500, { ok: false, error: error.message || 'Telemetry failed' });
+function createTelemetryServer(host = HOST, port = PORT) {
+  return http.createServer(async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      sendJson(res, 204, {});
+      return;
     }
-    return;
-  }
 
-  sendJson(res, 404, { ok: false, error: 'Not found' });
-});
+    const url = new URL(req.url, `http://${req.headers.host || `${host}:${port}`}`);
+    if (url.pathname === '/health') {
+      sendJson(res, 200, { ok: true, timestamp: new Date().toISOString() });
+      return;
+    }
 
-server.listen(PORT, HOST, () => {
-  console.log(`Signal LM telemetry server listening on http://${HOST}:${PORT}/status`);
-  console.log(`LM Studio probe: ${LM_STUDIO_BASE_URL}/models`);
-  if (process.platform === 'win32') {
-    readCachedWindowsGpuDevices().catch(() => {});
-  }
-});
+    if (url.pathname === '/' || url.pathname === '/status') {
+      try {
+        sendJson(res, 200, await buildStatus());
+      } catch (error) {
+        sendJson(res, 500, { ok: false, error: error.message || 'Telemetry failed' });
+      }
+      return;
+    }
 
-process.on('SIGINT', () => {
-  server.close(() => process.exit(0));
-});
+    sendJson(res, 404, { ok: false, error: 'Not found' });
+  });
+}
+
+function startTelemetryServer(options = {}) {
+  const host = options.host || HOST;
+  const port = Number(options.port || PORT);
+  const logger = options.logger || console;
+  const server = createTelemetryServer(host, port);
+
+  server.on('error', error => {
+    if (typeof options.onError === 'function') {
+      options.onError(error);
+      return;
+    }
+    if (error && error.code === 'EADDRINUSE') {
+      logger.error(`Signal LM telemetry server is already running on http://${host}:${port}/status`);
+      return;
+    }
+    logger.error('Signal LM telemetry server failed:', error);
+  });
+
+  server.listen(port, host, () => {
+    logger.log(`Signal LM telemetry server listening on http://${host}:${port}/status`);
+    logger.log(`LM Studio probe: ${LM_STUDIO_BASE_URL}/models`);
+    if (process.platform === 'win32') {
+      readCachedWindowsGpuDevices().catch(() => {});
+    }
+  });
+
+  return server;
+}
+
+module.exports = {
+  buildStatus,
+  createTelemetryServer,
+  startTelemetryServer
+};
+
+if (require.main === module) {
+  const server = startTelemetryServer();
+  process.on('SIGINT', () => {
+    server.close(() => process.exit(0));
+  });
+} else if (process.platform === 'win32') {
+  readCachedWindowsGpuDevices().catch(() => {});
+}

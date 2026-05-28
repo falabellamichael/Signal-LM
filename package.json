@@ -1,0 +1,40 @@
+{
+  "name": "signal-lm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Signal LM desktop wrapper",
+  "main": "desktop-main.js",
+  "scripts": {
+    "desktop": "electron .",
+    "start": "electron .",
+    "tel": "node tel-server.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.signallm.desktop",
+    "productName": "Signal LM",
+    "files": [
+      "desktop-main.js",
+      "tel-server.js",
+      "index.html",
+      "folders.html",
+      "*.css",
+      "*.js",
+      "*.md",
+      ".nojekyll",
+      "libs/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
+  }
+}
