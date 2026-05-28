@@ -4,8 +4,13 @@ const STORAGE_KEYS = {
       messages: 'lmStudioLite.messages.v1',
       fileContext: 'lmStudioLite.fileContext.v1',
       workspaceInfo: 'lmStudioLite.workspaceInfo.v1',
-      nativeResponseId: 'lmStudioLite.nativeResponseId.v1'
+      nativeResponseId: 'lmStudioLite.nativeResponseId.v1',
+      inferenceTelemetry: 'lmStudioLite.inferenceTelemetry.v1'
     };
+
+    const SIDEBAR_WIDTH_MIN = 280;
+    const SIDEBAR_WIDTH_MAX = 460;
+    const SIDEBAR_WIDTH_DEFAULT = 290;
 
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
@@ -27,6 +32,7 @@ const STORAGE_KEYS = {
       androidBatchSize: 512,
       androidUseMmap: true,
       androidUseMlock: false,
+      sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
       contextHelperEnabled: true,
       contextHelperMode: 'smart',
       contextHelperMaxSnippets: 16,
@@ -61,6 +67,10 @@ const STORAGE_KEYS = {
     let nativeWorkspace = null;
     let pendingEdits = [];
     let lastContextScoutReport = null;
+    let activeInferenceTelemetry = null;
+    let lastInferenceTelemetry = loadInferenceTelemetry();
+    let inferenceTelemetryPublishTimer = null;
+    let activeInferenceTelemetryView = null;
 
     const els = {
       sidebar: document.getElementById('sidebar'),
@@ -80,6 +90,7 @@ const STORAGE_KEYS = {
       androidGpuLayers: document.getElementById('android-gpu-layers'),
       androidContextLength: document.getElementById('android-context-length'),
       androidBatchSize: document.getElementById('android-batch-size'),
+      sidebarResizeHandle: document.getElementById('sidebar-resize-handle'),
       tempRange: document.getElementById('temp-range'),
       tempInput: document.getElementById('temp-input'),
       tempValue: document.getElementById('temp-value'),
@@ -140,6 +151,202 @@ const STORAGE_KEYS = {
       if (settings.persistChat) {
         localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages));
       }
+    }
+
+    function loadInferenceTelemetry() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.inferenceTelemetry) || '{}') || {};
+        return stored.last || null;
+      } catch {
+        return null;
+      }
+    }
+
+    function estimateTokenCount(value) {
+      const text = typeof value === 'string'
+        ? value
+        : Array.isArray(value)
+          ? value.map(part => typeof part === 'string' ? part : (part?.text || part?.content || '')).join('\n')
+          : JSON.stringify(value || '');
+      const clean = String(text || '').trim();
+      if (!clean) return 0;
+      return Math.max(1, Math.round(clean.length / 4));
+    }
+
+    function estimateRequestTokens(requestMessages) {
+      if (!Array.isArray(requestMessages)) return estimateTokenCount(requestMessages);
+      return requestMessages.reduce((total, message) => total + estimateTokenCount(message?.content || ''), 0);
+    }
+
+    function inferenceRuntimeLabel() {
+      if (settings.mcpEnabled) return 'Native MCP';
+      if (isHybridRuntime()) return 'Hybrid';
+      if (isAndroidRuntime()) return 'Android Vulkan';
+      return 'LM Studio server';
+    }
+
+    function snapshotInferenceTelemetry() {
+      return {
+        active: activeInferenceTelemetry ? { ...activeInferenceTelemetry } : null,
+        last: lastInferenceTelemetry ? { ...lastInferenceTelemetry } : null,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function publishInferenceTelemetry() {
+      const snapshot = snapshotInferenceTelemetry();
+      localStorage.setItem(STORAGE_KEYS.inferenceTelemetry, JSON.stringify(snapshot));
+      window.dispatchEvent(new CustomEvent('signal-lm-inference-telemetry', { detail: snapshot }));
+    }
+
+    function scheduleInferenceTelemetryPublish() {
+      if (inferenceTelemetryPublishTimer) return;
+      inferenceTelemetryPublishTimer = setTimeout(() => {
+        inferenceTelemetryPublishTimer = null;
+        publishInferenceTelemetry();
+      }, 250);
+    }
+
+    function startInferenceTelemetry(meta) {
+      const now = Date.now();
+      activeInferenceTelemetry = {
+        id: `${now}-${Math.random().toString(16).slice(2)}`,
+        status: 'running',
+        startedAt: new Date(now).toISOString(),
+        model: settings.model || '',
+        runtime: inferenceRuntimeLabel(),
+        source: meta?.source || inferenceRuntimeLabel(),
+        inputTokens: Math.max(0, Math.round(meta?.inputTokens || 0)),
+        outputTokens: 0,
+        outputChars: 0,
+        tokensPerSecond: 0,
+        firstTokenMs: null,
+        durationMs: 0,
+        maxTokens: Number(settings.maxTokens),
+        temperature: Number(settings.temperature),
+        topP: Number(settings.topP)
+      };
+      updateActiveInferenceTelemetryView();
+      publishInferenceTelemetry();
+      return activeInferenceTelemetry;
+    }
+
+    function setInferenceTelemetrySource(source) {
+      if (!activeInferenceTelemetry || !source) return;
+      activeInferenceTelemetry.source = source;
+      updateActiveInferenceTelemetryView();
+      scheduleInferenceTelemetryPublish();
+    }
+
+    function updateInferenceTelemetryOutput(text, source = null) {
+      if (!activeInferenceTelemetry) return;
+      if (source) activeInferenceTelemetry.source = source;
+      const now = Date.now();
+      const started = Date.parse(activeInferenceTelemetry.startedAt) || now;
+      const output = String(text || '');
+      const outputTokens = estimateTokenCount(output);
+      activeInferenceTelemetry.outputChars = output.length;
+      activeInferenceTelemetry.outputTokens = outputTokens;
+      activeInferenceTelemetry.durationMs = Math.max(0, now - started);
+      if (outputTokens > 0 && activeInferenceTelemetry.firstTokenMs === null) {
+        activeInferenceTelemetry.firstTokenMs = activeInferenceTelemetry.durationMs;
+      }
+      const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
+      activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / seconds).toFixed(2));
+      updateActiveInferenceTelemetryView();
+      scheduleInferenceTelemetryPublish();
+    }
+
+    function finishInferenceTelemetry(status, text = '', error = null) {
+      if (!activeInferenceTelemetry) return;
+      const hasFinalText = text !== null && text !== undefined && String(text).length > 0;
+      if (hasFinalText) {
+        updateInferenceTelemetryOutput(text, activeInferenceTelemetry.source);
+      } else {
+        const now = Date.now();
+        const started = Date.parse(activeInferenceTelemetry.startedAt) || now;
+        activeInferenceTelemetry.durationMs = Math.max(0, now - started);
+        const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
+        activeInferenceTelemetry.tokensPerSecond = Number(((activeInferenceTelemetry.outputTokens || 0) / seconds).toFixed(2));
+      }
+      activeInferenceTelemetry.status = status;
+      activeInferenceTelemetry.endedAt = new Date().toISOString();
+      if (error) activeInferenceTelemetry.error = error.message || String(error);
+      lastInferenceTelemetry = { ...activeInferenceTelemetry };
+      updateActiveInferenceTelemetryView(lastInferenceTelemetry);
+      activeInferenceTelemetry = null;
+      activeInferenceTelemetryView = null;
+      if (inferenceTelemetryPublishTimer) {
+        clearTimeout(inferenceTelemetryPublishTimer);
+        inferenceTelemetryPublishTimer = null;
+      }
+      publishInferenceTelemetry();
+      return lastInferenceTelemetry;
+    }
+
+    function formatTelemetrySeconds(ms) {
+      const seconds = Math.max(0, Number(ms || 0) / 1000);
+      if (seconds < 10) return `${seconds.toFixed(1)}s`;
+      if (seconds < 100) return `${seconds.toFixed(1)}s`;
+      return `${Math.round(seconds)}s`;
+    }
+
+    function formatTelemetrySpeed(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric <= 0) return '0.0 tok/s';
+      return `${numeric >= 100 ? numeric.toFixed(1) : numeric.toFixed(2)} tok/s`;
+    }
+
+    function inferenceTelemetryMarkup(telemetry) {
+      if (!telemetry) return '';
+      const status = telemetry.status || 'running';
+      const time = formatTelemetrySeconds(telemetry.durationMs);
+      const speed = formatTelemetrySpeed(telemetry.tokensPerSecond);
+      const tokens = Math.max(0, Math.round(Number(telemetry.outputTokens) || 0));
+      return `
+        <span class="chat-telemetry-rule"></span>
+        <span class="chat-telemetry-items">
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⏳</span><strong>Time:</strong> ${escapeHtml(time)}</span>
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⚡</span><strong>Speed:</strong> ${escapeHtml(speed)}</span>
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">◎</span><strong>Tokens:</strong> ${tokens}</span>
+        </span>
+        <span class="sr-only">Inference status: ${escapeHtml(status)}</span>`;
+    }
+
+    function renderInferenceTelemetryElement(element, telemetry) {
+      if (!element) return;
+      if (!telemetry) {
+        element.hidden = true;
+        element.innerHTML = '';
+        return;
+      }
+      element.hidden = false;
+      element.dataset.status = telemetry.status || 'running';
+      element.innerHTML = inferenceTelemetryMarkup(telemetry);
+    }
+
+    function updateActiveInferenceTelemetryView(telemetry = activeInferenceTelemetry) {
+      if (activeInferenceTelemetryView?.setTelemetry) {
+        activeInferenceTelemetryView.setTelemetry(telemetry);
+      }
+    }
+
+    function bindInferenceTelemetryMessage(messageUi) {
+      activeInferenceTelemetryView = messageUi || null;
+      updateActiveInferenceTelemetryView();
+    }
+
+    function normalizeSidebarWidth(width) {
+      const parsed = parseInt(width, 10);
+      const numeric = Number.isFinite(parsed) ? parsed : SIDEBAR_WIDTH_DEFAULT;
+      return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, numeric));
+    }
+
+    function applySidebarWidth(width = settings.sidebarWidth) {
+      const clean = normalizeSidebarWidth(width);
+      settings.sidebarWidth = clean;
+      document.documentElement.style.setProperty('--sidebar-width', `${clean}px`);
+      return clean;
     }
 
     function normalizeBaseUrl(url) {
@@ -293,6 +500,7 @@ const STORAGE_KEYS = {
     }
 
     async function runNativeCompletionText(requestMessages) {
+      setInferenceTelemetrySource('Android native');
       const bridge = getNativeInferenceBridge();
       if (!bridge) throw new Error('Android Vulkan runtime bridge is not available in this app build. Use server mode or rebuild the Android wrapper with the native inference bridge.');
 
@@ -331,6 +539,7 @@ const STORAGE_KEYS = {
     }
 
     async function runServerChatCompletion(requestMessages, assistantUi) {
+      setInferenceTelemetrySource('LM Studio server');
       let fullResponse = '';
       const response = await fetch(endpoint('/chat/completions'), {
         method: 'POST',
@@ -364,6 +573,7 @@ const STORAGE_KEYS = {
           const delta = extractDelta(json);
           if (delta) {
             fullResponse += delta;
+            updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
             assistantUi.setContent(fullResponse);
             scrollToBottom();
           }
@@ -383,6 +593,7 @@ const STORAGE_KEYS = {
     }
 
     async function runServerChatCompletionText(requestMessages, signal = null) {
+      setInferenceTelemetrySource('PC server');
       const response = await fetch(endpoint('/chat/completions'), {
         method: 'POST',
         headers: getHeaders(),
@@ -403,7 +614,9 @@ const STORAGE_KEYS = {
       }
 
       const payload = await response.json();
-      return extractOpenAiCompletionText(payload) || '(No content returned.)';
+      const text = extractOpenAiCompletionText(payload) || '(No content returned.)';
+      updateInferenceTelemetryOutput(text, 'PC server');
+      return text;
     }
 
     function firstFulfilled(promises) {
@@ -421,6 +634,7 @@ const STORAGE_KEYS = {
     }
 
     async function runHybridChatCompletion(requestMessages, assistantUi) {
+      setInferenceTelemetrySource('Hybrid');
       const strategy = getHybridStrategy();
       if (strategy === 'off') {
         return await runServerChatCompletion(requestMessages, assistantUi);
@@ -447,12 +661,14 @@ const STORAGE_KEYS = {
           .then(text => ({ source: 'Android phone', text }));
 
         const winner = await firstFulfilled([pcPromise, phonePromise]);
+        setInferenceTelemetrySource(winner.source);
         if (winner.source === 'PC server') {
           try { bridge.cancelGeneration?.(); } catch {}
         } else {
           pcController.abort();
         }
         assistantUi.setContent(winner.text);
+        updateInferenceTelemetryOutput(winner.text, winner.source);
         assistantUi.streamingFinished();
         scrollToBottom();
         showToast(`Hybrid boost used ${winner.source}.`);
@@ -475,7 +691,9 @@ const STORAGE_KEYS = {
         });
         const text = await Promise.race([runServerChatCompletionText(requestMessages, pcController.signal), timeoutPromise]);
         clearTimeout(timeoutId);
+        setInferenceTelemetrySource('PC server');
         assistantUi.setContent(text);
+        updateInferenceTelemetryOutput(text, 'PC server');
         assistantUi.streamingFinished();
         scrollToBottom();
         showToast('Hybrid boost used PC server.');
@@ -484,7 +702,9 @@ const STORAGE_KEYS = {
         if (abortController?.signal?.aborted) throw error;
         showToast('PC server failed or was slow. Using Android phone fallback.');
         const text = await runNativeCompletionText(requestMessages);
+        setInferenceTelemetrySource('Android phone');
         assistantUi.setContent(text);
+        updateInferenceTelemetryOutput(text, 'Android phone');
         assistantUi.streamingFinished();
         scrollToBottom();
         return text;
@@ -515,6 +735,7 @@ const STORAGE_KEYS = {
     }
 
     async function runNativeMcpChatCompletion(userInput, assistantUi) {
+      setInferenceTelemetrySource('Native MCP API');
       const integrations = buildMcpIntegrations();
 
       // Convert multimodal input to string if needed, as native /api/v1/chat usually expects input as string
@@ -567,6 +788,7 @@ const STORAGE_KEYS = {
 
       const result = text || '(Tool executed, no message returned.)';
       assistantUi.setContent(result);
+      updateInferenceTelemetryOutput(result, 'Native MCP API');
       assistantUi.streamingFinished();
       scrollToBottom();
       return result;
@@ -599,6 +821,8 @@ const STORAGE_KEYS = {
     }
 
     function applySettingsToUI() {
+      applySidebarWidth(settings.sidebarWidth);
+
       els.tempRange.value = settings.temperature;
       els.tempInput.value = settings.temperature;
       els.tempValue.textContent = settings.temperature;
@@ -860,6 +1084,14 @@ const STORAGE_KEYS = {
         renderBubbleContent(bubble, content);
       }
 
+      let telemetry = null;
+      if (role === 'ai') {
+        telemetry = document.createElement('div');
+        telemetry.className = 'chat-telemetry';
+        telemetry.hidden = true;
+        renderInferenceTelemetryElement(telemetry, options.telemetry);
+      }
+
       const meta = document.createElement('div');
       meta.className = 'message-meta';
 
@@ -867,12 +1099,14 @@ const STORAGE_KEYS = {
       copyBtn.className = 'meta-btn';
       copyBtn.type = 'button';
       setCopyButtonLabel(copyBtn);
+      let copyContent = content || '';
       copyBtn.addEventListener('click', () => {
-        copyText(content || bubble.innerText || '', 'Copied message.');
+        copyText(copyContent || bubble.innerText || '', 'Copied message.');
       });
 
       meta.appendChild(copyBtn);
       row.appendChild(bubble);
+      if (telemetry) row.appendChild(telemetry);
       row.appendChild(meta);
       els.msgContainer.appendChild(row);
       scrollToBottom();
@@ -880,12 +1114,12 @@ const STORAGE_KEYS = {
       const streamRenderer = createStreamRenderer(bubble);
 
       return { row, bubble, setContent: (text) => {
+        copyContent = text || '';
         streamRenderer.update(text);
-        copyBtn.onclick = () => {
-          copyText(text || '', 'Copied message.');
-        };
       }, streamingFinished: () => {
         streamRenderer.finish();
+      }, setTelemetry: (nextTelemetry) => {
+        renderInferenceTelemetryElement(telemetry, nextTelemetry);
       }};
     }
 
@@ -896,7 +1130,11 @@ const STORAGE_KEYS = {
         return;
       }
 
-      messages.forEach(message => addMessage(message.role === 'assistant' ? 'ai' : 'user', message.displayContent || message.content));
+      messages.forEach(message => addMessage(
+        message.role === 'assistant' ? 'ai' : 'user',
+        message.displayContent || message.content,
+        { telemetry: message.role === 'assistant' ? message.telemetry : null }
+      ));
     }
 
     function renderEmptyState() {
@@ -1017,6 +1255,64 @@ const STORAGE_KEYS = {
       numberEl.addEventListener('input', () => update(numberEl.value));
     }
 
+    function bindSidebarResize() {
+      const handle = els.sidebarResizeHandle;
+      if (!handle || !els.sidebar) return;
+
+      let pointerId = null;
+      let startX = 0;
+      let startWidth = SIDEBAR_WIDTH_DEFAULT;
+
+      const desktopQuery = window.matchMedia ? window.matchMedia('(min-width: 1041px)') : null;
+      const canResize = () => !desktopQuery || desktopQuery.matches;
+      const updateWidth = (width) => {
+        return applySidebarWidth(width);
+      };
+      const commitWidth = (width) => {
+        updateWidth(width);
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerdown', (event) => {
+        if (!canResize()) return;
+        event.preventDefault();
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startWidth = normalizeSidebarWidth(settings.sidebarWidth || els.sidebar.getBoundingClientRect().width);
+        document.body.classList.add('sidebar-resizing');
+        handle.setPointerCapture?.(pointerId);
+      });
+
+      handle.addEventListener('pointermove', (event) => {
+        if (pointerId !== event.pointerId) return;
+        updateWidth(startWidth + event.clientX - startX);
+      });
+
+      const stopResize = (event) => {
+        if (pointerId === null || (event?.pointerId && event.pointerId !== pointerId)) return;
+        try { handle.releasePointerCapture?.(pointerId); } catch {}
+        pointerId = null;
+        document.body.classList.remove('sidebar-resizing');
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerup', stopResize);
+      handle.addEventListener('pointercancel', stopResize);
+      handle.addEventListener('lostpointercapture', stopResize);
+
+      handle.addEventListener('keydown', (event) => {
+        if (!canResize()) return;
+        let nextWidth = settings.sidebarWidth || SIDEBAR_WIDTH_DEFAULT;
+        if (event.key === 'ArrowLeft') nextWidth -= 10;
+        else if (event.key === 'ArrowRight') nextWidth += 10;
+        else if (event.key === 'Home') nextWidth = SIDEBAR_WIDTH_MIN;
+        else if (event.key === 'End') nextWidth = SIDEBAR_WIDTH_MAX;
+        else return;
+        event.preventDefault();
+        commitWidth(nextWidth);
+      });
+    }
+
     async function loadModels() {
       setStatus('checking', 'Checking');
 
@@ -1072,19 +1368,37 @@ const STORAGE_KEYS = {
       }
 
       try {
-        const response = await fetch(endpoint(''), {
-          method: 'GET',
-          headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}
-        });
+        let response;
+        let payload;
+        let usedNative = false;
+        const headers = settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
 
-        if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+        try {
+          const nativeUrl = nativeApiBaseUrl() + '/models';
+          response = await fetch(nativeUrl, { method: 'GET', headers });
+        if (response.ok) {
+          payload = await response.json();
+          usedNative = true;
+        }
+      } catch (err) {
+        console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
+      }
 
-        const payload = await response.json();
-        const models = Array.isArray(payload.data)
-          ? payload.data.map(model => model.id).filter(Boolean)
-          : Array.isArray(payload.models)
-            ? payload.models.map(model => model.id || model.name).filter(Boolean)
-            : [];
+      if (!usedNative) {
+        try {
+          response = await fetch(endpoint('/models'), { method: 'GET', headers });
+          if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+          payload = await response.json();
+        } catch (err) {
+          throw err;
+        }
+      }
+
+      const models = Array.isArray(payload.data)
+        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+        : Array.isArray(payload.models)
+          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+          : [];
 
         els.modelSelect.innerHTML = '';
 
@@ -1528,6 +1842,11 @@ Workspace context is present in the latest user message. Treat those files as at
       let fullResponse = '';
       abortController = new AbortController();
       setStreamingUI(true);
+      bindInferenceTelemetryMessage(assistantUi);
+      startInferenceTelemetry({
+        inputTokens: settings.mcpEnabled ? estimateTokenCount(requestContent) : estimateRequestTokens(requestMessages),
+        source: inferenceRuntimeLabel()
+      });
 
       try {
         if (settings.mcpEnabled) {
@@ -1553,18 +1872,21 @@ Workspace context is present in the latest user message. Treat those files as at
           showToast(`Ready to apply ${edits.length} edited file${edits.length === 1 ? '' : 's'}.`);
         }
 
-        messages.push({ role: 'assistant', content: fullResponse });
+        const finalTelemetry = finishInferenceTelemetry('complete', fullResponse);
+        messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
         saveMessages();
       } catch (error) {
         if (error.name === 'AbortError') {
           fullResponse = fullResponse || '(Generation stopped.)';
           assistantUi.setContent(fullResponse);
-          messages.push({ role: 'assistant', content: fullResponse });
+          const finalTelemetry = finishInferenceTelemetry('stopped', fullResponse, error);
+          messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
           saveMessages();
         } else {
           console.error(error);
           assistantUi.setContent(usesAndroidSupport() ? 'Error from the selected runtime. Check the PC server, Android native bridge, selected model, and runtime settings.' : 'Error connecting to LM Studio. Check Settings, confirm the server is running, and verify the selected model is loaded.');
           showToast(error.message || 'LM Studio connection error.');
+          finishInferenceTelemetry('error', fullResponse, error);
         }
       } finally {
         setStreamingUI(false);
@@ -2824,6 +3146,7 @@ Answer the user request using the workspace files above. When asked to modify fi
         saveSettings();
       });
 
+      bindSidebarResize();
       syncRangeAndNumber(els.tempRange, els.tempInput, els.tempValue, 'temperature', 0, 2);
       syncRangeAndNumber(els.topPRange, els.topPInput, els.topPValue, 'topP', 0, 1);
     }
@@ -2904,6 +3227,9 @@ Answer the user request using the workspace files above. When asked to modify fi
         get: () => workspaceFiles,
         configurable: true
       });
+      window.SignalLMInferenceTelemetry = {
+        snapshot: snapshotInferenceTelemetry
+      };
       exposePromptContextCollector();
 
       applySettingsToUI();

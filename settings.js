@@ -81,6 +81,13 @@ const STORAGE_KEYS = {
       return normalizeBaseUrl(settings.baseUrl) + path;
     }
 
+    function nativeApiBaseUrl() {
+      const base = normalizeBaseUrl(settings.baseUrl);
+      if (/\/api\/v1$/i.test(base)) return base;
+      if (/\/v1$/i.test(base)) return base.replace(/\/v1$/i, '/api/v1');
+      return base + '/api/v1';
+    }
+
     function getAuthHeaders() {
       return settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
     }
@@ -265,21 +272,37 @@ const STORAGE_KEYS = {
       els.modelList.innerHTML = '';
 
       try {
-        const response = await fetch(endpoint(''), {
-          method: 'GET',
-          headers: getAuthHeaders()
-        });
+        let response;
+        let payload;
+        let usedNative = false;
+        const headers = getAuthHeaders();
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        try {
+          const nativeUrl = nativeApiBaseUrl() + '/models';
+          response = await fetch(nativeUrl, { method: 'GET', headers });
+        if (response.ok) {
+          payload = await response.json();
+          usedNative = true;
         }
+      } catch (err) {
+        console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
+      }
 
-        const payload = await response.json();
-        const models = Array.isArray(payload.data)
-          ? payload.data.map(model => model.id).filter(Boolean)
-          : Array.isArray(payload.models)
-            ? payload.models.map(model => model.id || model.name).filter(Boolean)
-            : [];
+      if (!usedNative) {
+        try {
+          response = await fetch(endpoint('/models'), { method: 'GET', headers });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          payload = await response.json();
+        } catch (err) {
+          throw err;
+        }
+      }
+
+      const models = Array.isArray(payload.data)
+        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+        : Array.isArray(payload.models)
+          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+          : [];
 
         if (mode === 'hybrid' && getHybridStrategy() === 'off') {
           setStatus('connected', 'PC only', `${models.length} PC model${models.length === 1 ? '' : 's'} returned. Phone boost is off.`);

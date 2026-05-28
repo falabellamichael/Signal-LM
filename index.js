@@ -1368,19 +1368,37 @@ const STORAGE_KEYS = {
       }
 
       try {
-        const response = await fetch(endpoint(''), {
-          method: 'GET',
-          headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}
-        });
+        let response;
+        let payload;
+        let usedNative = false;
+        const headers = settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
 
-        if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+        try {
+          const nativeUrl = nativeApiBaseUrl() + '/models';
+          response = await fetch(nativeUrl, { method: 'GET', headers });
+        if (response.ok) {
+          payload = await response.json();
+          usedNative = true;
+        }
+      } catch (err) {
+        console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
+      }
 
-        const payload = await response.json();
-        const models = Array.isArray(payload.data)
-          ? payload.data.map(model => model.id).filter(Boolean)
-          : Array.isArray(payload.models)
-            ? payload.models.map(model => model.id || model.name).filter(Boolean)
-            : [];
+      if (!usedNative) {
+        try {
+          response = await fetch(endpoint('/models'), { method: 'GET', headers });
+          if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+          payload = await response.json();
+        } catch (err) {
+          throw err;
+        }
+      }
+
+      const models = Array.isArray(payload.data)
+        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+        : Array.isArray(payload.models)
+          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
+          : [];
 
         els.modelSelect.innerHTML = '';
 

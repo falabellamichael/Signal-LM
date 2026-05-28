@@ -420,9 +420,9 @@ const STORAGE_KEYS = {
     }
 
     async function testNativeModels() {
-      setStatus('warn', 'Checking', `Testing ${nativeendpoint('')}`);
+      setStatus('warn', 'Checking', `Testing ${nativeEndpoint('/models')}`);
       try {
-        const response = await fetch(nativeendpoint(''), { headers: getHeaders() });
+        const response = await fetch(nativeEndpoint('/models'), { headers: getHeaders() });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
         const models = Array.isArray(payload.data) ? payload.data.length : Array.isArray(payload.models) ? payload.models.length : 0;
