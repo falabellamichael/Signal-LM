@@ -16,35 +16,35 @@
       id: 'cpu',
       label: 'CPU Usage',
       eyebrow: 'Main thread proxy',
-      minPoll: 1,
+      minPoll: 0.5,
       maxPoll: 15
     },
     {
       id: 'gpu',
       label: 'GPU Usage',
       eyebrow: 'Native telemetry',
-      minPoll: 2,
+      minPoll: 0.5,
       maxPoll: 30
     },
     {
       id: 'memory',
       label: 'System RAM',
       eyebrow: 'OS memory',
-      minPoll: 1,
+      minPoll: 0.5,
       maxPoll: 15
     },
     {
       id: 'storage',
       label: 'Storage Metrics',
       eyebrow: 'Origin quota',
-      minPoll: 5,
+      minPoll: 0.5,
       maxPoll: 60
     },
     {
       id: 'inference',
       label: 'Inference Telemetry',
       eyebrow: 'Runtime throughput',
-      minPoll: 1,
+      minPoll: 0.5,
       maxPoll: 15
     }
   ];
@@ -138,7 +138,7 @@
     const seconds = getPollSeconds(def);
     return `
       <div class="system-poll-control">
-        <input type="range" min="${def.minPoll}" max="${def.maxPoll}" step="1" value="${seconds}" data-system-poll="${def.id}" data-system-poll-context="${context}" aria-label="${escapeHtml(def.label)} polling rate" />
+        <input type="range" min="${def.minPoll}" max="${def.maxPoll}" step="0.5" value="${seconds}" data-system-poll="${def.id}" data-system-poll-context="${context}" aria-label="${escapeHtml(def.label)} polling rate" />
         <span class="system-poll-value" data-system-poll-value="${def.id}">${seconds}s</span>
       </div>`;
   }
