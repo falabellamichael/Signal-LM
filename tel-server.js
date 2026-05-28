@@ -13,6 +13,8 @@ const WINDOWS_GPU_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_TIMEOUT_
 const WINDOWS_GPU_DEVICE_CACHE_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_CACHE_MS || 10 * 60 * 1000);
 const WINDOWS_GPU_DEVICE_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_TIMEOUT_MS || 25000);
 const LM_STUDIO_TIMEOUT_MS = Number(process.env.SIGNAL_LM_TIMEOUT_MS || 900);
+const LM_STUDIO_CACHE_MS = Number(process.env.SIGNAL_LM_LM_STUDIO_CACHE_MS || 15000);
+const STORAGE_CACHE_MS = Number(process.env.SIGNAL_LM_STORAGE_CACHE_MS || 15000);
 
 let lastCpuSnapshot = readCpuSnapshot();
 let lastCpuSnapshotAt = Date.now();
@@ -23,6 +25,16 @@ const gpuCache = {
   promise: null
 };
 const windowsGpuDeviceCache = {
+  data: null,
+  expiresAt: 0,
+  promise: null
+};
+const lmStudioCache = {
+  data: null,
+  expiresAt: 0,
+  promise: null
+};
+const storageCache = {
   data: null,
   expiresAt: 0,
   promise: null
@@ -545,6 +557,44 @@ async function readStorageTelemetry() {
   }
 }
 
+function readCachedStorageTelemetry() {
+  const now = Date.now();
+  if (storageCache.data && now < storageCache.expiresAt) return storageCache.data;
+
+  if (!storageCache.promise) {
+    storageCache.promise = readStorageTelemetry()
+      .then(telemetry => {
+        storageCache.data = {
+          ...telemetry,
+          cachedAt: new Date().toISOString()
+        };
+        storageCache.expiresAt = Date.now() + STORAGE_CACHE_MS;
+        return storageCache.data;
+      })
+      .finally(() => {
+        storageCache.promise = null;
+      });
+  }
+
+  if (storageCache.data) {
+    return {
+      ...storageCache.data,
+      refreshing: true
+    };
+  }
+
+  return {
+    source: 'unavailable',
+    path: process.cwd(),
+    totalBytes: null,
+    freeBytes: null,
+    usedBytes: null,
+    usagePercent: null,
+    error: 'Storage telemetry warming up.',
+    refreshing: true
+  };
+}
+
 async function fetchJson(url, timeoutMs = 1400, headers = {}) {
   if (typeof fetch !== 'function') throw new Error('fetch is unavailable in this Node runtime.');
   const controller = new AbortController();
@@ -559,6 +609,15 @@ async function fetchJson(url, timeoutMs = 1400, headers = {}) {
 }
 
 async function readLmStudioTelemetry() {
+  if (process.env.SIGNAL_LM_DISABLE_LM_STUDIO_PROBE === 'true') {
+    return {
+      baseUrl: LM_STUDIO_BASE_URL,
+      reachable: false,
+      disabled: true,
+      authConfigured: Boolean(LM_STUDIO_API_KEY),
+      error: 'LM Studio probe disabled by environment variable'
+    };
+  }
   const headers = LM_STUDIO_API_KEY ? { Authorization: `Bearer ${LM_STUDIO_API_KEY}` } : {};
   try {
     const payload = await fetchJson(`${LM_STUDIO_BASE_URL}/models`, LM_STUDIO_TIMEOUT_MS, headers);
@@ -584,11 +643,46 @@ async function readLmStudioTelemetry() {
   }
 }
 
+function readCachedLmStudioTelemetry() {
+  const now = Date.now();
+  if (lmStudioCache.data && now < lmStudioCache.expiresAt) return lmStudioCache.data;
+
+  if (!lmStudioCache.promise) {
+    lmStudioCache.promise = readLmStudioTelemetry()
+      .then(telemetry => {
+        lmStudioCache.data = {
+          ...telemetry,
+          cachedAt: new Date().toISOString()
+        };
+        lmStudioCache.expiresAt = Date.now() + LM_STUDIO_CACHE_MS;
+        return lmStudioCache.data;
+      })
+      .finally(() => {
+        lmStudioCache.promise = null;
+      });
+  }
+
+  if (lmStudioCache.data) {
+    return {
+      ...lmStudioCache.data,
+      refreshing: true
+    };
+  }
+
+  return {
+    baseUrl: LM_STUDIO_BASE_URL,
+    reachable: false,
+    authConfigured: Boolean(LM_STUDIO_API_KEY),
+    error: 'LM Studio telemetry warming up.',
+    refreshing: true
+  };
+}
+
 async function buildStatus() {
   const [gpu, storage, lmStudio] = await Promise.all([
     readCachedGpuTelemetry(),
-    readStorageTelemetry(),
-    readLmStudioTelemetry()
+    readCachedStorageTelemetry(),
+    readCachedLmStudioTelemetry()
   ]);
 
   return {

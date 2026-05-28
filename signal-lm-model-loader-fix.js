@@ -114,7 +114,7 @@
   }
 
   async function serverModels(settings) {
-    var urls = unique([apiBase(settings) + '/models', openAiBase(settings) + '/models', cleanBase(settings.baseUrl) + '/models']);
+    var urls = unique([cleanBase(settings.baseUrl) + '/models', openAiBase(settings) + '/models', apiBase(settings) + '/models']);
     var lastError = null;
     for (var i = 0; i < urls.length; i++) {
       try { return await urlModels(urls[i], settings); }
