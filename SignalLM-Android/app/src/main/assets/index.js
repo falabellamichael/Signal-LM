@@ -178,6 +178,46 @@ const STORAGE_KEYS = {
       return requestMessages.reduce((total, message) => total + estimateTokenCount(message?.content || ''), 0);
     }
 
+    function compactUnique(values) {
+      return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
+    }
+
+    function modelIdFromEntry(model) {
+      if (typeof model === 'string') return model;
+      if (!model || typeof model !== 'object') return '';
+      return model.id || model.key || model.name || model.model || model.path || '';
+    }
+
+    function loadedModelIdsFromEntry(model) {
+      if (!model || typeof model !== 'object') return [];
+      const loadedInstances = Array.isArray(model.loaded_instances) ? model.loaded_instances : [];
+      return compactUnique(loadedInstances.map(instance => {
+        if (typeof instance === 'string') return instance;
+        return instance?.id || instance?.key || instance?.name || modelIdFromEntry(model);
+      }));
+    }
+
+    function extractModelIds(payload) {
+      const rawModels = Array.isArray(payload?.models)
+        ? payload.models
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+      const llmModels = rawModels.filter(model => !model || typeof model !== 'object' || model.type !== 'embedding');
+      const loaded = compactUnique(llmModels.flatMap(loadedModelIdsFromEntry));
+      const all = compactUnique(llmModels.map(modelIdFromEntry));
+      return { all, loaded };
+    }
+
+    function chooseModel({ all = [], loaded = [] }) {
+      const candidates = loaded.length ? loaded : all;
+      if (!candidates.length) return settings.model || '';
+      if (settings.model && candidates.includes(settings.model)) return settings.model;
+      return candidates[0];
+    }
+
     function finiteNumber(value) {
       if (value === null || value === undefined || value === '') return null;
       const number = Number(value);
@@ -1552,7 +1592,6 @@ const STORAGE_KEYS = {
       try {
         let response;
         let payload;
-        let usedNative = false;
         const headers = settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
         const authMessage = settings.apiKey
           ? 'LM Studio rejected the saved API key. Re-enter the API Key / Bearer Token in Settings.'
@@ -1565,36 +1604,14 @@ const STORAGE_KEYS = {
           return error;
         };
 
-        try {
-          const nativeUrl = nativeApiBaseUrl() + '/models';
-          response = await fetch(nativeUrl, { method: 'GET', headers });
-          if (response.ok) {
-            payload = await response.json();
-            usedNative = true;
-          } else if (response.status === 401 || response.status === 403) {
-            throw modelRequestError(response, nativeUrl);
-          }
-      } catch (err) {
-        if (err && err.authRequired) throw err;
-        console.warn('Native API models check failed, falling back to OpenAI endpoint:', err);
-      }
+        const modelsUrl = nativeApiBaseUrl() + '/models';
+        response = await fetch(modelsUrl, { method: 'GET', headers });
+        if (!response.ok) throw modelRequestError(response, modelsUrl);
+        payload = await response.json();
 
-      if (!usedNative) {
-        try {
-          const modelsUrl = endpoint('/models');
-          response = await fetch(modelsUrl, { method: 'GET', headers });
-          if (!response.ok) throw modelRequestError(response, modelsUrl);
-          payload = await response.json();
-        } catch (err) {
-          throw err;
-        }
-      }
-
-      const models = Array.isArray(payload.data)
-        ? payload.data.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
-        : Array.isArray(payload.models)
-          ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.name)).filter(Boolean)
-          : [];
+        const { all: availableModels, loaded: loadedModels } = extractModelIds(payload);
+        const models = compactUnique([...loadedModels, ...availableModels]);
+        const preferredModel = chooseModel({ all: availableModels, loaded: loadedModels });
 
         els.modelSelect.innerHTML = '';
 
@@ -1611,13 +1628,13 @@ const STORAGE_KEYS = {
             els.modelSelect.appendChild(opt);
           });
 
-          if (!settings.model || !models.includes(settings.model)) {
-            settings.model = models[0];
+          if (preferredModel && settings.model !== preferredModel) {
+            settings.model = preferredModel;
             saveSettings();
           }
 
-          els.modelSelect.value = settings.model;
-          els.modelDisplay.textContent = settings.model;
+          els.modelSelect.value = settings.model || preferredModel;
+          els.modelDisplay.textContent = settings.model || preferredModel;
         }
 
         setStatus('connected', 'Connected');
