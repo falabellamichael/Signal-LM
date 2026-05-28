@@ -56,6 +56,12 @@
     expiresAt: 0,
     promise: null
   };
+  const nativeStatusCache = {
+    data: null,
+    error: '',
+    expiresAt: 0,
+    promise: null
+  };
   const els = {
     sidebar: document.getElementById('system-sidebar'),
     metricsGrid: document.getElementById('system-metrics-grid'),
@@ -285,6 +291,61 @@
     try { return JSON.parse(trimmed); } catch { return value; }
   }
 
+  function parseByteText(value) {
+    if (!value) return null;
+    const match = String(value).match(/([\d.]+)\s*(b|kb|mb|gb|tb)\b/i);
+    if (!match) return null;
+    const units = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3, tb: 1024 ** 4 };
+    const numeric = Number(match[1]);
+    const multiplier = units[match[2].toLowerCase()];
+    return Number.isFinite(numeric) && multiplier ? numeric * multiplier : null;
+  }
+
+  function parseNativeMemory(status) {
+    if (!status) return null;
+    const totalBytes = Number(status.memoryTotalBytes ?? status.ramTotalBytes ?? status.totalRamBytes);
+    const usedBytes = Number(status.memoryUsedBytes ?? status.ramUsedBytes ?? status.usedRamBytes);
+    const freeBytes = Number(status.memoryFreeBytes ?? status.ramFreeBytes ?? status.freeRamBytes);
+    const explicitPercent = firstNumericStatus(status, ['memoryUsage', 'memoryUsagePercent', 'ramUsage', 'ramUsagePercent', 'memoryPercent', 'ramPercent']);
+    if (Number.isFinite(totalBytes) && totalBytes > 0) {
+      const used = Number.isFinite(usedBytes) ? usedBytes : (Number.isFinite(freeBytes) ? Math.max(0, totalBytes - freeBytes) : null);
+      const free = Number.isFinite(freeBytes) ? freeBytes : (Number.isFinite(used) ? Math.max(0, totalBytes - used) : null);
+      return {
+        source: 'native bridge',
+        totalBytes,
+        usedBytes: used,
+        freeBytes: free,
+        usagePercent: Number.isFinite(used) ? clamp((used / totalBytes) * 100, 0, 100) : explicitPercent,
+        raw: status.ram || status.memory || ''
+      };
+    }
+
+    const raw = String(status.ram || status.memory || status.memorySummary || '').trim();
+    if (!raw) return explicitPercent === null ? null : { source: 'native bridge', usagePercent: explicitPercent, raw: '' };
+    const percentMatch = raw.match(/([\d.]+)\s*%/);
+    const percent = percentMatch ? clamp(Number(percentMatch[1]), 0, 100) : explicitPercent;
+    const byteMatches = Array.from(raw.matchAll(/([\d.]+\s*(?:b|kb|mb|gb|tb)\b)/gi)).map(match => parseByteText(match[1])).filter(Number.isFinite);
+    const lower = raw.toLowerCase();
+    let used = null;
+    let free = null;
+    let total = null;
+    if (byteMatches.length >= 2) {
+      total = byteMatches[1];
+      if (lower.includes('free')) free = byteMatches[0];
+      else used = byteMatches[0];
+      if (used === null && total !== null && free !== null) used = Math.max(0, total - free);
+      if (free === null && total !== null && used !== null) free = Math.max(0, total - used);
+    }
+    return {
+      source: 'native bridge',
+      totalBytes: total,
+      usedBytes: used,
+      freeBytes: free,
+      usagePercent: Number.isFinite(total) && total > 0 && Number.isFinite(used) ? clamp((used / total) * 100, 0, 100) : percent,
+      raw
+    };
+  }
+
   function telemetryPercent(value) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? clamp(numeric, 0, 100) : null;
@@ -349,6 +410,31 @@
     ].find(bridge => bridge && typeof bridge.getHardwareStatus === 'function') || null;
   }
 
+  async function readNativeHardwareStatus() {
+    const bridge = getNativeTelemetryBridge();
+    if (!bridge) return null;
+    const now = Date.now();
+    if (nativeStatusCache.data && now < nativeStatusCache.expiresAt) return nativeStatusCache.data;
+    if (nativeStatusCache.promise) return nativeStatusCache.promise;
+    nativeStatusCache.promise = (async () => {
+      try {
+        const status = parseMaybeJson(await asPromise(bridge.getHardwareStatus()));
+        nativeStatusCache.data = status && typeof status === 'object' ? status : {};
+        nativeStatusCache.error = '';
+        nativeStatusCache.expiresAt = Date.now() + 900;
+        return nativeStatusCache.data;
+      } catch (error) {
+        nativeStatusCache.data = null;
+        nativeStatusCache.error = error?.message || 'Native hardware status failed';
+        nativeStatusCache.expiresAt = Date.now() + 2500;
+        return null;
+      } finally {
+        nativeStatusCache.promise = null;
+      }
+    })();
+    return nativeStatusCache.promise;
+  }
+
   function firstNumericStatus(status, keys) {
     for (const key of keys) {
       const value = status?.[key];
@@ -359,6 +445,17 @@
   }
 
   async function readCpuMetric(def) {
+    const nativeStatus = await readNativeHardwareStatus();
+    const nativePercent = firstNumericStatus(nativeStatus, ['cpuUsage', 'cpu_usage', 'cpuLoad', 'cpu_load', 'processorUsage', 'processorLoad']);
+    if (nativePercent !== null) {
+      const cpuName = nativeStatus?.cpu || nativeStatus?.processor || nativeStatus?.chipset || 'Native CPU';
+      return {
+        percent: nativePercent,
+        value: `${Math.round(nativePercent)}%`,
+        detail: `${cpuName} · native bridge`
+      };
+    }
+
     const telemetry = await fetchLocalTelemetry();
     const cpu = telemetry?.cpu;
     const helperPercent = telemetryPercent(cpu?.usagePercent);
@@ -378,6 +475,18 @@
   }
 
   async function readMemoryMetric() {
+    const nativeStatus = await readNativeHardwareStatus();
+    const nativeMemory = parseNativeMemory(nativeStatus);
+    if (nativeMemory?.usagePercent !== null && nativeMemory?.usagePercent !== undefined) {
+      return {
+        percent: nativeMemory.usagePercent,
+        value: `${Math.round(nativeMemory.usagePercent)}%`,
+        detail: nativeMemory.totalBytes
+          ? `System RAM · ${telemetryUsageLine(nativeMemory.usedBytes, nativeMemory.totalBytes) || nativeMemory.raw || 'native bridge'} · ${nativeMemory.freeBytes ? `${formatBytes(nativeMemory.freeBytes)} free` : 'native bridge'}`
+          : `System RAM · ${nativeMemory.raw || 'native bridge'}`
+      };
+    }
+
     const telemetry = await fetchLocalTelemetry();
     const memory = telemetry?.memory;
     const helperPercent = telemetryPercent(memory?.usagePercent);
@@ -428,6 +537,17 @@
   }
 
   async function readGpuMetric() {
+    const nativeStatus = await readNativeHardwareStatus();
+    const nativePercent = firstNumericStatus(nativeStatus, ['gpuUsage', 'gpu_usage', 'gpuLoad', 'gpu_load', 'vulkanUsage', 'vulkan_usage']);
+    if (nativePercent !== null) {
+      const gpuName = nativeStatus?.gpu || nativeStatus?.device || nativeStatus?.renderer || 'Native GPU';
+      return {
+        percent: nativePercent,
+        value: `${Math.round(nativePercent)}%`,
+        detail: `${gpuName} · native bridge`
+      };
+    }
+
     const telemetry = await fetchLocalTelemetry();
     const gpu = telemetry?.gpu;
     if (gpu?.source === 'pending') {
@@ -455,39 +575,21 @@
       };
     }
 
+    if (nativeStatus) {
+      const gpuName = nativeStatus.gpu || nativeStatus.device || nativeStatus.renderer || 'Native GPU';
+      return {
+        percent: null,
+        value: 'Detected',
+        detail: `${gpuName}; usage not exposed by bridge`
+      };
+    }
+
     if (gpu?.error) {
       return {
         percent: null,
         value: 'Unavailable',
         detail: `${gpu.source || 'GPU telemetry'} · ${gpu.error}`
       };
-    }
-
-    const bridge = getNativeTelemetryBridge();
-    if (bridge) {
-      try {
-        const status = parseMaybeJson(await asPromise(bridge.getHardwareStatus()));
-        const percent = firstNumericStatus(status, ['gpuUsage', 'gpu_usage', 'gpuLoad', 'gpu_load', 'vulkanUsage', 'vulkan_usage']);
-        const gpuName = status?.gpu || status?.device || status?.renderer || 'Native GPU';
-        if (percent !== null) {
-          return {
-            percent,
-            value: `${Math.round(percent)}%`,
-            detail: `${gpuName} telemetry`
-          };
-        }
-        return {
-          percent: null,
-          value: 'Detected',
-          detail: `${gpuName}; usage not exposed`
-        };
-      } catch (error) {
-        return {
-          percent: null,
-          value: 'Bridge error',
-          detail: error?.message || 'Hardware status probe failed'
-        };
-      }
     }
 
     return {
