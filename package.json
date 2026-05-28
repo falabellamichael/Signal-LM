@@ -28,6 +28,7 @@
     "directories": {
       "output": "dist"
     },
+    "artifactName": "Signal-LM-Setup.${ext}",
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false
