@@ -110,16 +110,48 @@
     throw lastError || new Error('No model endpoint responded');
   }
 
+  function valueOf(element) {
+    return element ? String(element.value || '').trim() : '';
+  }
+
+  function wasTouched(element) {
+    return Boolean(element && element.dataset && element.dataset.signalLmTouched === '1');
+  }
+
+  function markTouched(event) {
+    if (event && event.currentTarget && event.currentTarget.dataset) {
+      event.currentTarget.dataset.signalLmTouched = '1';
+    }
+  }
+
+  function bindTouchedFields() {
+    ['base-url', 'api-key', 'settings-runtime-mode', 'runtime-mode', 'settings-hybrid-strategy', 'hybrid-strategy'].forEach(function (id) {
+      var element = document.getElementById(id);
+      if (!element || element.dataset.signalLmTouchBound === '1') return;
+      element.dataset.signalLmTouchBound = '1';
+      element.addEventListener('input', markTouched);
+      element.addEventListener('change', markTouched);
+    });
+  }
+
   function saveVisibleFields() {
     var settings = readSettings();
     var baseUrl = document.getElementById('base-url');
     var apiKey = document.getElementById('api-key');
     var runtimeMode = document.getElementById('settings-runtime-mode') || document.getElementById('runtime-mode');
     var hybridStrategy = document.getElementById('settings-hybrid-strategy') || document.getElementById('hybrid-strategy');
-    if (baseUrl) settings.baseUrl = cleanBase(baseUrl.value || settings.baseUrl || DEFAULT_BASE_URL);
-    if (apiKey) settings.apiKey = String(apiKey.value || '').trim();
-    if (runtimeMode) settings.runtimeMode = runtimeMode.value || settings.runtimeMode || 'server';
-    if (hybridStrategy) settings.hybridStrategy = hybridStrategy.value || settings.hybridStrategy || 'off';
+    var baseUrlValue = valueOf(baseUrl);
+    var apiKeyValue = valueOf(apiKey);
+    var runtimeModeValue = valueOf(runtimeMode);
+    var hybridStrategyValue = valueOf(hybridStrategy);
+
+    settings.baseUrl = cleanBase(wasTouched(baseUrl) && baseUrlValue ? baseUrlValue : settings.baseUrl || DEFAULT_BASE_URL);
+    if (wasTouched(apiKey)) settings.apiKey = apiKeyValue;
+    if (!settings.apiKey) settings.apiKey = '';
+    if (wasTouched(runtimeMode) && runtimeModeValue) settings.runtimeMode = runtimeModeValue;
+    else settings.runtimeMode = settings.runtimeMode || 'server';
+    if (wasTouched(hybridStrategy) && hybridStrategyValue) settings.hybridStrategy = hybridStrategyValue;
+    else settings.hybridStrategy = settings.hybridStrategy || 'off';
     writeSettings(settings);
     return settings;
   }
@@ -227,6 +259,7 @@
   }
 
   function install() {
+    bindTouchedFields();
     window.loadModels = loadModels;
     window.testConnection = loadModels;
     window.SignalLMModelLoader = { loadModels: loadModels, normalizeModels: normalizeModels, apiBase: apiBase, openAiBase: openAiBase };

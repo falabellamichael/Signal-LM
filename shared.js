@@ -196,7 +196,7 @@
   if (window.__signalLmModelLoaderFixLoader) return;
   window.__signalLmModelLoaderFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-model-loader-fix.js?v=1';
+  script.src = 'signal-lm-model-loader-fix.js?v=2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM model loader fix was not found.'); };
   document.head.appendChild(script);
