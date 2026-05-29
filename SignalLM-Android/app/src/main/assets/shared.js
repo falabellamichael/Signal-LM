@@ -283,16 +283,6 @@
 })();
 
 (function () {
-  if (window.__signalLmPcFileAccessFixLoader) return;
-  window.__signalLmPcFileAccessFixLoader = true;
-  var script = document.createElement('script');
-  script.src = 'signal-lm-pc-file-access-fix.js?v=1';
-  script.defer = true;
-  script.onerror = function () { console.warn('Signal-LM PC file access guard was not found.'); };
-  document.head.appendChild(script);
-})();
-
-(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
