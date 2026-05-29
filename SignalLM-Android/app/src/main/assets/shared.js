@@ -236,9 +236,19 @@
   if (window.__signalLmJsonEditEnforcerLoader) return;
   window.__signalLmJsonEditEnforcerLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-json-edit-enforcer.js';
+  script.src = 'signal-lm-json-edit-enforcer.js?v=write-create-1';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM JSON edit enforcer was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmWriteCommandFixLoader) return;
+  window.__signalLmWriteCommandFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-write-command-fix.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM write command fix was not found.'); };
   document.head.appendChild(script);
 })();
 
