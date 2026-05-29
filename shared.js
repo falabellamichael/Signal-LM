@@ -253,6 +253,16 @@
 })();
 
 (function () {
+  if (window.__signalLmMcpWriteFileFixLoader) return;
+  window.__signalLmMcpWriteFileFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-mcp-write-file-fix.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM MCP write_file schema guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
