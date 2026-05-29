@@ -4,9 +4,9 @@
 
   var pendingWrite = null;
   var WEAK_NAMES = { a: true, b: true, c: true, file: true, newfile: true, output: true, generated: true, code: true, content: true, result: true, temp: true, index: true };
+  var GENERIC_LANGS = { html: true, htm: true, css: true, js: true, javascript: true, json: true, md: true, markdown: true, txt: true, text: true, xml: true, yaml: true, yml: true, ts: true, typescript: true, jsx: true, tsx: true, python: true, py: true };
 
   function runtime() { return window.SignalLMChatCommands || {}; }
-  function text(value) { return String(value || '').trim(); }
   function html(value) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
   function addResult(value) { var api = runtime(); if (typeof api.addResult === 'function') api.addResult(value); }
   function toast(value) { var api = runtime(); if (typeof api.toast === 'function') api.toast(value); }
@@ -81,6 +81,22 @@
     ].join('\n');
   }
 
+  function firstUsefulCodeBlock(responseText) {
+    var text = String(responseText || '');
+    var re = /```([^\n`]*)\n([\s\S]*?)```/g;
+    var match;
+    while ((match = re.exec(text))) {
+      var info = String(match[1] || '').trim().toLowerCase();
+      var content = String(match[2] || '').trim();
+      if (!content) continue;
+      if (info === 'json' && /^\s*\{[\s\S]*"files"\s*:/.test(content)) continue;
+      if (!info || GENERIC_LANGS[info] || /<!doctype\s+html|<html[\s>]/i.test(content) || content.length > 20) {
+        return content;
+      }
+    }
+    return '';
+  }
+
   function installCommandPatch() {
     if (typeof window.executeSlashCommand !== 'function' || window.executeSlashCommand.__signalLmWriteCreateOnly) return false;
     var previous = window.executeSlashCommand;
@@ -147,26 +163,36 @@
     return edit;
   }
 
+  function applyAfterStage() {
+    setTimeout(function () {
+      var api = runtime();
+      if (typeof api.applyPendingEdits === 'function') {
+        toast('Created file is staged. Applying it to the selected Android/PC workspace...');
+        api.applyPendingEdits();
+      } else {
+        toast('Created file is staged. Run /apply to write it to the selected workspace.');
+      }
+    }, 450);
+  }
+
   function installExtractPatch() {
     if (typeof window.extractEditsFromAssistantText !== 'function' || window.extractEditsFromAssistantText.__signalLmWriteCreateOnly) return false;
     var previous = window.extractEditsFromAssistantText;
     window.extractEditsFromAssistantText = function (responseText) {
       var edits = previous.apply(this, arguments) || [];
-      if (pendingWrite && Date.now() - pendingWrite.at < 120000 && edits.length) {
+      if (pendingWrite && Date.now() - pendingWrite.at < 120000) {
         var targetPath = pendingWrite.targetPath;
-        edits = edits.length === 1
-          ? [Object.assign({}, edits[0], { path: targetPath })]
-          : edits.map(function (edit) { return repairEditPath(edit, targetPath); });
-        var shouldApply = pendingWrite.autoApply;
-        pendingWrite = null;
-        if (shouldApply) {
-          setTimeout(function () {
-            var api = runtime();
-            if (typeof api.applyPendingEdits === 'function') {
-              toast('Created file is staged. Applying it to the selected workspace...');
-              api.applyPendingEdits();
-            }
-          }, 450);
+        if (!edits.length) {
+          var content = firstUsefulCodeBlock(responseText);
+          if (content) edits = [{ path: targetPath, content: content }];
+        }
+        if (edits.length) {
+          edits = edits.length === 1
+            ? [Object.assign({}, edits[0], { path: targetPath })]
+            : edits.map(function (edit) { return repairEditPath(edit, targetPath); });
+          var shouldApply = pendingWrite.autoApply;
+          pendingWrite = null;
+          if (shouldApply) applyAfterStage();
         }
       }
       return edits;
