@@ -246,7 +246,7 @@
   if (window.__signalLmWriteCommandFixLoader) return;
   window.__signalLmWriteCommandFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-write-command-fix.js?v=1';
+  script.src = 'signal-lm-write-command-fix.js?v=2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM write command fix was not found.'); };
   document.head.appendChild(script);
@@ -259,6 +259,16 @@
   script.src = 'signal-lm-mcp-write-file-fix.js?v=1';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP write_file schema guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmMcpApplyFixLoader) return;
+  window.__signalLmMcpApplyFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-mcp-apply-fix.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM MCP staged apply helper was not found.'); };
   document.head.appendChild(script);
 })();
 

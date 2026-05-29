@@ -105,17 +105,17 @@
       if (!/^\/write(?:\s|$)/i.test(raw)) return previous.apply(this, arguments);
       var request = commandRequest(raw);
       if (!request) {
-        addResult('<strong>Usage:</strong> <code>/write a sudoku game</code><br>Creates a new file. Use <code>/replace</code> to replace content in an existing file.');
+        addResult('<strong>Usage:</strong> <code>/write a sudoku game</code><br>Creates a new file draft. Review it, then tap <strong>Apply</strong>. Use <code>/replace</code> to replace content in an existing file.');
         return true;
       }
       var targetPath = inferTargetPath(request);
-      pendingWrite = { targetPath: targetPath, request: request, at: Date.now(), autoApply: true };
+      pendingWrite = { targetPath: targetPath, request: request, at: Date.now(), autoApply: false };
       var api = runtime();
       if (typeof api.submitPrompt !== 'function') {
         addResult('The chat submit hook is unavailable on this page.');
         return true;
       }
-      addResult('Creating <code>' + html(targetPath) + '</code>. Use <code>/replace</code> for existing-file replacements.');
+      addResult('Creating draft <code>' + html(targetPath) + '</code>. Review it, then tap <strong>Apply</strong> to write it to the selected Android/PC/MCP target.');
       api.submitPrompt('Create ' + targetPath + ': ' + request);
       return true;
     };
@@ -163,18 +163,6 @@
     return edit;
   }
 
-  function applyAfterStage() {
-    setTimeout(function () {
-      var api = runtime();
-      if (typeof api.applyPendingEdits === 'function') {
-        toast('Created file is staged. Applying it to the selected Android/PC workspace...');
-        api.applyPendingEdits();
-      } else {
-        toast('Created file is staged. Run /apply to write it to the selected workspace.');
-      }
-    }, 450);
-  }
-
   function installExtractPatch() {
     if (typeof window.extractEditsFromAssistantText !== 'function' || window.extractEditsFromAssistantText.__signalLmWriteCreateOnly) return false;
     var previous = window.extractEditsFromAssistantText;
@@ -190,9 +178,8 @@
           edits = edits.length === 1
             ? [Object.assign({}, edits[0], { path: targetPath })]
             : edits.map(function (edit) { return repairEditPath(edit, targetPath); });
-          var shouldApply = pendingWrite.autoApply;
           pendingWrite = null;
-          if (shouldApply) applyAfterStage();
+          toast('Created file draft is staged. Review it, then tap Apply.');
         }
       }
       return edits;
