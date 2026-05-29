@@ -69,15 +69,17 @@
 
   function fileCreationInstruction(targetPath, request) {
     return [
-      'You are creating a new file for Signal-LM.',
+      'You are creating a new file draft for Signal-LM.',
+      'This is draft generation only. Do not call tools, MCP tools, function calls, write_file, create_file, edit_file, shell commands, filesystem APIs, or browser/app write APIs.',
+      'The application will extract the code block into the Edited files draft panel. The user will tap Apply later if they want to write it to disk.',
       'Create exactly one complete file unless the user explicitly asks for multiple files.',
-      'Target path: ' + targetPath,
+      'Target draft path: ' + targetPath,
       'User request: ' + request,
-      'Return a single fenced code block whose info string is exactly the target path.',
+      'Return a single fenced code block whose info string is exactly the target draft path.',
       'The first line of your response should be the code block. Do not echo these instructions.',
       'For a self-contained browser app, game, page, or prototype, put all HTML, CSS, and JavaScript into that one HTML file.',
       'Do not use placeholder filenames such as a, file, output, generated, result, code, or index unless the user explicitly asks for index.html.',
-      'Do not return a patch. Return complete file contents.'
+      'Do not write the file yourself. Do not claim the file was created on disk. Do not return a patch. Return complete file contents only.'
     ].join('\n');
   }
 
@@ -116,7 +118,7 @@
         return true;
       }
       addResult('Creating draft <code>' + html(targetPath) + '</code>. Review it, then tap <strong>Apply</strong> to write it to the selected Android/PC/MCP target.');
-      api.submitPrompt('Create ' + targetPath + ': ' + request);
+      api.submitPrompt('Create draft only for ' + targetPath + ': ' + request);
       return true;
     };
     window.executeSlashCommand.__signalLmWriteCreateOnly = true;
@@ -144,7 +146,7 @@
       var messages = await previous.apply(this, arguments);
       if (pendingWrite && Date.now() - pendingWrite.at < 120000) {
         var latest = latestUserText(extraMessages);
-        if (latest.indexOf('Create ' + pendingWrite.targetPath + ':') === 0) {
+        if (latest.indexOf('Create draft only for ' + pendingWrite.targetPath + ':') === 0 || latest.indexOf('Create ' + pendingWrite.targetPath + ':') === 0) {
           messages.unshift({ role: 'system', content: fileCreationInstruction(pendingWrite.targetPath, pendingWrite.request) });
         }
       }
