@@ -256,7 +256,7 @@
   if (window.__signalLmMcpWriteFileFixLoader) return;
   window.__signalLmMcpWriteFileFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-write-file-fix.js?v=1';
+  script.src = 'signal-lm-mcp-write-file-fix.js?v=2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP write_file schema guard was not found.'); };
   document.head.appendChild(script);
