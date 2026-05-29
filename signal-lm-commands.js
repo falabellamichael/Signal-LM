@@ -594,7 +594,7 @@
       addLocalSystemMessage('The chat submit hook is unavailable on this page.');
       return;
     }
-    const prompt = `Edit ${path}.\n\nRequest: ${instruction}\n\nReturn a complete replacement for ${path} in a fenced code block whose language/header is the relative file path. Preserve unrelated behavior.`;
+    const prompt = `Edit ${path}.\n\nRequest: ${instruction}\n\nReturn the edits as one or more SEARCH/REPLACE blocks. Use this exact format:\n<<<<<<< SEARCH\n[exact code to find]\n=======\n[code to replace with]\n>>>>>>>\nKeep the SEARCH blocks long enough to be unique.`;
     if (!api.submitPrompt(prompt)) addLocalSystemMessage('Could not submit the edit prompt.');
   }
 

@@ -53,6 +53,10 @@
     return /\b(create|make|build|write|generate|edit|fix|update|replace|implement|code|file|html|css|javascript|js|page|app|component|game|website)\b/i.test(String(text || ''));
   }
 
+  function isEditCommand(text) {
+    return /^Edit\s+[^\n]+\r?\n\r?\nRequest:/i.test(String(text || '').trim());
+  }
+
   function installRequestPatch() {
     if (window.__signalLmJsonEditRequestPatch || typeof window.collectRequestMessages !== 'function') return false;
     window.__signalLmJsonEditRequestPatch = true;
@@ -71,7 +75,7 @@
       } catch (error) {
         latestUserText = '';
       }
-      if (isLikelyCodeFileRequest(latestUserText)) {
+      if (isLikelyCodeFileRequest(latestUserText) && !isEditCommand(latestUserText)) {
         requestMessages.unshift({ role: 'system', content: instruction() });
       }
       return requestMessages;

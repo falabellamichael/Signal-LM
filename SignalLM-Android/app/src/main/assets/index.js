@@ -1713,7 +1713,10 @@ const STORAGE_KEYS = {
       }
     }
 
-    function buildWorkspaceEditInstruction() {
+    function buildWorkspaceEditInstruction(isEditCommand = false) {
+      if (isEditCommand) {
+        return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence. When the user asks you to edit project files, return the edits ONLY as one or more SEARCH/REPLACE blocks. Do not output the entire file content, only output the changed sections using the SEARCH/REPLACE block format.';
+      }
       return 'You have workspace context in this request when files are listed below. A silent in-app helper may pre-search files and attach relevant snippets to reduce context load before the model runs. Trust that helper context as attached workspace evidence, but do not mention the helper unless the user asks. When the user asks you to edit project files, return a fenced code block with the relative file path as the language identifier, like this: ```relative/path/to/file.html\ncontent here\n```. Use complete replacement content, not patches. Only use relative paths from the provided workspace manifest or attached files. Do not say that no files are attached when workspace files are provided.';
     }
 
@@ -2003,15 +2006,24 @@ ${fallback}${failedText}`;
         : await collectWorkspaceContext();
       const hasWorkspaceContext = Boolean(workspaceContext);
 
+      let isEdit = false;
+      if (extraMessages && extraMessages.length) {
+        const latestText = extraMessages[extraMessages.length - 1].content;
+        const textStr = typeof latestText === 'string' ? latestText : (Array.isArray(latestText) ? latestText.map(p => p.text || '').join('\n') : '');
+        if (/\bEdit\s+[^\n]+\r?\n\r?\nRequest:/i.test(textStr)) {
+          isEdit = true;
+        }
+      }
+
       if (hasWorkspaceContext) {
         requestMessages.push({
           role: 'system',
-          content: `${buildWorkspaceEditInstruction()}
+          content: `${buildWorkspaceEditInstruction(isEdit)}
 
 Workspace context is present in the latest user message. Treat those files as attached by the app. Ignore older conversation turns that said files were missing.`
         });
       } else if (workspaceFiles.length || workspaceHandle || workspaceInfo) {
-        requestMessages.push({ role: 'system', content: buildWorkspaceEditInstruction() });
+        requestMessages.push({ role: 'system', content: buildWorkspaceEditInstruction(isEdit) });
       }
 
       requestMessages.push(...requestHistoryForWorkspace(hasWorkspaceContext));
@@ -2462,19 +2474,26 @@ Answer the user request using the workspace files above. When asked to modify fi
 
     async function readWorkspaceEntry(entry) {
       if (typeof entry.content === 'string' && entry.content !== '') return entry.content;
-      if (entry.file) return readFileText(entry.file);
-      if (entry.handle?.getFile) {
+      let content = '';
+      if (entry.file) {
+        content = await readFileText(entry.file);
+      } else if (entry.handle?.getFile) {
         const file = await entry.handle.getFile();
-        return readFileText(file);
+        content = await readFileText(file);
+      } else {
+        const bridge = getNativeFileBridge();
+        if (bridge?.readFile) {
+          const result = await asPromise(bridge.readFile(entry.path));
+          if (typeof result === 'string') content = result;
+          else if (typeof result?.content === 'string') content = result.content;
+          else if (typeof result?.text === 'string') content = result.text;
+        }
       }
-      const bridge = getNativeFileBridge();
-      if (bridge?.readFile) {
-        const result = await asPromise(bridge.readFile(entry.path));
-        if (typeof result === 'string') return result;
-        if (typeof result?.content === 'string') return result.content;
-        if (typeof result?.text === 'string') return result.text;
+      if (!content && typeof entry.content === 'string') content = entry.content;
+      if (content) {
+        entry.content = content;
+        return content;
       }
-      if (typeof entry.content === 'string') return entry.content;
       throw new Error(`Could not read ${entry.path}`);
     }
 
@@ -2713,8 +2732,92 @@ Answer the user request using the workspace files above. When asked to modify fi
       return edits;
     }
 
+    function parseSearchReplaceBlocks(text, defaultPath = null) {
+      const blocks = [];
+      const lines = text.split(/\r?\n/);
+      let currentPath = defaultPath;
+      let inSearch = false;
+      let inReplace = false;
+      let searchLines = [];
+      let replaceLines = [];
+      for (const line of lines) {
+        const pathDecl = line.match(/^(?:####?\s+|File:\s+|```)?([a-zA-Z0-9_\-\.\/\\]+\.[a-zA-Z0-9]+)\s*$/);
+        if (pathDecl && !inSearch && !inReplace) {
+          currentPath = normalizeWorkspacePath(pathDecl[1]);
+        }
+        if (line.startsWith('<<<<<<< SEARCH')) {
+          inSearch = true;
+          searchLines = [];
+        } else if (line.startsWith('=======')) {
+          if (inSearch) {
+            inSearch = false;
+            inReplace = true;
+            replaceLines = [];
+          }
+        } else if (line.startsWith('>>>>>>>')) {
+          if (inReplace) {
+            inReplace = false;
+            if (currentPath) {
+              blocks.push({
+                path: currentPath,
+                find: searchLines.join('\n'),
+                replace: replaceLines.join('\n')
+              });
+            }
+          }
+        } else {
+          if (inSearch) searchLines.push(line);
+          else if (inReplace) replaceLines.push(line);
+        }
+      }
+      return blocks;
+    }
+
+    function applySearchReplaceBlocks(blocks) {
+      const byPath = {};
+      for (const block of blocks) {
+        if (!byPath[block.path]) {
+          const entry = resolveWorkspaceEntry(block.path);
+          const content = entry ? entry.content : null;
+          if (content === null || content === undefined) continue;
+          byPath[block.path] = {
+            entry,
+            currentContent: content,
+            successCount: 0
+          };
+        }
+        const fileData = byPath[block.path];
+        if (fileData.currentContent.includes(block.find)) {
+          fileData.currentContent = fileData.currentContent.split(block.find).join(block.replace);
+          fileData.successCount++;
+        } else {
+          const normalizedCurrent = fileData.currentContent.replace(/\r\n/g, '\n');
+          const normalizedFind = block.find.replace(/\r\n/g, '\n');
+          if (normalizedCurrent.includes(normalizedFind)) {
+            fileData.currentContent = normalizedCurrent.split(normalizedFind).join(block.replace.replace(/\r\n/g, '\n'));
+            fileData.successCount++;
+          }
+        }
+      }
+      const edits = [];
+      for (const path in byPath) {
+        const fileData = byPath[path];
+        if (fileData.successCount > 0) {
+          edits.push({ path: fileData.entry.path, content: fileData.currentContent });
+        }
+      }
+      return edits;
+    }
+
     function extractEditsFromAssistantText(text) {
       const raw = String(text || '');
+      
+      const srBlocks = parseSearchReplaceBlocks(raw);
+      if (srBlocks.length) {
+        const srEdits = applySearchReplaceBlocks(srBlocks);
+        if (srEdits.length) return srEdits;
+      }
+
       const edits = extractPendingEdits(raw);
       if (edits.length) return edits;
 
