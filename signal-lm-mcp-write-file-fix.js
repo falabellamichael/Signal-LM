@@ -15,6 +15,12 @@
     return Boolean(readSettings().mcpEnabled);
   }
 
+  function selectedTargetPath() {
+    var helper = window.SignalLMMcpFilePath;
+    if (helper && typeof helper.getMcpFilePath === 'function') return String(helper.getMcpFilePath() || '').trim();
+    return String(readSettings().mcpFilePath || '').trim();
+  }
+
   function requestUrl(resource) {
     if (typeof resource === 'string') return resource;
     if (resource && typeof resource.url === 'string') return resource.url;
@@ -33,17 +39,23 @@
   }
 
   function guardText() {
-    return [
+    var selected = selectedTargetPath();
+    var lines = [
       MARKER,
-      'When a filesystem MCP write tool is available, use its exact schema. For write_file calls, pass only file_path and content.',
-      'Correct write_file call shape:',
-      'write_file({ file_path: "FULL_OR_SELECTED_TARGET_PATH/filename.ext", content: "complete file content" })',
+      'Use the filesystem write tool with its exact schema. For write_file calls, pass only file_path and content.',
+      'Correct write_file call shape: write_file({ file_path: "FULL_TARGET_PATH/filename.ext", content: "complete file content" })',
       'Do not include format, language, encoding, mime_type, overwrite, create, root, cwd, path, filename, or any extra argument unless the tool schema explicitly lists it.',
-      'If creating a file inside the selected folder, combine the selected folder path with the requested filename, for example Selected Target Path D:/ plus sudoku.html becomes D:/sudoku.html.',
-      'If the selected target is an Android content:// URI, do not pass that URI to desktop filesystem MCP tools. Use the app workspace/app bridge path instead, or return a staged file edit for the app to apply.',
-      'If a write_file call fails because of argument parsing, retry once with exactly file_path and content and no other keys.',
-      '[END MCP WRITE_FILE SCHEMA GUARD]'
-    ].join('\n');
+      'Path priority: first use a path explicitly specified in the user request; otherwise use the selected target path; only use any default or remembered server path when no selected target exists.',
+      'Never use unrelated paths from previous chat turns, recycle-bin files, MCP server folders, package folders, or old search results as the write target.'
+    ];
+    if (selected) {
+      lines.push('Current selected MCP/workspace target path: ' + selected);
+      lines.push('When creating a relative staged file such as sudoku.html or SudokuGame/sudoku.html, write it under the selected target path above. Example: selected target D:/ plus SudokuGame/sudoku.html becomes D:/SudokuGame/sudoku.html.');
+      lines.push('Do not switch to C:/ or any other drive while a selected target path is available, unless the current user request explicitly names that other absolute path.');
+    }
+    lines.push('If a write_file call fails because of argument parsing, retry once with exactly file_path and content and no other keys.');
+    lines.push('[END MCP WRITE_FILE SCHEMA GUARD]');
+    return lines.join('\n');
   }
 
   function mergeText(existing, addition) {
