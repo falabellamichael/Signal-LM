@@ -273,6 +273,16 @@
 })();
 
 (function () {
+  if (window.__signalLmChatbotSafetyFixLoader) return;
+  window.__signalLmChatbotSafetyFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-chatbot-safety-fix.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM chatbot safety guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
