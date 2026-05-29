@@ -119,26 +119,36 @@
   }
 
   function buildMcpApplyPrompt(files) {
+    var selected = normalizeSlash(selectedMcpPath());
     var lines = [
       'Apply these reviewed staged edits to the selected MCP filesystem target.',
       '',
       'Use the MCP write_file tool directly. Do not answer with replacement code instead of using the tool.',
       'For every staged file below, call write_file exactly once with only these two arguments: file_path and content.',
       'Do not include format, language, encoding, mime_type, overwrite, create, root, cwd, path, filename, or any extra keys.',
-      'If a write_file call fails due to argument parsing, retry once using exactly file_path and content.',
+      '',
+      'Hard safety rule:',
+      'The selected target root is: ' + (selected || '<none>'),
+      'Write only to the exact Target file_path values listed below.',
+      'If any write_file call to the listed Target file_path fails for permissions or any other reason, STOP and report that failure.',
+      'Do not retry to C:/, user folders, .lmstudio, extensions, plugins, skills, node_modules, package folders, recycle-bin paths, temporary folders, or any fallback directory.',
+      'Do not claim success if the selected Target file_path failed but another fallback path succeeded.',
+      'If a write_file call fails due to argument parsing only, retry once using exactly file_path and content, with the same Target file_path and no other keys.',
       ''
     ];
 
     files.forEach(function (file, index) {
       lines.push('Staged file ' + (index + 1) + ':');
       lines.push('Target file_path: ' + file.targetPath);
+      lines.push('Allowed write destination: ' + file.targetPath);
       lines.push('Call shape: write_file({ file_path: ' + JSON.stringify(file.targetPath) + ', content: "<exact staged content>" })');
       lines.push('Exact staged content:');
       lines.push(fenceContent(file.content));
       lines.push('');
     });
 
-    lines.push('After all write_file calls succeed, reply briefly with the created/updated file path(s).');
+    lines.push('After all write_file calls to the listed Target file_path values succeed, reply briefly with only the created/updated file path(s).');
+    lines.push('If any listed Target file_path fails, reply briefly with the failed path and the permission/error message. Do not mention or use fallback paths.');
     return lines.join('\n');
   }
 
@@ -159,9 +169,9 @@
     var summary = files.map(function (file) {
       return '<li><code>' + html(file.sourcePath) + '</code> → <code>' + html(file.targetPath) + '</code></li>';
     }).join('');
-    addResult('<strong>Applying staged edit via MCP write_file</strong><ul>' + summary + '</ul><p>The draft stays staged until the MCP tool confirms. Use <code>Clear</code> after verifying the file was created.</p>');
+    addResult('<strong>Applying staged edit via MCP write_file</strong><ul>' + summary + '</ul><p>The draft stays staged until the MCP tool confirms the exact target path. No fallback write path is allowed.</p>');
     api.submitPrompt(buildMcpApplyPrompt(files));
-    toast('Apply sent to MCP write_file for the selected path.');
+    toast('Apply sent to MCP write_file for the selected path only.');
     return true;
   }
 
