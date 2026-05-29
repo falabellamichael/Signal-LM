@@ -251,3 +251,165 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installApplyPatch);
   else installApplyPatch();
 })();
+
+(function () {
+  if (window.__signalLmNaturalWriteCommandPatch) return;
+  window.__signalLmNaturalWriteCommandPatch = true;
+
+  var WEAK_NAMES = { a: true, b: true, c: true, file: true, newfile: true, output: true, generated: true, code: true, content: true, result: true, temp: true };
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  function splitWrite(raw) {
+    var rest = String(raw || '').replace(/^\s*\/write\b/i, '').trim();
+    if (!rest) return { path: '', rest: '', full: '' };
+    if (rest[0] === '"' || rest[0] === "'" || rest[0] === '`') {
+      var quote = rest[0];
+      var i = 1;
+      var path = '';
+      while (i < rest.length && rest[i] !== quote) path += rest[i++];
+      return { path: path, rest: rest.slice(i + 1).trim(), full: rest };
+    }
+    var match = rest.match(/^(\S+)(?:\s+([\s\S]*))?$/);
+    return { path: match && match[1] || '', rest: match && match[2] || '', full: rest };
+  }
+
+  function normalizePath(path) {
+    return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/').trim();
+  }
+
+  function extension(path) {
+    var match = normalizePath(path).match(/\.([a-z0-9]{1,12})$/i);
+    return match ? match[1].toLowerCase() : '';
+  }
+
+  function baseName(path) {
+    var name = normalizePath(path).split('/').pop() || '';
+    return name.replace(/\.[a-z0-9]{1,12}$/i, '').toLowerCase();
+  }
+
+  function hasUsefulExtension(path) {
+    return /\.[a-z0-9]{1,12}$/i.test(normalizePath(path));
+  }
+
+  function weakPath(path) {
+    var clean = normalizePath(path);
+    if (!clean) return true;
+    var base = baseName(clean);
+    if (WEAK_NAMES[base]) return true;
+    if (base.length <= 1) return true;
+    return !hasUsefulExtension(clean);
+  }
+
+  function naturalInstruction(text) {
+    var value = String(text || '').trim();
+    if (!value) return false;
+    if (/^(create|make|build|generate|write|implement|add|fix|update|replace)\b/i.test(value)) return true;
+    return /\b(app|game|page|website|html|css|javascript|js|sudoku|calculator|todo|timer|clock|form|component)\b/i.test(value) && value.length < 500;
+  }
+
+  function slug(value) {
+    return String(value || '').toLowerCase().replace(/&[^;]+;/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'generated';
+  }
+
+  function inferTargetPath(request, explicitPath) {
+    var explicit = normalizePath(explicitPath);
+    if (explicit && hasUsefulExtension(explicit) && !weakPath(explicit)) return explicit;
+    var named = String(request || '').match(/(?:file|path|filename|called|named)\s+`?([\w./-]+\.[a-z0-9]{1,12})`?/i);
+    if (named && named[1]) return normalizePath(named[1]);
+    if (/\bsudoku\b/i.test(request)) return 'sudoku.html';
+    if (/\bcalculator\b/i.test(request)) return 'calculator.html';
+    if (/\btodo\b|\bto-do\b/i.test(request)) return 'todo.html';
+    if (/\btimer\b/i.test(request)) return 'timer.html';
+    if (/\bclock\b/i.test(request)) return 'clock.html';
+    if (/\bgame\b|\bapp\b|\bpage\b|\bwebsite\b|\bhtml\b/i.test(request)) return slug(request).slice(0, 48).replace(/^(create|make|build|generate|write)-/, '') + '.html';
+    return 'generated.html';
+  }
+
+  function generationPrompt(request, targetPath) {
+    return [
+      '[Built-in tool: Write/Create File]',
+      '',
+      'User request: ' + request,
+      '',
+      'Create the requested file content and return it as a staged edit for this app.',
+      'Return ONLY a fenced JSON edit block using this schema:',
+      '```json',
+      '{"files":[{"path":"' + targetPath.replace(/\\/g, '/') + '","content":"complete replacement file content"}]}',
+      '```',
+      'Use the exact path "' + targetPath.replace(/\\/g, '/') + '" unless the user explicitly named a better filename with an extension.',
+      'Never use a one-letter filename or placeholder path such as a, file, output, generated, code, or result.',
+      'For a self-contained browser app/game/page, put all HTML, CSS, and JavaScript into one complete HTML file.',
+      'Do not return patches. Do not omit boilerplate. Keep any text outside the JSON block empty or very short.'
+    ].join('\n');
+  }
+
+  function addResult(html) {
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.addResult === 'function') return api.addResult(html);
+  }
+
+  function submitPrompt(prompt) {
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.submitPrompt === 'function') return api.submitPrompt(prompt);
+    var input = document.getElementById('user-input');
+    var form = document.getElementById('chat-form');
+    if (!input || !form) return false;
+    input.value = prompt;
+    if (typeof window.updateInputHeight === 'function') window.updateInputHeight();
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    return true;
+  }
+
+  function installNaturalWritePatch() {
+    if (typeof window.executeSlashCommand !== 'function' || window.executeSlashCommand.__signalLmNaturalWrite) return false;
+    var previous = window.executeSlashCommand;
+    window.executeSlashCommand = async function (text) {
+      var raw = String(text || '').trim();
+      if (!/^\/write(?:\s|$)/i.test(raw)) return previous.apply(this, arguments);
+      var parsed = splitWrite(raw);
+      if (!parsed.full) return previous.apply(this, arguments);
+      var shouldGenerate = weakPath(parsed.path) || naturalInstruction(parsed.rest);
+      if (!shouldGenerate) return previous.apply(this, arguments);
+      var request = parsed.full;
+      var targetPath = inferTargetPath(request, parsed.path);
+      addResult('Generating <code>' + escapeHtml(targetPath) + '</code> from <code>/write</code>.');
+      if (!submitPrompt(generationPrompt(request, targetPath))) return previous.apply(this, arguments);
+      return true;
+    };
+    window.executeSlashCommand.__signalLmNaturalWrite = true;
+    return true;
+  }
+
+  function repairWeakEditPaths() {
+    if (typeof window.extractEditsFromAssistantText !== 'function' || window.extractEditsFromAssistantText.__signalLmRepairWeakPaths) return false;
+    var previous = window.extractEditsFromAssistantText;
+    window.extractEditsFromAssistantText = function (text) {
+      var edits = previous.apply(this, arguments) || [];
+      return edits.map(function (edit) {
+        if (!edit || !weakPath(edit.path)) return edit;
+        var content = String(edit.content || '');
+        var inferred = /\bsudoku\b/i.test(content + '\n' + text) ? 'sudoku.html'
+          : /<html[\s>]|<!doctype\s+html/i.test(content) ? 'generated.html'
+          : extension(edit.path) ? 'generated.' + extension(edit.path)
+          : 'generated.html';
+        return Object.assign({}, edit, { path: inferred });
+      });
+    };
+    window.extractEditsFromAssistantText.__signalLmRepairWeakPaths = true;
+    return true;
+  }
+
+  function install() {
+    installNaturalWritePatch();
+    repairWeakEditPaths();
+  }
+
+  var timer = setInterval(install, 200);
+  setTimeout(function () { clearInterval(timer); }, 10000);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
+  else install();
+})();
