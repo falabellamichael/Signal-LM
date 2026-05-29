@@ -193,3 +193,61 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
 })();
+
+(function () {
+  if (window.__signalLmApplyNoAutoZipPatch) return;
+  window.__signalLmApplyNoAutoZipPatch = true;
+
+  function toast(message) {
+    var api = window.SignalLMChatCommands;
+    if (api && typeof api.toast === 'function') return api.toast(message);
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.add('show');
+    setTimeout(function () { el.classList.remove('show'); }, 3200);
+  }
+
+  function looksLikeEditsZip(anchor) {
+    var name = String(anchor && (anchor.getAttribute('download') || anchor.download) || '');
+    var href = String(anchor && (anchor.getAttribute('href') || anchor.href) || '');
+    return /^blob:/i.test(href) && /(?:lm-studio-lite-edits|signal-lm-edits).*\.zip$/i.test(name);
+  }
+
+  function installApplyPatch() {
+    var api = window.SignalLMChatCommands;
+    var original = window.applyPendingEdits || (api && api.applyPendingEdits);
+    if (!api || typeof original !== 'function' || original.__signalLmNoAutoZip) return Boolean(original && original.__signalLmNoAutoZip);
+
+    var patched = async function () {
+      var blocked = false;
+      var originalClick = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (looksLikeEditsZip(this)) {
+          blocked = true;
+          return undefined;
+        }
+        return originalClick.apply(this, arguments);
+      };
+      try {
+        return await original.apply(this, arguments);
+      } finally {
+        HTMLAnchorElement.prototype.click = originalClick;
+        if (blocked) setTimeout(function () {
+          toast('Direct write unavailable. Edits stayed staged. ZIP export now requires a manual browser/app download action.');
+        }, 0);
+      }
+    };
+
+    patched.__signalLmNoAutoZip = true;
+    patched.__originalApplyPendingEdits = original;
+    window.applyPendingEdits = patched;
+    api.applyPendingEdits = patched;
+    return true;
+  }
+
+  var timer = setInterval(installApplyPatch, 200);
+  setTimeout(function () { clearInterval(timer); }, 10000);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installApplyPatch);
+  else installApplyPatch();
+})();
