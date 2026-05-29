@@ -700,12 +700,12 @@ const STORAGE_KEYS = {
         const data = encoder.encode(String(file.content || ''));
         const crc = crc32Bytes(data);
         const local = [];
-        pushU32(local, 0x04034b50); pushU16(local, 20); pushU16(local, 0); pushU16(local, 0);
+        pushU32(local, 0x04034b50); pushU16(local, 20); pushU16(local, 0x0800); pushU16(local, 0);
         pushU16(local, dosTime); pushU16(local, dosDate); pushU32(local, crc); pushU32(local, data.length); pushU32(local, data.length);
         pushU16(local, nameBytes.length); pushU16(local, 0);
         localParts.push(new Uint8Array(local), nameBytes, data);
         const central = [];
-        pushU32(central, 0x02014b50); pushU16(central, 20); pushU16(central, 20); pushU16(central, 0); pushU16(central, 0);
+        pushU32(central, 0x02014b50); pushU16(central, 20); pushU16(central, 20); pushU16(central, 0x0800); pushU16(central, 0);
         pushU16(central, dosTime); pushU16(central, dosDate); pushU32(central, crc); pushU32(central, data.length); pushU32(central, data.length);
         pushU16(central, nameBytes.length); pushU16(central, 0); pushU16(central, 0); pushU16(central, 0); pushU16(central, 0); pushU32(central, 0); pushU32(central, offset);
         centralParts.push(new Uint8Array(central), nameBytes);
@@ -792,4 +792,9 @@ window.saveSelectedFile = saveSelectedFile;
 window.downloadSelectedFile = downloadSelectedFile;
 window.previewAiFolderEdits = previewAiFolderEdits;
 window.applyAiFolderEdits = applyAiFolderEdits;
+Object.defineProperty(window, 'pendingAiChanges', {
+  get() { return pendingAiChanges; },
+  set(value) { pendingAiChanges = value; },
+  configurable: true
+});
 })();

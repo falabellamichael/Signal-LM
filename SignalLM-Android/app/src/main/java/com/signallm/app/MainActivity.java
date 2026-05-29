@@ -431,10 +431,18 @@ public class MainActivity extends Activity {
                 Uri treeUri = Uri.parse(persistedUriStr);
 
                 try {
+                    if (content == null || content.isEmpty()) {
+                        evaluateJavascript("if (window.__writeFileReject) window.__writeFileReject('No content for file: " + path + "');");
+                        return;
+                    }
                     Uri fileUri = getFileUriForPath(treeUri, path, true, "text/plain");
                     if (fileUri != null && writeFileContent(fileUri, content)) {
                         evaluateJavascript("if (window.__writeFileResolve) window.__writeFileResolve(true);");
                     } else {
+                        // Clean up the empty file that was created
+                        if (fileUri != null) {
+                            try { DocumentsContract.deleteDocument(getContentResolver(), fileUri); } catch (Exception ignored) {}
+                        }
                         evaluateJavascript("if (window.__writeFileReject) window.__writeFileReject('Could not write to file: " + path + "');");
                     }
                 } catch (Exception e) {
@@ -475,11 +483,15 @@ public class MainActivity extends Activity {
                         JSONObject fileObj = filesArray.getJSONObject(i);
                         String path = fileObj.getString("path");
                         String content = fileObj.getString("content");
+                        if (content == null || content.isEmpty()) continue;
 
                         Uri fileUri = getFileUriForPath(treeUri, path, true, "text/plain");
                         if (fileUri != null) {
                             if (writeFileContent(fileUri, content)) {
                                 count++;
+                            } else {
+                                // Clean up the empty file that was created
+                                try { DocumentsContract.deleteDocument(getContentResolver(), fileUri); } catch (Exception ignored) {}
                             }
                         }
                     }

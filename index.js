@@ -3108,16 +3108,31 @@ Answer the user request using the workspace files above. When asked to modify fi
         if (workspaceHandle) {
           const permitted = await verifyPermission(workspaceHandle, 'readwrite');
           if (!permitted) throw new Error('Folder write permission was denied.');
+          let written = 0;
+          const writeErrors = [];
           for (const edit of pendingEdits) {
-            const handle = await getFileHandleForPath(workspaceHandle, edit.path, true);
-            const writable = await handle.createWritable();
-            await writable.write(edit.content);
-            await writable.close();
+            if (typeof edit.content !== 'string' || !edit.content) {
+              writeErrors.push(edit.path + ' (no content)');
+              continue;
+            }
+            try {
+              const handle = await getFileHandleForPath(workspaceHandle, edit.path, true);
+              const writable = await handle.createWritable();
+              await writable.write(edit.content);
+              await writable.close();
+              written++;
+            } catch (writeErr) {
+              console.error(`Failed to write ${edit.path}:`, writeErr);
+              writeErrors.push(edit.path);
+            }
           }
-          const count = pendingEdits.length;
-          clearPendingEdits();
-          showToast(`Applied ${count} edited file${count === 1 ? '' : 's'} to the workspace.`);
-          return;
+          if (written > 0) {
+            const errorNote = writeErrors.length ? ` (${writeErrors.length} failed)` : '';
+            clearPendingEdits();
+            showToast(`Applied ${written} edited file${written === 1 ? '' : 's'} to the workspace.${errorNote}`);
+            return;
+          }
+          if (writeErrors.length) throw new Error(`All ${writeErrors.length} file write(s) failed.`);
         }
         downloadPendingEditsZip();
         showToast('Direct write is unavailable. Downloaded reviewed edits as a ZIP fallback.');
@@ -3561,6 +3576,11 @@ window.clearWorkspace = clearWorkspace;
 window.openAttachmentPicker = openAttachmentPicker;
 window.applyPendingEdits = applyPendingEdits;
 window.clearPendingEdits = clearPendingEdits;
+Object.defineProperty(window, 'pendingEdits', {
+  get() { return pendingEdits; },
+  set(value) { pendingEdits = value; },
+  configurable: true
+});
 window.closeContextPreview = closeContextPreview;
 window.copyContextPreview = copyContextPreview;
 window.toggleWorkspaceCollapse = toggleWorkspaceCollapse;
