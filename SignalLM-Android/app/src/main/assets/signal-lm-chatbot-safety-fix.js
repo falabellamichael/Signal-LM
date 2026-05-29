@@ -16,19 +16,56 @@
   var MAX_REPEAT = 2;
 
   var lastInteraction = 0;
+  var userHasJustSubmitted = false;
+  var submissionTimeout = null;
+
   function trackInteraction() {
     lastInteraction = Date.now();
   }
+
+  function flagUserSubmission() {
+    userHasJustSubmitted = true;
+    trackInteraction();
+    if (submissionTimeout) clearTimeout(submissionTimeout);
+    submissionTimeout = setTimeout(function () {
+      userHasJustSubmitted = false;
+    }, 60000);
+  }
+
   if (typeof document !== 'undefined') {
     document.addEventListener('keydown', trackInteraction, true);
-    document.addEventListener('click', trackInteraction, true);
     document.addEventListener('mousedown', trackInteraction, true);
     document.addEventListener('touchstart', trackInteraction, true);
     document.addEventListener('input', trackInteraction, true);
-    document.addEventListener('submit', trackInteraction, true);
+
+    document.addEventListener('submit', function (e) {
+      if (e.target && (e.target.id === 'chat-form' || e.target.classList.contains('input-area'))) {
+        flagUserSubmission();
+      } else {
+        trackInteraction();
+      }
+    }, true);
+
+    document.addEventListener('click', function (e) {
+      var target = e.target;
+      var isSubmitClick = false;
+      while (target && target !== document) {
+        if (target.id === 'send-btn' || target.classList.contains('send-btn') || target.classList.contains('submit-btn')) {
+          isSubmitClick = true;
+          break;
+        }
+        target = target.parentNode;
+      }
+      if (isSubmitClick) {
+        flagUserSubmission();
+      } else {
+        trackInteraction();
+      }
+    }, true);
   }
+
   function isUserInteracting() {
-    return (Date.now() - lastInteraction) < 15000;
+    return (Date.now() - lastInteraction) < 4000;
   }
 
   function now() { return Date.now(); }
@@ -105,6 +142,15 @@
           var parsed = JSON.parse(raw);
           if (isMcpChatRequest(resource, parsed)) {
             var key = hashString(normalizeFetchBody(parsed));
+            if (userHasJustSubmitted) {
+              userHasJustSubmitted = false;
+              if (submissionTimeout) {
+                clearTimeout(submissionTimeout);
+                submissionTimeout = null;
+              }
+              rememberAndCheck(recentFetches, key, WINDOW_MS, MAX_REPEAT);
+              return originalFetch(resource, init);
+            }
             if (rememberAndCheck(recentFetches, key, WINDOW_MS, MAX_REPEAT)) {
               if (isUserInteracting()) {
                 return originalFetch(resource, init);
@@ -128,7 +174,7 @@
     if (!api || typeof api.submitPrompt !== 'function' || api.submitPrompt[SUBMIT_FLAG]) return false;
     var originalSubmit = api.submitPrompt;
     api.submitPrompt = function signalLmLoopGuardSubmit(prompt) {
-      trackInteraction();
+      flagUserSubmission();
       var key = hashString(normalizePrompt(prompt));
       if (rememberAndCheck(recentPrompts, key, WINDOW_MS, MAX_REPEAT)) {
         if (isUserInteracting()) {
@@ -264,7 +310,7 @@
     if (typeof window.executeSlashCommand === 'function' && !window.executeSlashCommand.__patchedForInteraction) {
       var originalExec = window.executeSlashCommand;
       window.executeSlashCommand = function () {
-        trackInteraction();
+        flagUserSubmission();
         return originalExec.apply(this, arguments);
       };
       window.executeSlashCommand.__patchedForInteraction = true;
