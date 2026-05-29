@@ -1874,10 +1874,31 @@ const STORAGE_KEYS = {
 
     async function collectWorkspaceContextForPrompt(userText) {
       if (!workspaceFiles.length) return '';
-      if (!contextHelperEnabled() || getContextHelperMode() === 'full') return collectWorkspaceContext();
+
+      let targetEntry = null;
+      let targetContent = null;
+      const editMatch = String(userText || '').trim().match(/^Edit\s+([^\n]+)\r?\n\r?\nRequest:/i);
+      if (editMatch) {
+        let targetPath = editMatch[1].trim();
+        if (targetPath.endsWith('.')) targetPath = targetPath.slice(0, -1).trim();
+        targetEntry = resolveWorkspaceEntry(targetPath);
+        if (targetEntry) {
+          try {
+            targetContent = await readWorkspaceEntry(targetEntry);
+          } catch (e) {
+            console.warn('Failed to pre-read edit target:', e);
+          }
+        }
+      }
+
+      if (!contextHelperEnabled() || getContextHelperMode() === 'full') return collectWorkspaceContext(targetEntry);
 
       const selected = workspaceFiles.filter(file => workspaceSelectedPaths.has(file.path));
-      const candidates = (selected.length ? selected : workspaceFiles).slice(0, MAX_WORKSPACE_SCAN_FILES);
+      let candidates = (selected.length ? selected : workspaceFiles).slice(0, MAX_WORKSPACE_SCAN_FILES);
+      if (targetEntry) {
+        candidates = candidates.filter(entry => entry.path !== targetEntry.path);
+      }
+
       const terms = buildContextHelperTerms(userText);
       const editRequest = isLikelyEditRequest(userText);
       const ranked = [];
@@ -1900,6 +1921,15 @@ const STORAGE_KEYS = {
       const blocks = [];
       const snippetsUsed = [];
       let used = 0;
+
+      if (targetEntry && targetContent !== null) {
+        let body = targetContent.slice(0, maxChars);
+        if (targetContent.length > body.length) body += '\n\n[Target edit file clipped at context budget.]';
+        used += body.length;
+        blocks.push(`--- TARGET FILE FOR EDIT SELECTED BY USER: ${targetEntry.path}
+${body}
+--- END TARGET FILE: ${targetEntry.path}`);
+      }
 
       for (let i = 0; i < chosen.length && used < maxChars; i++) {
         const { entry, content, score } = chosen[i];
@@ -1936,7 +1966,7 @@ ${body}
       const manifest = summarizePathList(workspaceFiles);
       const fallback = blocks.length ? blocks.join('\n\n') : '[The helper could not read matching snippets; use the manifest and ask for a narrower request if needed.]';
       lastContextScoutReport = {
-        filesConsidered: candidates.length,
+        filesConsidered: candidates.length + (targetEntry ? 1 : 0),
         filesIncluded: blocks.length,
         snippets: snippetsUsed.length,
         characters: used,
@@ -2497,10 +2527,13 @@ Answer the user request using the workspace files above. When asked to modify fi
       throw new Error(`Could not read ${entry.path}`);
     }
 
-    async function collectWorkspaceContext() {
+    async function collectWorkspaceContext(priorityEntry = null) {
       if (!workspaceFiles.length) return '';
-      const selected = workspaceFiles.filter(file => workspaceSelectedPaths.has(file.path));
-      const contextFiles = (selected.length ? selected : workspaceFiles).slice(0, MAX_WORKSPACE_CONTEXT_FILES);
+      let selected = workspaceFiles.filter(file => workspaceSelectedPaths.has(file.path));
+      if (priorityEntry && !selected.some(f => f.path === priorityEntry.path)) {
+        selected = [priorityEntry].concat(selected);
+      }
+      const contextFiles = (selected.length ? selected : (priorityEntry ? [priorityEntry].concat(workspaceFiles.filter(f => f.path !== priorityEntry.path)) : workspaceFiles)).slice(0, MAX_WORKSPACE_CONTEXT_FILES);
       const manifest = workspaceFiles
         .slice(0, 120)
         .map(file => `- ${file.path}${file.size ? ` (${fileSizeLabel(file.size)})` : ''}`)
@@ -2571,6 +2604,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       }
 
       workspaceHandle = directoryHandle;
+      window.__signalLmActiveWorkspacePath = directoryHandle.name || '';
       try { await idbSet(WORKSPACE_HANDLE_KEY, workspaceHandle); } catch {}
       nativeWorkspace = null;
       const files = await scanDirectoryHandle(workspaceHandle);
@@ -2593,6 +2627,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       const data = Array.isArray(parsed) ? { files: parsed } : (parsed || {});
       const files = Array.isArray(data.files) ? data.files : [];
       nativeWorkspace = data;
+      window.__signalLmActiveWorkspacePath = data.path || data.rootPath || data.folderPath || '';
       workspaceHandle = null;
       setWorkspaceFiles(files.map(file => ({ ...file, source: 'native' })), {
         name: data.name || data.rootName || data.path || 'App workspace',
@@ -2690,7 +2725,37 @@ Answer the user request using the workspace files above. When asked to modify fi
     }
 
     function normalizeWorkspacePath(path) {
-      const clean = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/').trim();
+      let clean = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/').trim();
+      if (!clean) return '';
+
+      const roots = [];
+      if (typeof window.__signalLmActiveWorkspacePath === 'string' && window.__signalLmActiveWorkspacePath) {
+        roots.push(window.__signalLmActiveWorkspacePath);
+      }
+      if (typeof nativeWorkspace?.path === 'string' && nativeWorkspace.path) {
+        roots.push(nativeWorkspace.path);
+      }
+      if (typeof nativeWorkspace?.rootPath === 'string' && nativeWorkspace.rootPath) {
+        roots.push(nativeWorkspace.rootPath);
+      }
+      if (typeof nativeWorkspace?.folderPath === 'string' && nativeWorkspace.folderPath) {
+        roots.push(nativeWorkspace.folderPath);
+      }
+      try {
+        const mcpSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}') || {};
+        if (mcpSettings.mcpFilePath) {
+          roots.push(mcpSettings.mcpFilePath);
+        }
+      } catch (e) {}
+
+      for (let root of roots) {
+        root = String(root).replace(/\\/g, '/').replace(/\/+$/, '').trim();
+        if (root && clean.toLowerCase().indexOf(root.toLowerCase()) === 0) {
+          clean = clean.slice(root.length).replace(/^\/+/, '').trim();
+          break;
+        }
+      }
+
       if (!clean || clean.includes('../') || clean === '..' || /^[a-z]+:/i.test(clean)) return '';
       return clean;
     }

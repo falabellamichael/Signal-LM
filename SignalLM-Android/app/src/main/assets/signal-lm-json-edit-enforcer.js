@@ -85,6 +85,27 @@
 
   function normalizeWorkspacePath(path) {
     var clean = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/').trim();
+    if (!clean) return '';
+
+    var roots = [];
+    if (typeof window.__signalLmActiveWorkspacePath === 'string' && window.__signalLmActiveWorkspacePath) {
+      roots.push(window.__signalLmActiveWorkspacePath);
+    }
+    try {
+      var mcpSettings = JSON.parse(localStorage.getItem('lmStudioLite.settings.v1') || '{}') || {};
+      if (mcpSettings.mcpFilePath) {
+        roots.push(mcpSettings.mcpFilePath);
+      }
+    } catch (e) {}
+
+    for (var i = 0; i < roots.length; i++) {
+      var root = String(roots[i]).replace(/\\/g, '/').replace(/\/+$/, '').trim();
+      if (root && clean.toLowerCase().indexOf(root.toLowerCase()) === 0) {
+        clean = clean.slice(root.length).replace(/^\/+/, '').trim();
+        break;
+      }
+    }
+
     if (!clean || clean.indexOf('../') !== -1 || clean === '..' || /^[a-z]+:/i.test(clean)) return '';
     return clean;
   }

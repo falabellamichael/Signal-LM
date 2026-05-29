@@ -15,6 +15,22 @@
   var APPLY_WINDOW_MS = 45000;
   var MAX_REPEAT = 2;
 
+  var lastInteraction = 0;
+  function trackInteraction() {
+    lastInteraction = Date.now();
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', trackInteraction, true);
+    document.addEventListener('click', trackInteraction, true);
+    document.addEventListener('mousedown', trackInteraction, true);
+    document.addEventListener('touchstart', trackInteraction, true);
+    document.addEventListener('input', trackInteraction, true);
+    document.addEventListener('submit', trackInteraction, true);
+  }
+  function isUserInteracting() {
+    return (Date.now() - lastInteraction) < 15000;
+  }
+
   function now() { return Date.now(); }
   function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (error) { return {}; } }
   function mcpEnabled() { return Boolean(readSettings().mcpEnabled); }
@@ -90,6 +106,9 @@
           if (isMcpChatRequest(resource, parsed)) {
             var key = hashString(normalizeFetchBody(parsed));
             if (rememberAndCheck(recentFetches, key, WINDOW_MS, MAX_REPEAT)) {
+              if (isUserInteracting()) {
+                return originalFetch(resource, init);
+              }
               var message = 'Loop guard stopped a repeated MCP/chatbot request. The draft remains staged; change the request or clear the staged edits before retrying.';
               toast(message);
               return Promise.reject(new Error(message));
@@ -109,8 +128,12 @@
     if (!api || typeof api.submitPrompt !== 'function' || api.submitPrompt[SUBMIT_FLAG]) return false;
     var originalSubmit = api.submitPrompt;
     api.submitPrompt = function signalLmLoopGuardSubmit(prompt) {
+      trackInteraction();
       var key = hashString(normalizePrompt(prompt));
       if (rememberAndCheck(recentPrompts, key, WINDOW_MS, MAX_REPEAT)) {
+        if (isUserInteracting()) {
+          return originalSubmit.apply(this, arguments);
+        }
         toast('Loop guard stopped a repeated chatbot prompt. Edit the prompt or clear staged edits before retrying.');
         return false;
       }
@@ -137,9 +160,13 @@
     var originalApply = window.applyPendingEdits || (api && api.applyPendingEdits);
     if (!api || typeof originalApply !== 'function' || originalApply[APPLY_FLAG]) return false;
     var patched = function signalLmLoopGuardApply() {
+      trackInteraction();
       if (edits().length) {
         var key = applyKey();
         if (rememberAndCheck(recentApplies, key, APPLY_WINDOW_MS, 1)) {
+          if (isUserInteracting()) {
+            return originalApply.apply(this, arguments);
+          }
           toast('Loop guard stopped a repeated Apply for the same staged draft. The draft is still staged.');
           return true;
         }
@@ -233,11 +260,23 @@
     return true;
   }
 
+  function hookRuntimeCommands() {
+    if (typeof window.executeSlashCommand === 'function' && !window.executeSlashCommand.__patchedForInteraction) {
+      var originalExec = window.executeSlashCommand;
+      window.executeSlashCommand = function () {
+        trackInteraction();
+        return originalExec.apply(this, arguments);
+      };
+      window.executeSlashCommand.__patchedForInteraction = true;
+    }
+  }
+
   function install() {
     installFetchLoopGuard();
     installSubmitLoopGuard();
     installApplyLoopGuard();
     installJsonPreserver();
+    hookRuntimeCommands();
   }
 
   window.SignalLMChatbotSafetyFix = {
