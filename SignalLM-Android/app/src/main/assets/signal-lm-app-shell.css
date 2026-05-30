@@ -490,7 +490,7 @@ body.sidebar-resizing * {
   }
 
   .sidebar-open .mobile-toggle {
-    transform: translateX(min(var(--sidebar-width, 290px), calc(100vw - 1.25rem))) !important;
+    transform: translateX(min(290px, calc(100vw - 1.25rem))) !important;
   }
 
   .mobile-scrim {
