@@ -2,13 +2,13 @@
   const SYSTEM_SIDEBAR_KEY = 'lmStudioLite.systemSidebar.v1';
   const INFERENCE_TELEMETRY_KEY = 'lmStudioLite.inferenceTelemetry.v1';
   const LOCAL_TELEMETRY_URL = 'http://127.0.0.1:8766/status';
-  const MAX_SAMPLES = 42;
+  const MAX_SAMPLES = 60;
   const DEFAULT_POLL_SECONDS = {
-    cpu: 3,
-    gpu: 5,
-    memory: 3,
-    storage: 10,
-    inference: 2
+    cpu: 1,
+    gpu: 1,
+    memory: 1,
+    storage: 5,
+    inference: 1
   };
 
   const METRICS = [
@@ -714,13 +714,38 @@
     }
 
     const step = width / Math.max(1, samples.length - 1);
+    const points = samples.map((sample, index) => ({
+      x: index * step,
+      y: height - (clamp(sample, 0, 100) / 100) * (height - 10) - 5
+    }));
+
     ctx.beginPath();
-    samples.forEach((sample, index) => {
-      const x = index * step;
-      const y = height - (clamp(sample, 0, 100) / 100) * (height - 10) - 5;
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      const curr = points[i];
+      const prev = points[i - 1];
+      const xc = (prev.x + curr.x) / 2;
+      ctx.bezierCurveTo(xc, prev.y, xc, curr.y, curr.x, curr.y);
+    }
+    
+    ctx.lineTo(points[points.length - 1].x, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.15;
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      const curr = points[i];
+      const prev = points[i - 1];
+      const xc = (prev.x + curr.x) / 2;
+      ctx.bezierCurveTo(xc, prev.y, xc, curr.y, curr.x, curr.y);
+    }
+
     ctx.strokeStyle = accent;
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';

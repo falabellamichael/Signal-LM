@@ -8,13 +8,13 @@ const HOST = process.env.SIGNAL_LM_TELEMETRY_HOST || '127.0.0.1';
 const PORT = Number(process.env.SIGNAL_LM_TELEMETRY_PORT || 8766);
 const LM_STUDIO_BASE_URL = (process.env.SIGNAL_LM_API_BASE_URL || 'http://localhost:1234/v1').replace(/\/+$/, '');
 const LM_STUDIO_API_KEY = process.env.SIGNAL_LM_API_KEY || process.env.LM_STUDIO_API_KEY || '';
-const GPU_CACHE_MS = Number(process.env.SIGNAL_LM_GPU_CACHE_MS || 5000);
+const GPU_CACHE_MS = Number(process.env.SIGNAL_LM_GPU_CACHE_MS || 1000);
 const WINDOWS_GPU_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_TIMEOUT_MS || 12000);
 const WINDOWS_GPU_DEVICE_CACHE_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_CACHE_MS || 10 * 60 * 1000);
 const WINDOWS_GPU_DEVICE_TIMEOUT_MS = Number(process.env.SIGNAL_LM_WINDOWS_GPU_DEVICE_TIMEOUT_MS || 25000);
 const LM_STUDIO_TIMEOUT_MS = Number(process.env.SIGNAL_LM_TIMEOUT_MS || 900);
 const LM_STUDIO_CACHE_MS = Number(process.env.SIGNAL_LM_LM_STUDIO_CACHE_MS || 60000);
-const STORAGE_CACHE_MS = Number(process.env.SIGNAL_LM_STORAGE_CACHE_MS || 15000);
+const STORAGE_CACHE_MS = Number(process.env.SIGNAL_LM_STORAGE_CACHE_MS || 5000);
 
 let lastCpuSnapshot = readCpuSnapshot();
 let lastCpuSnapshotAt = Date.now();
