@@ -190,7 +190,7 @@ async function readNvidiaTelemetry() {
   if (!devices.length) throw new Error('nvidia-smi returned no GPU rows.');
   const usageValues = devices.map(device => device.usagePercent).filter(Number.isFinite);
   const usagePercent = usageValues.length
-    ? usageValues.reduce((sum, value) => sum + value, 0) / usageValues.length
+    ? Math.max(...usageValues)
     : null;
   const memoryUsedBytes = devices.reduce((sum, device) => sum + (device.memoryUsedBytes || 0), 0);
   const memoryTotalBytes = devices.reduce((sum, device) => sum + (device.memoryTotalBytes || 0), 0);

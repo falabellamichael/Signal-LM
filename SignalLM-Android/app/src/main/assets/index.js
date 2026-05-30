@@ -1438,7 +1438,7 @@ const STORAGE_KEYS = {
                 let reformatted = '';
                 for (const file of parsed.files) {
                   const ext = file.path ? file.path.split('.').pop() : '';
-                  reformatted += `<div class="file-header">${file.path || 'file'}</div><pre class="line-numbers"><code class="language-${ext}">${escapeHtml(file.content || '').replace(/^\n+|\n+$/g, '')}</code></pre>`;
+                  reformatted += `<div class="file-header">${file.path || 'file'}</div><pre><code class="language-${ext}">${escapeHtml(file.content || '').replace(/^\n+|\n+$/g, '')}</code></pre>`;
                 }
                 html += reformatted;
                 continue;
@@ -1458,7 +1458,7 @@ const STORAGE_KEYS = {
             headerHtml = `<div class="file-header">${filepath}</div>`;
           }
 
-          html += `${headerHtml}<pre class="line-numbers"><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
+          html += `${headerHtml}<pre><code${lang ? ` class="language-${lang}"` : ''}>${code.replace(/^\n+|\n+$/g, '')}</code></pre>`;
         }
       }
       return html;
