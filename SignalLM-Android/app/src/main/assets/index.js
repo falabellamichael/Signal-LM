@@ -5,7 +5,9 @@ const STORAGE_KEYS = {
       fileContext: 'lmStudioLite.fileContext.v1',
       workspaceInfo: 'lmStudioLite.workspaceInfo.v1',
       nativeResponseId: 'lmStudioLite.nativeResponseId.v1',
-      inferenceTelemetry: 'lmStudioLite.inferenceTelemetry.v1'
+      inferenceTelemetry: 'lmStudioLite.inferenceTelemetry.v1',
+      history: 'lmStudioLite.history.v1',
+      activeChatId: 'lmStudioLite.activeChatId.v1'
     };
 
     const SIDEBAR_WIDTH_MIN = 280;
@@ -61,7 +63,9 @@ const STORAGE_KEYS = {
     const MAX_CHAT_HISTORY_WITH_WORKSPACE = 4;
 
     let settings = loadSettings();
-    let messages = settings.persistChat ? loadMessages() : [];
+    let chatHistory = [];
+    let activeChatId = null;
+    let messages = [];
     let abortController = null;
     let isStreaming = false;
     let attachments = [];
@@ -82,6 +86,8 @@ const STORAGE_KEYS = {
       systemSidebar: document.getElementById('system-sidebar'),
       systemSidebarResizeHandle: document.getElementById('system-sidebar-resize-handle'),
       scrim: document.getElementById('mobile-scrim'),
+      historyList: document.getElementById('system-history-list'),
+      newChatBtn: document.getElementById('new-chat-btn'),
       msgContainer: document.getElementById('messages'),
       userInput: document.getElementById('user-input'),
       sendBtn: document.getElementById('send-btn'),
@@ -154,9 +160,231 @@ const STORAGE_KEYS = {
       }
     }
 
+    function createNewChatState() {
+      return {
+        id: Date.now().toString(),
+        title: 'New Chat',
+        messages: [],
+        timestamp: Date.now()
+      };
+    }
+
+    function generateChatTitle(msgs) {
+      if (!msgs || msgs.length === 0) return 'New Chat';
+      const firstUserMsg = msgs.find(m => m.role === 'user');
+      if (!firstUserMsg) return 'New Chat';
+      const text = firstUserMsg.content || '';
+      return text.slice(0, 30).trim() + (text.length > 30 ? '...' : '');
+    }
+
+    function loadHistory() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(STORAGE_KEYS.history) || '[]');
+        chatHistory = Array.isArray(loaded) ? loaded : [];
+      } catch {
+        chatHistory = [];
+      }
+
+      activeChatId = localStorage.getItem(STORAGE_KEYS.activeChatId);
+
+      if (!settings.persistChat) {
+        chatHistory = [];
+        activeChatId = null;
+      }
+
+      if (chatHistory.length === 0) {
+        const legacyMsgs = loadMessages();
+        if (legacyMsgs.length > 0) {
+          const initialChat = {
+            id: Date.now().toString(),
+            title: generateChatTitle(legacyMsgs),
+            messages: legacyMsgs,
+            timestamp: Date.now()
+          };
+          chatHistory = [initialChat];
+          activeChatId = initialChat.id;
+          saveHistory();
+        } else {
+          const newChat = createNewChatState();
+          chatHistory = [newChat];
+          activeChatId = newChat.id;
+          saveHistory();
+        }
+      }
+
+      if (!activeChatId || !chatHistory.some(c => c.id === activeChatId)) {
+        activeChatId = chatHistory[0]?.id || null;
+      }
+
+      const activeChat = chatHistory.find(c => c.id === activeChatId);
+      messages = activeChat ? activeChat.messages : [];
+    }
+
+    function saveHistory() {
+      if (settings.persistChat) {
+        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(chatHistory));
+        if (activeChatId) {
+          localStorage.setItem(STORAGE_KEYS.activeChatId, activeChatId);
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.activeChatId);
+        }
+      }
+      saveMessages();
+    }
+
     function saveMessages() {
+      const activeChat = chatHistory.find(c => c.id === activeChatId);
+      if (activeChat) {
+        activeChat.messages = messages;
+        activeChat.timestamp = Date.now();
+        if (activeChat.title === 'New Chat' || !activeChat.title || activeChat.title === '') {
+          activeChat.title = generateChatTitle(messages);
+        }
+      }
+
       if (settings.persistChat) {
         localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages));
+        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(chatHistory));
+      }
+      renderHistoryList();
+    }
+
+    function renderHistoryList() {
+      if (!els.historyList) return;
+      els.historyList.innerHTML = '';
+
+      if (chatHistory.length === 0) {
+        els.historyList.innerHTML = '<div class="sidebar-note">No chat history</div>';
+        return;
+      }
+
+      chatHistory.forEach(chat => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        if (chat.id === activeChatId) {
+          item.classList.add('active');
+        }
+        item.setAttribute('data-history-id', chat.id);
+
+        const content = document.createElement('div');
+        content.className = 'history-item-content';
+
+        const title = document.createElement('div');
+        title.className = 'history-item-title';
+        title.textContent = chat.title || 'New Chat';
+
+        const time = document.createElement('div');
+        time.className = 'history-item-time';
+        time.textContent = formatHistoryTime(chat.timestamp);
+
+        content.appendChild(title);
+        content.appendChild(time);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'history-item-delete ghost-btn';
+        deleteBtn.type = 'button';
+        deleteBtn.innerHTML = '✕';
+        deleteBtn.title = 'Delete chat';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteChat(chat.id);
+        });
+
+        item.appendChild(content);
+        item.appendChild(deleteBtn);
+
+        item.addEventListener('click', () => {
+          switchActiveChat(chat.id);
+        });
+
+        els.historyList.appendChild(item);
+      });
+    }
+
+    function formatHistoryTime(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(Number(timestamp));
+      if (isNaN(date.getTime())) return '';
+      const now = new Date();
+      
+      const isToday = date.toDateString() === now.toDateString();
+      
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const isYesterday = yesterday.toDateString() === date.toDateString();
+      
+      if (isToday) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (isYesterday) {
+        return 'Yesterday';
+      } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+    }
+
+    function startNewChat() {
+      if (messages.length === 0) {
+        focusInput();
+        return;
+      }
+
+      const emptyChat = chatHistory.find(c => c.messages.length === 0);
+      if (emptyChat) {
+        switchActiveChat(emptyChat.id);
+        return;
+      }
+
+      const newChat = createNewChatState();
+      chatHistory.unshift(newChat);
+      activeChatId = newChat.id;
+      messages = newChat.messages;
+      
+      saveHistory();
+      renderMessages();
+      renderHistoryList();
+      focusInput();
+    }
+
+    function switchActiveChat(id) {
+      if (id === activeChatId) return;
+      activeChatId = id;
+      const chat = chatHistory.find(c => c.id === id);
+      messages = chat ? chat.messages : [];
+      
+      stopGeneration();
+      
+      saveHistory();
+      renderMessages();
+      renderHistoryList();
+      focusInput();
+    }
+
+    function deleteChat(id) {
+      const index = chatHistory.findIndex(c => c.id === id);
+      if (index === -1) return;
+
+      chatHistory.splice(index, 1);
+
+      if (id === activeChatId) {
+        if (chatHistory.length > 0) {
+          activeChatId = chatHistory[0].id;
+          messages = chatHistory[0].messages;
+        } else {
+          const newChat = createNewChatState();
+          chatHistory = [newChat];
+          activeChatId = newChat.id;
+          messages = newChat.messages;
+        }
+        renderMessages();
+      }
+
+      saveHistory();
+      renderHistoryList();
+    }
+
+    function focusInput() {
+      if (els.userInput) {
+        els.userInput.focus();
       }
     }
 
@@ -2316,9 +2544,18 @@ Workspace context is present in the latest user message. Treat those files as at
 
     function clearChat() {
       messages = [];
-      localStorage.removeItem(STORAGE_KEYS.messages);
       localStorage.removeItem(STORAGE_KEYS.nativeResponseId);
+      
+      const activeChat = chatHistory.find(c => c.id === activeChatId);
+      if (activeChat) {
+        activeChat.messages = [];
+        activeChat.title = 'New Chat';
+        activeChat.timestamp = Date.now();
+      }
+      
+      saveHistory();
       renderMessages();
+      renderHistoryList();
       showToast('Chat cleared.');
     }
 
@@ -3706,6 +3943,10 @@ Answer the user request using the workspace files above. When asked to modify fi
       bindSystemSidebarResize();
       syncRangeAndNumber(els.tempRange, els.tempInput, els.tempValue, 'temperature', 0, 2);
       syncRangeAndNumber(els.topPRange, els.topPInput, els.topPValue, 'topP', 0, 1);
+
+      if (els.newChatBtn) {
+        els.newChatBtn.addEventListener('click', startNewChat);
+      }
     }
 
     function hydrateFileContext() {
@@ -3790,8 +4031,10 @@ Answer the user request using the workspace files above. When asked to modify fi
       exposePromptContextCollector();
 
       applySettingsToUI();
+      loadHistory();
       bindEvents();
       renderMessages();
+      renderHistoryList();
       initScrollPill();
       loadWorkspaceHandle();
       hydrateFileContext();

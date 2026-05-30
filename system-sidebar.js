@@ -71,7 +71,7 @@
     panels: Array.from(document.querySelectorAll('[data-system-panel]'))
   };
 
-  if (!els.sidebar || !els.metricsGrid || !els.pollingList || !els.deviceList) return;
+  if (!els.sidebar || !els.metricsGrid || !els.deviceList) return;
 
   function readPanelSettings() {
     try { return JSON.parse(localStorage.getItem(SYSTEM_SIDEBAR_KEY) || '{}') || {}; }
@@ -160,6 +160,7 @@
   }
 
   function renderPollingList() {
+    if (!els.pollingList) return;
     els.pollingList.innerHTML = METRICS.map(def => `
       <div class="system-polling-row">
         <div>

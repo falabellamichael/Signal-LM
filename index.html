@@ -709,7 +709,7 @@
 
     <div class="system-tabs" role="tablist" aria-label="System sidebar sections">
       <button class="system-tab active" type="button" data-system-tab="overview" role="tab" aria-selected="true">Status</button>
-      <button class="system-tab" type="button" data-system-tab="polling" role="tab" aria-selected="false">Polling</button>
+      <button class="system-tab" type="button" data-system-tab="history" role="tab" aria-selected="false">History</button>
       <button class="system-tab" type="button" data-system-tab="devices" role="tab" aria-selected="false">Devices</button>
     </div>
 
@@ -721,12 +721,15 @@
       <div class="system-metrics-grid" id="system-metrics-grid"></div>
     </section>
 
-    <section class="system-tab-panel" data-system-panel="polling" role="tabpanel">
+    <section class="system-tab-panel" data-system-panel="history" role="tabpanel">
       <div class="system-section-heading">
-        <span class="system-section-icon" aria-hidden="true">↻</span>
-        <h2>Polling Rates</h2>
+        <span class="system-section-icon" aria-hidden="true">📜</span>
+        <h2>Chat History</h2>
       </div>
-      <div class="system-polling-list" id="system-polling-list"></div>
+      <div class="system-sidebar-history-container">
+        <button class="new-chat-btn" id="new-chat-btn" type="button">+ New Chat</button>
+        <div class="system-history-list" id="system-history-list"></div>
+      </div>
     </section>
 
     <section class="system-tab-panel" data-system-panel="devices" role="tabpanel">
