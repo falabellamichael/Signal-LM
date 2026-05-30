@@ -133,7 +133,6 @@
         }
       }
     } catch (e) {}
-    if (!models.length) throw new Error('No models returned by ' + url);
     return { models: models, loaded: loaded, source: url };
   }
 
