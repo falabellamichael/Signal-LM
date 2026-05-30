@@ -258,7 +258,7 @@
     outer.open = true;
     outer.dataset.jsonIndex = String(index);
     outer.innerHTML = '<summary>Original ' + escapeHtml(block.lang) + ' block used by chatbot/tools</summary>' +
-      '<pre class="line-numbers"><code class="language-json">' + escapeHtml(block.code) + '</code></pre>';
+      '<pre><code class="language-json">' + escapeHtml(block.code) + '</code></pre>';
     return outer;
   }
 
