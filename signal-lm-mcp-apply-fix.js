@@ -3,7 +3,10 @@
   window.__signalLmMcpApplyFix = true;
 
   var SETTINGS_KEY = 'lmStudioLite.settings.v1';
+  var MESSAGES_KEY = 'lmStudioLite.messages.v1';
+  var APPLY_STATE_KEY = 'signalLm.mcpApply.pending.v1';
   var FLAG = '__signalLmMcpApplyPatched';
+  var CLEAR_FLAG = '__signalLmMcpApplyClearWatcher';
 
   function runtime() { return window.SignalLMChatCommands || {}; }
   function edits() { return Array.isArray(window.pendingEdits) ? window.pendingEdits : []; }
@@ -18,6 +21,10 @@
 
   function normalizeSlash(path) {
     return stripLanguagePrefix(path).replace(/\\/g, '/').replace(/\/+/g, '/').trim();
+  }
+
+  function normalizeComparablePath(path) {
+    return normalizeSlash(path).replace(/\/+$/, '').toLowerCase();
   }
 
   function normalizeRelative(path) {
@@ -152,6 +159,107 @@
     return lines.join('\n');
   }
 
+  function hashString(value) {
+    var str = String(value || '');
+    var hash = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      hash ^= str.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+  }
+
+  function rememberApplyState(files) {
+    var state = {
+      at: Date.now(),
+      targetPaths: files.map(function (file) { return file.targetPath; }),
+      targetKeys: files.map(function (file) { return normalizeComparablePath(file.targetPath); }),
+      sourceKeys: files.map(function (file) { return normalizeComparablePath(file.sourcePath); }),
+      contentHashes: files.map(function (file) { return hashString(file.content); })
+    };
+    try { localStorage.setItem(APPLY_STATE_KEY, JSON.stringify(state)); } catch (error) {}
+    window.__signalLmLastMcpApplyState = state;
+    return state;
+  }
+
+  function readApplyState() {
+    var state = window.__signalLmLastMcpApplyState || null;
+    if (!state) {
+      try { state = JSON.parse(localStorage.getItem(APPLY_STATE_KEY) || 'null'); } catch (error) { state = null; }
+    }
+    if (!state || !Array.isArray(state.targetKeys) || Date.now() - Number(state.at || 0) > 10 * 60 * 1000) return null;
+    return state;
+  }
+
+  function readMessages() {
+    try { return JSON.parse(localStorage.getItem(MESSAGES_KEY) || '[]') || []; } catch (error) { return []; }
+  }
+
+  function latestAssistantText() {
+    var messages = readMessages();
+    for (var i = messages.length - 1; i >= 0; i--) {
+      var message = messages[i];
+      if (message && message.role === 'assistant') return String(message.displayContent || message.content || '');
+    }
+    return '';
+  }
+
+  function responseLooksFailed(text) {
+    return /\b(failed|failure|error|permission|denied|blocked|unable|could not|cannot|can't|not allowed|rejected|exception)\b/i.test(String(text || ''));
+  }
+
+  function responseConfirmsTargets(text, state) {
+    var lower = normalizeSlash(text).toLowerCase();
+    return state.targetKeys.every(function (target) {
+      return target && lower.indexOf(target) !== -1;
+    });
+  }
+
+  function pendingEditsStillMatch(state) {
+    var current = edits();
+    if (!current.length) return false;
+    var currentHashes = current.map(function (edit) { return hashString(edit && edit.content || ''); });
+    return state.contentHashes.some(function (hash) { return currentHashes.indexOf(hash) !== -1; });
+  }
+
+  function clearAfterSuccessfulMcpApply(reason) {
+    var api = runtime();
+    if (typeof api.clearPendingEdits === 'function') api.clearPendingEdits();
+    else if (typeof window.clearPendingEdits === 'function') window.clearPendingEdits();
+    else window.pendingEdits = [];
+    try { localStorage.removeItem(APPLY_STATE_KEY); } catch (error) {}
+    window.__signalLmLastMcpApplyState = null;
+    toast(reason || 'MCP apply confirmed. Staged edits cleared.');
+  }
+
+  function inspectMcpApplyResult() {
+    var state = readApplyState();
+    if (!state || !pendingEditsStillMatch(state)) return;
+    var text = latestAssistantText();
+    if (!text) return;
+    if (responseLooksFailed(text)) return;
+    if (!responseConfirmsTargets(text, state)) return;
+    clearAfterSuccessfulMcpApply('MCP apply confirmed. Edited files cleared.');
+  }
+
+  function installApplyResultWatcher() {
+    if (window[CLEAR_FLAG]) return false;
+    window[CLEAR_FLAG] = true;
+    var originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function signalLmMcpApplySetItem(key, value) {
+      var result = originalSetItem.apply(this, arguments);
+      if (key === MESSAGES_KEY) setTimeout(inspectMcpApplyResult, 0);
+      return result;
+    };
+    if (window.MutationObserver) {
+      var target = document.getElementById('messages') || document.body;
+      var observer = new MutationObserver(function () { setTimeout(inspectMcpApplyResult, 80); });
+      if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
+    }
+    setInterval(inspectMcpApplyResult, 1500);
+    return true;
+  }
+
   function applyViaMcp() {
     var clean = sanitizePendingEdits();
     if (!clean.length) {
@@ -166,16 +274,18 @@
       toast('MCP apply needs the chat submit hook, but it is unavailable.');
       return true;
     }
+    rememberApplyState(files);
     var summary = files.map(function (file) {
       return '<li><code>' + html(file.sourcePath) + '</code> → <code>' + html(file.targetPath) + '</code></li>';
     }).join('');
-    addResult('<strong>Applying staged edit via MCP write_file</strong><ul>' + summary + '</ul><p>The draft stays staged until the MCP tool confirms the exact target path. No fallback write path is allowed.</p>');
+    addResult('<strong>Applying staged edit via MCP write_file</strong><ul>' + summary + '</ul><p>The draft stays staged until MCP confirms the exact target path. It clears automatically after confirmed success.</p>');
     api.submitPrompt(buildMcpApplyPrompt(files));
     toast('Apply sent to MCP write_file for the selected path only.');
     return true;
   }
 
   function install() {
+    installApplyResultWatcher();
     var api = runtime();
     var original = window.applyPendingEdits || (api && api.applyPendingEdits);
     if (!api || typeof original !== 'function' || original[FLAG]) return false;
@@ -195,7 +305,8 @@
     install: install,
     canApplyViaMcp: canApplyViaMcp,
     targetFilePathForEdit: targetFilePathForEdit,
-    buildMcpApplyPrompt: buildMcpApplyPrompt
+    buildMcpApplyPrompt: buildMcpApplyPrompt,
+    inspectMcpApplyResult: inspectMcpApplyResult
   };
 
   var timer = setInterval(install, 200);

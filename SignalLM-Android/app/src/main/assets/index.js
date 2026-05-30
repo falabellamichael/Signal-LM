@@ -12,6 +12,10 @@ const STORAGE_KEYS = {
     const SIDEBAR_WIDTH_MAX = 460;
     const SIDEBAR_WIDTH_DEFAULT = 290;
 
+    const SYSTEM_SIDEBAR_WIDTH_MIN = 280;
+    const SYSTEM_SIDEBAR_WIDTH_MAX = 550;
+    const SYSTEM_SIDEBAR_WIDTH_DEFAULT = 340;
+
     const DEFAULT_SETTINGS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
@@ -33,6 +37,7 @@ const STORAGE_KEYS = {
       androidUseMmap: true,
       androidUseMlock: false,
       sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
+      systemSidebarWidth: SYSTEM_SIDEBAR_WIDTH_DEFAULT,
       contextHelperEnabled: true,
       contextHelperMode: 'smart',
       contextHelperMaxSnippets: 16,
@@ -74,6 +79,8 @@ const STORAGE_KEYS = {
 
     const els = {
       sidebar: document.getElementById('sidebar'),
+      systemSidebar: document.getElementById('system-sidebar'),
+      systemSidebarResizeHandle: document.getElementById('system-sidebar-resize-handle'),
       scrim: document.getElementById('mobile-scrim'),
       msgContainer: document.getElementById('messages'),
       userInput: document.getElementById('user-input'),
@@ -536,6 +543,19 @@ const STORAGE_KEYS = {
       const clean = normalizeSidebarWidth(width);
       settings.sidebarWidth = clean;
       document.documentElement.style.setProperty('--sidebar-width', `${clean}px`);
+      return clean;
+    }
+
+    function normalizeSystemSidebarWidth(width) {
+      const parsed = parseInt(width, 10);
+      const numeric = Number.isFinite(parsed) ? parsed : SYSTEM_SIDEBAR_WIDTH_DEFAULT;
+      return Math.min(SYSTEM_SIDEBAR_WIDTH_MAX, Math.max(SYSTEM_SIDEBAR_WIDTH_MIN, numeric));
+    }
+
+    function applySystemSidebarWidth(width = settings.systemSidebarWidth) {
+      const clean = normalizeSystemSidebarWidth(width);
+      settings.systemSidebarWidth = clean;
+      document.documentElement.style.setProperty('--system-sidebar-width', `${clean}px`);
       return clean;
     }
 
@@ -1064,6 +1084,7 @@ const STORAGE_KEYS = {
 
     function applySettingsToUI() {
       applySidebarWidth(settings.sidebarWidth);
+      applySystemSidebarWidth(settings.systemSidebarWidth);
 
       els.tempRange.value = settings.temperature;
       els.tempInput.value = settings.temperature;
@@ -1553,6 +1574,64 @@ const STORAGE_KEYS = {
         else if (event.key === 'ArrowRight') nextWidth += 10;
         else if (event.key === 'Home') nextWidth = SIDEBAR_WIDTH_MIN;
         else if (event.key === 'End') nextWidth = SIDEBAR_WIDTH_MAX;
+        else return;
+        event.preventDefault();
+        commitWidth(nextWidth);
+      });
+    }
+
+    function bindSystemSidebarResize() {
+      const handle = els.systemSidebarResizeHandle;
+      if (!handle || !els.systemSidebar) return;
+
+      let pointerId = null;
+      let startX = 0;
+      let startWidth = SYSTEM_SIDEBAR_WIDTH_DEFAULT;
+
+      const desktopQuery = window.matchMedia ? window.matchMedia('(min-width: 1041px)') : null;
+      const canResize = () => !desktopQuery || desktopQuery.matches;
+      const updateWidth = (width) => {
+        return applySystemSidebarWidth(width);
+      };
+      const commitWidth = (width) => {
+        updateWidth(width);
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerdown', (event) => {
+        if (!canResize()) return;
+        event.preventDefault();
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startWidth = normalizeSystemSidebarWidth(settings.systemSidebarWidth || els.systemSidebar.getBoundingClientRect().width);
+        document.body.classList.add('system-sidebar-resizing');
+        handle.setPointerCapture?.(pointerId);
+      });
+
+      handle.addEventListener('pointermove', (event) => {
+        if (pointerId !== event.pointerId) return;
+        updateWidth(startWidth + (startX - event.clientX));
+      });
+
+      const stopResize = (event) => {
+        if (pointerId === null || (event?.pointerId && event.pointerId !== pointerId)) return;
+        try { handle.releasePointerCapture?.(pointerId); } catch {}
+        pointerId = null;
+        document.body.classList.remove('system-sidebar-resizing');
+        saveSettings();
+      };
+
+      handle.addEventListener('pointerup', stopResize);
+      handle.addEventListener('pointercancel', stopResize);
+      handle.addEventListener('lostpointercapture', stopResize);
+
+      handle.addEventListener('keydown', (event) => {
+        if (!canResize()) return;
+        let nextWidth = settings.systemSidebarWidth || SYSTEM_SIDEBAR_WIDTH_DEFAULT;
+        if (event.key === 'ArrowRight') nextWidth -= 10;
+        else if (event.key === 'ArrowLeft') nextWidth += 10;
+        else if (event.key === 'Home') nextWidth = SYSTEM_SIDEBAR_WIDTH_MIN;
+        else if (event.key === 'End') nextWidth = SYSTEM_SIDEBAR_WIDTH_MAX;
         else return;
         event.preventDefault();
         commitWidth(nextWidth);
@@ -3624,6 +3703,7 @@ Answer the user request using the workspace files above. When asked to modify fi
       });
 
       bindSidebarResize();
+      bindSystemSidebarResize();
       syncRangeAndNumber(els.tempRange, els.tempInput, els.tempValue, 'temperature', 0, 2);
       syncRangeAndNumber(els.topPRange, els.topPInput, els.topPValue, 'topP', 0, 1);
     }
