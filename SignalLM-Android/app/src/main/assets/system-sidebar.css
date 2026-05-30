@@ -373,6 +373,7 @@ body.system-sidebar-resizing * {
   overflow-y: auto;
   flex: 1;
   padding-right: 0.1rem;
+  padding-bottom: 1.5rem;
 }
 
 .history-item {
