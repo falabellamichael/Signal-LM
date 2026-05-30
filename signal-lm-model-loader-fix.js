@@ -146,8 +146,17 @@
   async function serverModels(settings) {
     var urls = unique([apiBase(settings) + '/models', cleanBase(settings.baseUrl) + '/models', openAiBase(settings) + '/models']);
     var lastError = null;
+    var succeededWithEmpty = false;
+    var successUrl = '';
     for (var i = 0; i < urls.length; i++) {
-      try { return await urlModels(urls[i], settings); }
+      try {
+        var result = await urlModels(urls[i], settings);
+        if (result.models && result.models.length > 0) {
+          return result;
+        }
+        succeededWithEmpty = true;
+        successUrl = urls[i];
+      }
       catch (error) {
         lastError = error;
         if (error && error.authRequired) {
@@ -156,6 +165,9 @@
         }
         try { console.warn('Model endpoint failed:', urls[i], error); } catch (ignored) {}
       }
+    }
+    if (succeededWithEmpty) {
+      return { models: [], loaded: [], source: successUrl };
     }
     throw lastError || new Error('No model endpoint responded');
   }
