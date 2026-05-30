@@ -127,7 +127,7 @@ html[data-theme="dark"] .empty-box {
 }
 
 html[data-theme="dark"] .brand span,
-html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.attach-btn):not(.workspace-file-chip):not(.file-chip):not(.edit-chip):not(.sidebar-resize-handle),
+html[data-theme="dark"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.attach-btn):not(.workspace-file-chip):not(.file-chip):not(.edit-chip):not(.sidebar-resize-handle):not(.system-sidebar-resize-handle),
 html[data-theme="dark"] .file-label {
   background: var(--accent) !important;
   color: var(--on-accent) !important;
