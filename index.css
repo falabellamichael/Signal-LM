@@ -1872,7 +1872,7 @@
 
     /* Hide Prism line-number gutter */
     pre.line-numbers {
-      padding-left: 0 !important;
+      padding-left: 1em !important;
     }
 
     .line-numbers-rows {
