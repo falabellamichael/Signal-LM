@@ -1869,3 +1869,45 @@
         grid-column: 1 / -1;
       }
     }
+
+    /* Fix line numbers counter reset, padding, and vertical alignment */
+    pre.line-numbers {
+      position: relative;
+      padding-left: 3.8em !important;
+      counter-reset: linenumber !important;
+    }
+
+    pre.line-numbers > code {
+      position: relative;
+      white-space: inherit;
+    }
+
+    pre.line-numbers .line-numbers-rows {
+      position: absolute;
+      pointer-events: none;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 3em;
+      border-right: 1px solid var(--border-color) !important;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      padding-top: inherit !important;
+      padding-bottom: inherit !important;
+      box-sizing: border-box;
+    }
+
+    pre.line-numbers .line-numbers-rows > span {
+      display: block;
+      counter-increment: linenumber;
+    }
+
+    pre.line-numbers .line-numbers-rows > span:before {
+      content: counter(linenumber);
+      color: var(--text-secondary) !important;
+      display: block;
+      padding-right: 0.8em;
+      text-align: right;
+    }

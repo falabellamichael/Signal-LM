@@ -1,6 +1,6 @@
 {
   "name": "signal-lm",
-  "version": "1.0.5-4",
+  "version": "1.0.5-5",
   "private": true,
   "description": "Signal LM desktop wrapper",
   "main": "desktop-main.js",
@@ -14,7 +14,7 @@
   "build": {
     "appId": "com.signallm.desktop",
     "productName": "Signal LM",
-    "buildVersion": "1.0.5.4",
+    "buildVersion": "1.0.5.5",
     "files": [
       "desktop-main.js",
       "tel-server.js",
