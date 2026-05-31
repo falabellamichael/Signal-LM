@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
-$ExpectedVersion = '1.0.5-8'
-$ExpectedBuildVersion = '1.0.5.8'
-$ExpectedInstaller = Join-Path $PSScriptRoot 'dist\Signal-LM-Setup-v1.0.5.8.exe'
+$ExpectedVersion = '1.0.5-9'
+$ExpectedBuildVersion = '1.0.5.9'
+$ExpectedInstaller = Join-Path $PSScriptRoot 'dist_new\Signal-LM-Setup-v1.0.5.9.exe'
 
 Set-Location $PSScriptRoot
 
-Write-Host 'Signal LM desktop release build v1.0.5.8'
+Write-Host 'Signal LM desktop release build v1.0.5.9'
 Write-Host "Repo: $PSScriptRoot"
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
@@ -39,9 +39,9 @@ if ($BuildVersion -ne $ExpectedBuildVersion) {
     throw "package.json buildVersion mismatch. Expected $ExpectedBuildVersion but found $BuildVersion. Run git pull origin main."
 }
 
-if (Test-Path '.\dist') {
+if (Test-Path '.\dist_new') {
     Write-Host 'Removing old dist folder...'
-    Remove-Item -Recurse -Force '.\dist'
+    Remove-Item -Recurse -Force '.\dist_new' -ErrorAction SilentlyContinue
 }
 
 Write-Host 'Installing dependencies with npm ci...'
@@ -51,7 +51,7 @@ Write-Host 'Building Windows installer...'
 npm run dist
 
 if (-not (Test-Path $ExpectedInstaller)) {
-    $FirstExe = Get-ChildItem -Path '.\dist' -Recurse -Filter '*.exe' | Select-Object -First 1
+    $FirstExe = Get-ChildItem -Path '.\dist_new' -Recurse -Filter '*.exe' | Select-Object -First 1
     if ($FirstExe) {
         Write-Host "Renaming produced installer to $ExpectedInstaller"
         Copy-Item $FirstExe.FullName $ExpectedInstaller -Force
@@ -59,9 +59,9 @@ if (-not (Test-Path $ExpectedInstaller)) {
 }
 
 if (-not (Test-Path $ExpectedInstaller)) {
-    Write-Host 'Files found in dist:'
-    if (Test-Path '.\dist') {
-        Get-ChildItem '.\dist' -Recurse | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
+    Write-Host 'Files found in dist_new:'
+    if (Test-Path '.\dist_new') {
+        Get-ChildItem '.\dist_new' -Recurse | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
     }
     throw "Installer was not created: $ExpectedInstaller"
 }
@@ -73,4 +73,4 @@ Write-Host $Installer.FullName
 Write-Host "Size: $([Math]::Round($Installer.Length / 1MB, 2)) MB"
 Write-Host "Modified: $($Installer.LastWriteTime)"
 Write-Host ''
-Write-Host 'Next: upload this file to the v1.0.5.8 GitHub Release assets.'
+Write-Host 'Next: upload this file to the v1.0.5.9 GitHub Release assets.'

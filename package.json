@@ -1,6 +1,6 @@
 {
   "name": "signal-lm",
-  "version": "1.0.5-8",
+  "version": "1.0.5-9",
   "private": true,
   "description": "Signal LM desktop wrapper",
   "main": "desktop-main.js",
@@ -14,7 +14,7 @@
   "build": {
     "appId": "com.signallm.desktop",
     "productName": "Signal LM",
-    "buildVersion": "1.0.5.8",
+    "buildVersion": "1.0.5.9",
     "files": [
       "desktop-main.js",
       "tel-server.js",
@@ -27,9 +27,9 @@
       "libs/**/*"
     ],
     "directories": {
-      "output": "dist"
+      "output": "dist_new"
     },
-    "artifactName": "Signal-LM-Setup-v1.0.5.8.exe",
+    "artifactName": "Signal-LM-Setup-v1.0.5.9.exe",
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false
