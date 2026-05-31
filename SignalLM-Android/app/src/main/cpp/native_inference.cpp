@@ -36,10 +36,10 @@ jstring make_json(JNIEnv* env, const std::string& content, bool available) {
 }
 
 #ifdef SIGNAL_LM_HAS_LLAMA
-static std::mutex g_mutex;
-static std::string g_model_path = "";
-static llama_model* g_model = nullptr;
-static bool g_backend_initialized = false;
+std::mutex g_mutex;
+std::string g_model_path;
+llama_model* g_model = nullptr;
+bool g_backend_initialized = false;
 #endif
 }
 
@@ -74,7 +74,7 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
     }
 
     if (!g_backend_initialized) {
-        llama_backend_load_all();
+        llama_backend_init();
         g_backend_initialized = true;
     }
 
@@ -97,7 +97,7 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
     }
 
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
-    int n_prompt = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, true, true);
+    int n_prompt = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), nullptr, 0, true, true);
     if (n_prompt < 0) {
         n_prompt = -n_prompt;
     }

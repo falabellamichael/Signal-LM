@@ -3,6 +3,7 @@ plugins {
 }
 
 import java.nio.file.Files
+import org.gradle.process.ExecOperations
 
 android {
     namespace 'com.signallm.app'
@@ -61,6 +62,7 @@ tasks.register('vendorLlamaCpp') {
     outputs.dir(llamaDir)
 
     doLast {
+        def execOps = services.get(ExecOperations)
         thirdPartyDir.mkdirs()
         def ref = llamaRef.get()
         if (!new File(llamaDir, '.git').exists()) {
@@ -69,17 +71,17 @@ tasks.register('vendorLlamaCpp') {
                 delete llamaDir
             }
             logger.lifecycle('Cloning llama.cpp into ' + llamaDir)
-            exec {
+            execOps.exec {
                 commandLine 'git', 'clone', '--depth', '1', '--branch', ref, llamaRepoUrl, llamaDir.absolutePath
             }
         } else {
             logger.lifecycle('Updating existing llama.cpp checkout at ' + llamaDir)
-            exec { workingDir llamaDir; commandLine 'git', 'fetch', '--depth', '1', 'origin', ref }
-            exec { workingDir llamaDir; commandLine 'git', 'checkout', 'FETCH_HEAD' }
+            execOps.exec { workingDir llamaDir; commandLine 'git', 'fetch', '--depth', '1', 'origin', ref }
+            execOps.exec { workingDir llamaDir; commandLine 'git', 'checkout', 'FETCH_HEAD' }
         }
 
         def stdout = new ByteArrayOutputStream()
-        exec {
+        execOps.exec {
             workingDir llamaDir
             commandLine 'git', 'rev-parse', 'HEAD'
             standardOutput = stdout
