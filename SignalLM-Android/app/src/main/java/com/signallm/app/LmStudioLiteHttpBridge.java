@@ -124,15 +124,37 @@ public class LmStudioLiteHttpBridge {
     }
 
     /**
-     * Compatibility shim for the JavaScript inference bridge expected by the web UI.
+     * JavaScript-visible inference bridge.
      *
-     * This does not run a local Vulkan model yet. It converts the chatCompletion payload into
-     * an OpenAI-compatible request and sends it through the existing native HTTP bridge, usually
-     * to the configured PC LM Studio server. A true Android Vulkan runtime can replace this method
-     * later while keeping the same JavaScript interface.
+     * Preferred path:
+     *   JavaScript -> chatCompletion(payload) -> NativeInferenceRuntime -> JNI/native backend.
+     *
+     * Fallback path while the real Android model backend is not linked:
+     *   JavaScript -> chatCompletion(payload) -> native HTTP bridge -> PC LM Studio server.
      */
     @JavascriptInterface
     public String chatCompletion(String payloadJson) {
+        try {
+            if (NativeInferenceRuntime.isAvailable()) {
+                return NativeInferenceRuntime.chatCompletion(payloadJson);
+            }
+        } catch (Throwable nativeError) {
+            Log.w(TAG, "Native inference unavailable, using HTTP fallback: " + nativeError.getMessage());
+        }
+        return chatCompletionViaHttp(payloadJson);
+    }
+
+    @JavascriptInterface
+    public String generate(String payloadJson) {
+        return chatCompletion(payloadJson);
+    }
+
+    @JavascriptInterface
+    public String getHardwareStatus() {
+        return NativeInferenceRuntime.statusJson();
+    }
+
+    private String chatCompletionViaHttp(String payloadJson) {
         try {
             JSONObject payload = new JSONObject(payloadJson == null ? "{}" : payloadJson);
             JSONObject requestBody = buildChatCompletionsBody(payload);
@@ -161,23 +183,20 @@ public class LmStudioLiteHttpBridge {
             }
 
             JSONObject fallback = new JSONObject();
-            fallback.put("content", "Android inference shim HTTP error " + status + ": " + response.optString("error", body));
+            fallback.put("content", "Android inference HTTP fallback error " + status + ": " + response.optString("error", body));
+            fallback.put("nativeAvailable", false);
             return fallback.toString();
         } catch (Exception error) {
-            Log.e(TAG, "chatCompletion shim error: " + error.getMessage(), error);
+            Log.e(TAG, "chatCompletion HTTP fallback error: " + error.getMessage(), error);
             try {
                 JSONObject fallback = new JSONObject();
-                fallback.put("content", "Android inference shim failed: " + (error.getMessage() == null ? error.toString() : error.getMessage()));
+                fallback.put("content", "Android inference failed: " + (error.getMessage() == null ? error.toString() : error.getMessage()));
+                fallback.put("nativeAvailable", false);
                 return fallback.toString();
             } catch (Exception ignored) {
-                return "{\"content\":\"Android inference shim failed\"}";
+                return "{\"content\":\"Android inference failed\",\"nativeAvailable\":false}";
             }
         }
-    }
-
-    @JavascriptInterface
-    public String generate(String payloadJson) {
-        return chatCompletion(payloadJson);
     }
 
     @JavascriptInterface
