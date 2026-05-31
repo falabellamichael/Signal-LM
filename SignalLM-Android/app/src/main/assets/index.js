@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
       model: 'auto-detect',
+      androidModelPath: '',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -94,6 +95,8 @@ const STORAGE_KEYS = {
       modelSelect: document.getElementById('model-select'),
       runtimeMode: document.getElementById('runtime-mode'),
       runtimeStatusLine: document.getElementById('runtime-status-line'),
+      androidModelGroup: document.getElementById('android-model-group'),
+      androidModelPath: document.getElementById('android-model-path'),
       androidRuntimeFields: document.getElementById('android-runtime-fields'),
       hybridStrategy: document.getElementById('hybrid-strategy'),
       hybridFallbackMs: document.getElementById('hybrid-fallback-ms'),
@@ -916,6 +919,7 @@ const STORAGE_KEYS = {
       const phoneBoost = hybridPhoneSupportEnabled();
       const phoneSupport = usesAndroidSupport();
       if (els.androidRuntimeFields) els.androidRuntimeFields.classList.toggle('hidden', !phoneSupport);
+      if (els.androidModelGroup) els.androidModelGroup.classList.toggle('hidden', !phoneSupport);
       if (els.hybridStrategyGroup) els.hybridStrategyGroup.classList.toggle('hidden', !hybrid);
       if (els.hybridTimeoutGroup) els.hybridTimeoutGroup.classList.toggle('hidden', !phoneBoost || strategy !== 'fallback');
       if (els.runtimeStatusLine) {
@@ -935,6 +939,12 @@ const STORAGE_KEYS = {
         }
       }
       els.serverUrlCopy.textContent = runtimeStatusCopy();
+      const statusModeLabel = document.getElementById('status-mode-label');
+      if (statusModeLabel) {
+        if (androidOnly) statusModeLabel.textContent = 'Phone Local';
+        else if (hybrid) statusModeLabel.textContent = 'Hybrid';
+        else statusModeLabel.textContent = 'Server';
+      }
       const suffix = androidOnly ? ' · Android Vulkan' : phoneBoost ? ' · Hybrid boost' : '';
       let modelText = settings.model || 'No model selected';
       if (settings.model === 'auto-detect') {
@@ -998,7 +1008,7 @@ const STORAGE_KEYS = {
       const plainPrompt = messagesToPlainPrompt(requestMessages);
 
       const payload = {
-        model: modelName,
+        model: (isHybridRuntime() || isAndroidRuntime()) ? (settings.androidModelPath || '/sdcard/Android/data/com.signallm.app/files/model.gguf') : modelName,
         messages: requestMessages,
         prompt: plainPrompt,
         stream: false,
@@ -3916,6 +3926,13 @@ Answer the user request using the workspace files above. When asked to modify fi
           saveSettings();
           updateRuntimeUi();
           loadModels();
+        });
+      }
+      
+      if (els.androidModelPath) {
+        els.androidModelPath.addEventListener('input', () => {
+          settings.androidModelPath = els.androidModelPath.value;
+          saveSettings();
         });
       }
 

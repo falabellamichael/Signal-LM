@@ -111,7 +111,7 @@
 
     <section class="status-card">
       <div class="status-row">
-        <strong style="font-size:0.93rem;">Server</strong>
+        <strong style="font-size:0.93rem;" id="status-mode-label">Server</strong>
         <span class="status-pill checking" id="status-pill"><span class="status-dot"></span><span id="status-text">Checking</span></span>
       </div>
       <p class="microcopy" id="server-url-copy">Using local LM Studio server.</p>
@@ -131,6 +131,12 @@
           <option value="android-vulkan">Android Vulkan local only</option>
         </select>
         <p class="runtime-status-line" id="runtime-status-line">Server mode uses the configured LM Studio API.</p>
+      </div>
+
+      <div class="input-group hidden" id="android-model-group">
+        <label for="android-model-path">Android Local Model Path</label>
+        <input type="text" id="android-model-path" placeholder="/sdcard/Android/data/com.signallm.app/files/model.gguf" />
+        <p class="hint">Place your .gguf file in the app's data folder to bypass Android storage permissions.</p>
       </div>
 
       <div class="runtime-fields" id="android-runtime-fields">
