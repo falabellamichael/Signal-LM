@@ -2,6 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
+import java.nio.file.Files
+
 android {
     namespace 'com.signallm.app'
     compileSdk 36
@@ -16,8 +18,8 @@ android {
         applicationId 'com.signallm.app'
         minSdk 23
         targetSdk 36
-        versionCode 11
-        versionName '1.0.5.6'
+        versionCode 12
+        versionName '1.0.5.7'
 
         externalNativeBuild {
             cmake {
@@ -43,6 +45,57 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+// Fresh GitHub source/package downloads do not include third-party vendored code.
+// This task makes Android package builds self-preparing by cloning llama.cpp before CMake configures.
+def llamaRepoUrl = 'https://github.com/ggml-org/llama.cpp.git'
+def llamaRef = providers.gradleProperty('SIGNAL_LM_LLAMA_REF').orElse('master')
+def thirdPartyDir = file('src/main/cpp/third_party')
+def llamaDir = file('src/main/cpp/third_party/llama.cpp')
+def pinFile = file('../LLAMA_CPP_PIN.txt')
+
+tasks.register('vendorLlamaCpp') {
+    group = 'signal lm'
+    description = 'Clone or update llama.cpp for Android native inference builds.'
+    outputs.dir(llamaDir)
+
+    doLast {
+        thirdPartyDir.mkdirs()
+        def ref = llamaRef.get()
+        if (!new File(llamaDir, '.git').exists()) {
+            if (llamaDir.exists()) {
+                logger.lifecycle('Removing incomplete llama.cpp vendor directory: ' + llamaDir)
+                delete llamaDir
+            }
+            logger.lifecycle('Cloning llama.cpp into ' + llamaDir)
+            exec {
+                commandLine 'git', 'clone', '--depth', '1', '--branch', ref, llamaRepoUrl, llamaDir.absolutePath
+            }
+        } else {
+            logger.lifecycle('Updating existing llama.cpp checkout at ' + llamaDir)
+            exec { workingDir llamaDir; commandLine 'git', 'fetch', '--depth', '1', 'origin', ref }
+            exec { workingDir llamaDir; commandLine 'git', 'checkout', 'FETCH_HEAD' }
+        }
+
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            workingDir llamaDir
+            commandLine 'git', 'rev-parse', 'HEAD'
+            standardOutput = stdout
+        }
+        def commit = stdout.toString('UTF-8').trim()
+        pinFile.text = "repo=${llamaRepoUrl}\nref=${ref}\ncommit=${commit}\npath=app/src/main/cpp/third_party/llama.cpp\n"
+        logger.lifecycle('llama.cpp ready at commit ' + commit)
+    }
+}
+
+tasks.matching { task ->
+    task.name.startsWith('configureCMake') ||
+    task.name.startsWith('externalNativeBuild') ||
+    task.name == 'preBuild'
+}.configureEach { task ->
+    task.dependsOn tasks.named('vendorLlamaCpp')
 }
 
 dependencies {
