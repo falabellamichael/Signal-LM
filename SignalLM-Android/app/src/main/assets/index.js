@@ -1002,6 +1002,8 @@ const STORAGE_KEYS = {
         messages: requestMessages,
         prompt: plainPrompt,
         stream: false,
+        baseUrl: normalizeBaseUrl(settings.baseUrl),
+        apiKey: settings.apiKey || '',
         mode: isHybridRuntime() ? 'hybrid-helper' : 'android-vulkan'
       };
       if (!isAuto || !resolved) {
