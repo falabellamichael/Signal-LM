@@ -35,7 +35,26 @@ public final class NativeInferenceRuntime {
     public static String chatCompletion(String payloadJson) {
         if (!ensureLoaded()) return errorJson("Native inference library is not loaded.");
         try {
-            return nativeChatCompletion(payloadJson == null ? "{}" : payloadJson);
+            JSONObject json = new JSONObject(payloadJson == null ? "{}" : payloadJson);
+            String modelPath = json.optString("model", "");
+            String prompt = json.optString("prompt", "");
+            
+            // If prompt is empty, try to extract from messages
+            if (prompt.isEmpty() && json.has("messages")) {
+                org.json.JSONArray messages = json.optJSONArray("messages");
+                if (messages != null && messages.length() > 0) {
+                    JSONObject lastMsg = messages.optJSONObject(messages.length() - 1);
+                    if (lastMsg != null) {
+                        prompt = lastMsg.optString("content", "");
+                    }
+                }
+            }
+
+            float temperature = (float) json.optDouble("temperature", 0.7);
+            float topP = (float) json.optDouble("top_p", 1.0);
+            int maxTokens = json.optInt("max_tokens", 500);
+
+            return nativeChatCompletion(modelPath, prompt, temperature, topP, maxTokens);
         } catch (Throwable error) {
             return errorJson("Native inference call failed: " + safeMessage(error));
         }
@@ -90,5 +109,5 @@ public final class NativeInferenceRuntime {
     }
 
     private static native boolean nativeIsAvailable();
-    private static native String nativeChatCompletion(String payloadJson);
+    private static native String nativeChatCompletion(String modelPath, String prompt, float temperature, float topP, int maxTokens);
 }
