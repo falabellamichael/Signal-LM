@@ -3,6 +3,7 @@ package com.signallm.app;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -24,7 +25,6 @@ public class LmStudioLiteHttpBridge {
     public LmStudioLiteHttpBridge(MainActivity activity) {
         this.activity = activity;
     }
-// ... (rest of imports and class start)
 
     @JavascriptInterface
     public void triggerSelectFolder() {
@@ -123,6 +123,63 @@ public class LmStudioLiteHttpBridge {
         }
     }
 
+    /**
+     * Compatibility shim for the JavaScript inference bridge expected by the web UI.
+     *
+     * This does not run a local Vulkan model yet. It converts the chatCompletion payload into
+     * an OpenAI-compatible request and sends it through the existing native HTTP bridge, usually
+     * to the configured PC LM Studio server. A true Android Vulkan runtime can replace this method
+     * later while keeping the same JavaScript interface.
+     */
+    @JavascriptInterface
+    public String chatCompletion(String payloadJson) {
+        try {
+            JSONObject payload = new JSONObject(payloadJson == null ? "{}" : payloadJson);
+            JSONObject requestBody = buildChatCompletionsBody(payload);
+            String url = chatCompletionsUrl(payload);
+
+            JSONObject headers = new JSONObject();
+            headers.put("Content-Type", "application/json");
+            String apiKey = payload.optString("apiKey", payload.optString("api_key", ""));
+            if (apiKey != null && !apiKey.trim().isEmpty()) {
+                headers.put("Authorization", "Bearer " + apiKey.trim());
+            }
+
+            JSONObject request = new JSONObject();
+            request.put("url", url);
+            request.put("method", "POST");
+            request.put("headers", headers);
+            request.put("body", requestBody.toString());
+
+            String raw = httpRequest(request.toString());
+            JSONObject response = new JSONObject(raw == null ? "{}" : raw);
+            int status = response.optInt("status", 0);
+            String body = response.optString("body", "");
+
+            if (status >= 200 && status < 300 && body != null && !body.isEmpty()) {
+                return body;
+            }
+
+            JSONObject fallback = new JSONObject();
+            fallback.put("content", "Android inference shim HTTP error " + status + ": " + response.optString("error", body));
+            return fallback.toString();
+        } catch (Exception error) {
+            Log.e(TAG, "chatCompletion shim error: " + error.getMessage(), error);
+            try {
+                JSONObject fallback = new JSONObject();
+                fallback.put("content", "Android inference shim failed: " + (error.getMessage() == null ? error.toString() : error.getMessage()));
+                return fallback.toString();
+            } catch (Exception ignored) {
+                return "{\"content\":\"Android inference shim failed\"}";
+            }
+        }
+    }
+
+    @JavascriptInterface
+    public String generate(String payloadJson) {
+        return chatCompletion(payloadJson);
+    }
+
     @JavascriptInterface
     public String httpRequest(String payloadJson) {
         HttpURLConnection connection = null;
@@ -139,7 +196,7 @@ public class LmStudioLiteHttpBridge {
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod(method);
             connection.setConnectTimeout(15000);
-            connection.setReadTimeout(120000); // 2 minutes
+            connection.setReadTimeout(120000);
             connection.setUseCaches(false);
             connection.setDoInput(true);
 
@@ -208,6 +265,39 @@ public class LmStudioLiteHttpBridge {
     @JavascriptInterface
     public String fetchJson(String payloadJson) {
         return httpRequest(payloadJson);
+    }
+
+    private JSONObject buildChatCompletionsBody(JSONObject payload) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("model", payload.optString("model", "auto-detect"));
+
+        JSONArray messages = payload.optJSONArray("messages");
+        if (messages == null || messages.length() == 0) {
+            messages = new JSONArray();
+            JSONObject user = new JSONObject();
+            user.put("role", "user");
+            user.put("content", payload.optString("prompt", payload.optString("input", "")));
+            messages.put(user);
+        }
+        body.put("messages", messages);
+        body.put("temperature", payload.optDouble("temperature", 0.7));
+        body.put("top_p", payload.optDouble("top_p", payload.optDouble("topP", 1.0)));
+        body.put("max_tokens", payload.optInt("max_tokens", payload.optInt("max_output_tokens", 500)));
+        body.put("stream", false);
+        return body;
+    }
+
+    private String chatCompletionsUrl(JSONObject payload) {
+        String explicitUrl = payload.optString("url", "").trim();
+        if (!explicitUrl.isEmpty()) return explicitUrl;
+
+        String base = payload.optString("baseUrl", payload.optString("base_url", "http://127.0.0.1:1234/v1")).trim();
+        while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        String lower = base.toLowerCase();
+        if (lower.endsWith("/chat/completions")) return base;
+        if (lower.endsWith("/v1")) return base + "/chat/completions";
+        if (lower.endsWith("/api/v1")) return base.substring(0, base.length() - "/api/v1".length()) + "/v1/chat/completions";
+        return base + "/v1/chat/completions";
     }
 
     private String readStream(InputStream stream) throws Exception {
