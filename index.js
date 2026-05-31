@@ -919,6 +919,7 @@ const STORAGE_KEYS = {
       const phoneBoost = hybridPhoneSupportEnabled();
       const phoneSupport = usesAndroidSupport();
       if (els.androidRuntimeFields) els.androidRuntimeFields.classList.toggle('hidden', !phoneSupport);
+      if (els.androidModelGroup) els.androidModelGroup.classList.toggle('hidden', !phoneSupport);
       if (els.hybridStrategyGroup) els.hybridStrategyGroup.classList.toggle('hidden', !hybrid);
       if (els.hybridTimeoutGroup) els.hybridTimeoutGroup.classList.toggle('hidden', !phoneBoost || strategy !== 'fallback');
       if (els.runtimeStatusLine) {
