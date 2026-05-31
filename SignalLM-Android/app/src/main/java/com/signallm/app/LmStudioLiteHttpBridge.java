@@ -39,6 +39,18 @@ public class LmStudioLiteHttpBridge {
     }
 
     @JavascriptInterface
+    public void triggerModelFilePicker() {
+        if (activity != null) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    activity.launchModelPicker();
+                }
+            });
+        }
+    }
+
+    @JavascriptInterface
     public void triggerGetPersistedWorkspace() {
         if (activity != null) {
             activity.runOnUiThread(new Runnable() {

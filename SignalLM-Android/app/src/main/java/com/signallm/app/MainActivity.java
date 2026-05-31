@@ -35,6 +35,7 @@ import java.util.Set;
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int DIR_CHOOSER_REQUEST = 1002;
+    private static final int MODEL_CHOOSER_REQUEST = 1003;
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
 
@@ -45,6 +46,14 @@ public class MainActivity extends Activity {
 
         webView = new WebView(this);
         setContentView(webView);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            }
+        }
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -124,6 +133,13 @@ public class MainActivity extends Activity {
                         "  };\n" +
                         "  window.lmStudioLiteNative.request = window.lmStudioLiteNative.httpRequest;\n" +
                         "  window.lmStudioLiteNative.fetchJson = window.lmStudioLiteNative.httpRequest;\n" +
+                        "  window.lmStudioLiteNative.selectModel = function() {\n" +
+                        "    return new Promise(function(resolve, reject) {\n" +
+                        "      window.__modelPickerResolve = resolve;\n" +
+                        "      window.__modelPickerReject = reject;\n" +
+                        "      window.lmStudioLiteNative.triggerModelFilePicker();\n" +
+                        "    });\n" +
+                        "  };\n" +
                         "}";
                 view.evaluateJavascript(js, null);
             }
@@ -189,6 +205,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    public void launchModelPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        try {
+            startActivityForResult(intent, MODEL_CHOOSER_REQUEST);
+        } catch (Exception e) {
+            evaluateJavascript("if (window.__modelPickerReject) window.__modelPickerReject('Picker failed: " + e.getMessage() + "');");
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -196,6 +223,29 @@ public class MainActivity extends Activity {
             Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
             filePathCallback.onReceiveValue(result);
             filePathCallback = null;
+        } else if (requestCode == MODEL_CHOOSER_REQUEST) {
+            if (resultCode == RESULT_OK && data != null) {
+                Uri uri = data.getData();
+                if (uri != null) {
+                    String path = uri.getPath();
+                    if ("com.android.externalstorage.documents".equals(uri.getAuthority())) {
+                        String docId = android.provider.DocumentsContract.getDocumentId(uri);
+                        String[] split = docId.split(":");
+                        if ("primary".equalsIgnoreCase(split[0])) {
+                            path = android.os.Environment.getExternalStorageDirectory() + "/" + split[1];
+                        } else {
+                            path = "/storage/" + split[0] + "/" + split[1];
+                        }
+                    }
+                    if (path != null) {
+                        evaluateJavascript("if (window.__modelPickerResolve) window.__modelPickerResolve('" + path.replace("'", "\\'") + "');");
+                    }
+                } else {
+                    evaluateJavascript("if (window.__modelPickerReject) window.__modelPickerReject('No file selected');");
+                }
+            } else {
+                evaluateJavascript("if (window.__modelPickerReject) window.__modelPickerReject('User cancelled model selection');");
+            }
         } else if (requestCode == DIR_CHOOSER_REQUEST) {
             if (resultCode == RESULT_OK && data != null) {
                 Uri treeUri = data.getData();

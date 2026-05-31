@@ -97,6 +97,7 @@ const STORAGE_KEYS = {
       runtimeStatusLine: document.getElementById('runtime-status-line'),
       androidModelGroup: document.getElementById('android-model-group'),
       androidModelPath: document.getElementById('android-model-path'),
+      androidModelPickerBtn: document.getElementById('android-model-picker-btn'),
       androidRuntimeFields: document.getElementById('android-runtime-fields'),
       hybridStrategy: document.getElementById('hybrid-strategy'),
       hybridFallbackMs: document.getElementById('hybrid-fallback-ms'),
@@ -3933,6 +3934,25 @@ Answer the user request using the workspace files above. When asked to modify fi
         els.androidModelPath.addEventListener('input', () => {
           settings.androidModelPath = els.androidModelPath.value;
           saveSettings();
+        });
+      }
+
+      if (els.androidModelPickerBtn) {
+        els.androidModelPickerBtn.addEventListener('click', async () => {
+          if (window.lmStudioLiteNative && window.lmStudioLiteNative.selectModel) {
+            try {
+              const path = await window.lmStudioLiteNative.selectModel();
+              if (path) {
+                els.androidModelPath.value = path;
+                settings.androidModelPath = path;
+                saveSettings();
+              }
+            } catch (err) {
+              console.warn('Model picker cancelled or failed', err);
+            }
+          } else {
+            alert('Model picker is not available on this platform.');
+          }
         });
       }
 

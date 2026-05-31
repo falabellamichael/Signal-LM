@@ -135,8 +135,11 @@
 
       <div class="input-group hidden" id="android-model-group">
         <label for="android-model-path">Android Local Model Path</label>
-        <input type="text" id="android-model-path" placeholder="/sdcard/Android/data/com.signallm.app/files/model.gguf" />
-        <p class="hint">Place your .gguf file in the app's data folder to bypass Android storage permissions.</p>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="android-model-path" style="flex: 1;" placeholder="/sdcard/models/model.gguf" />
+          <button type="button" class="icon-btn" id="android-model-picker-btn" style="padding: 0 12px; font-size: 1.2rem;" title="Browse for model file">📎</button>
+        </div>
+        <p class="hint">Select your .gguf file from your phone's internal storage.</p>
       </div>
 
       <div class="runtime-fields" id="android-runtime-fields">
