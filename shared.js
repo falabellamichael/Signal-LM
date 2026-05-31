@@ -293,6 +293,16 @@
 })();
 
 (function () {
+  if (window.__signalLmNativeFallbackLabelLoader) return;
+  window.__signalLmNativeFallbackLabelLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-native-fallback-label.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM native fallback label helper was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
   if (window.__signalLmMcpChatBridgeLoader) return;
   window.__signalLmMcpChatBridgeLoader = true;
   var script = document.createElement('script');
