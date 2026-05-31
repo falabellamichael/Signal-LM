@@ -819,15 +819,20 @@ const STORAGE_KEYS = {
     }
 
     function buildChatCompletionBody(requestMessages, stream) {
-      const modelName = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
-      return {
+      const isAuto = (settings.model === 'auto-detect' || !settings.model);
+      const resolved = getResolvedModelName();
+      const modelName = isAuto ? resolved : settings.model;
+      const body = {
         model: modelName,
         messages: requestMessages,
-        stream,
-        temperature: Number(settings.temperature),
-        top_p: Number(settings.topP),
-        max_tokens: Number(settings.maxTokens)
+        stream
       };
+      if (!isAuto || !resolved) {
+        body.temperature = Number(settings.temperature);
+        body.top_p = Number(settings.topP);
+        body.max_tokens = Number(settings.maxTokens);
+      }
+      return body;
     }
 
     async function fetchServerChatCompletion(requestMessages, stream, signal) {
@@ -987,18 +992,25 @@ const STORAGE_KEYS = {
     }
 
     function buildNativeCompletionPayload(requestMessages) {
-      const modelName = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
-      return {
+      const isAuto = (settings.model === 'auto-detect' || !settings.model);
+      const resolved = getResolvedModelName();
+      const modelName = isAuto ? resolved : settings.model;
+      const plainPrompt = messagesToPlainPrompt(requestMessages);
+
+      const payload = {
         model: modelName,
         messages: requestMessages,
-        prompt: messagesToPlainPrompt(requestMessages),
-        temperature: Number(settings.temperature),
-        top_p: Number(settings.topP),
-        max_tokens: Number(settings.maxTokens),
+        prompt: plainPrompt,
         stream: false,
-        runtime: getAndroidRuntimeOptions(),
         mode: isHybridRuntime() ? 'hybrid-helper' : 'android-vulkan'
       };
+      if (!isAuto || !resolved) {
+        payload.runtime = getAndroidRuntimeOptions();
+        payload.temperature = Number(settings.temperature);
+        payload.top_p = Number(settings.topP);
+        payload.max_tokens = Number(settings.maxTokens);
+      }
+      return payload;
     }
 
     async function runNativeCompletionText(requestMessages) {
@@ -1232,16 +1244,22 @@ const STORAGE_KEYS = {
         inputString = userInput.filter(p => p.type === 'text').map(p => p.text).join('\n');
       }
 
-      const resolvedModel = (settings.model === 'auto-detect' || !settings.model) ? getResolvedModelName() : settings.model;
+      const isAuto = (settings.model === 'auto-detect' || !settings.model);
+      const resolved = getResolvedModelName();
+      const resolvedModel = isAuto ? resolved : settings.model;
+
       const body = {
         model: resolvedModel,
         input: inputString,
         integrations,
-        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
-        temperature: Number(settings.temperature),
-        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
         store: true
       };
+
+      if (!isAuto || !resolved) {
+        body.context_length = Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000);
+        body.temperature = Number(settings.temperature);
+        body.max_output_tokens = parseInt(settings.maxTokens, 10) || 500;
+      }
 
       const responseId = localStorage.getItem(STORAGE_KEYS.nativeResponseId);
       if (responseId) body.response_id = responseId;

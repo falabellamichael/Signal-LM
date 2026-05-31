@@ -507,9 +507,9 @@ const STORAGE_KEYS = {
           console.warn('Failed to refresh models in editor:', error);
         }
       }
-      const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
-        ? (window.__signalLmLoadedModels?.[0] || '')
-        : settings.model;
+      const isAuto = (settings.model === 'auto-detect' || !settings.model);
+      const resolved = window.__signalLmLoadedModels?.[0] || '';
+      const resolvedModel = isAuto ? resolved : settings.model;
       if (!resolvedModel) { showToast('No active model loaded. Start LM Studio or select a model first.'); return; }
 
       setAiEditing(true);
@@ -519,20 +519,26 @@ const STORAGE_KEYS = {
       try {
         const { files, skipped } = await collectWorkspaceContents(AI_TOTAL_CONTEXT_CHARS, AI_FILE_CONTEXT_CHARS);
         if (!files.length) throw new Error('No readable compatible files found in the workspace.');
+        
+        const body = {
+          model: resolvedModel,
+          messages: [
+            { role: 'system', content: 'You are a precise code editor. Return only strict JSON that follows the requested schema.' },
+            { role: 'user', content: buildAiPrompt(task, files, skipped) }
+          ],
+          stream: false
+        };
+
+        if (!isAuto || !resolved) {
+          body.temperature = 0.2;
+          body.top_p = Number(settings.topP);
+          body.max_tokens = Math.max(4096, parseInt(settings.maxTokens, 10) || 4096);
+        }
+
         const response = await fetch(endpoint('/chat/completions', settings), {
           method: 'POST',
           headers: getHeaders(settings),
-          body: JSON.stringify({
-            model: resolvedModel,
-            messages: [
-              { role: 'system', content: 'You are a precise code editor. Return only strict JSON that follows the requested schema.' },
-              { role: 'user', content: buildAiPrompt(task, files, skipped) }
-            ],
-            stream: false,
-            temperature: 0.2,
-            top_p: Number(settings.topP),
-            max_tokens: Math.max(4096, parseInt(settings.maxTokens, 10) || 4096)
-          })
+          body: JSON.stringify(body)
         });
         if (!response.ok) throw new Error(await response.text().catch(() => `HTTP ${response.status}`));
         const payload = await response.json();
