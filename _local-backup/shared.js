@@ -85,7 +85,8 @@
   function nativeHttpBridgeEnabled() {
     const settings = readSettings();
     const mode = settings.runtimeMode || 'server';
-    return mode === 'server' || mode === 'hybrid';
+    const hybridStrategy = settings.hybridStrategy || 'off';
+    return mode === 'hybrid' && hybridStrategy !== 'off';
   }
 
   function bridgeCanRequest(url) {
@@ -278,6 +279,26 @@
   script.src = 'signal-lm-chatbot-safety-fix.js?v=1';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM chatbot safety guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmPcFileAccessFixLoader) return;
+  window.__signalLmPcFileAccessFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-pc-file-access-fix.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM PC file access guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmNativeFallbackLabelLoader) return;
+  window.__signalLmNativeFallbackLabelLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-native-fallback-label.js?v=1';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM native fallback label helper was not found.'); };
   document.head.appendChild(script);
 })();
 

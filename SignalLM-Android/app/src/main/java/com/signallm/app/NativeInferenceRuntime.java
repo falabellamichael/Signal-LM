@@ -32,7 +32,7 @@ public final class NativeInferenceRuntime {
         }
     }
 
-    public static String chatCompletion(String payloadJson) {
+    public static String chatCompletion(String payloadJson, NativeInferenceCallback callback) {
         if (!ensureLoaded()) return errorJson("Native inference library is not loaded.");
         try {
             JSONObject json = new JSONObject(payloadJson == null ? "{}" : payloadJson);
@@ -53,15 +53,17 @@ public final class NativeInferenceRuntime {
             float temperature = (float) json.optDouble("temperature", 0.7);
             float topP = (float) json.optDouble("top_p", 1.0);
             int maxTokens = json.optInt("max_tokens", 500);
+            JSONObject runtime = json.optJSONObject("runtime");
+            int threads = clamp(runtime == null ? 4 : runtime.optInt("threads", 4), 1, 16);
 
-            return nativeChatCompletion(modelPath, prompt, temperature, topP, maxTokens);
+            return nativeChatCompletion(modelPath, prompt, temperature, topP, maxTokens, threads, callback);
         } catch (Throwable error) {
             return errorJson("Native inference call failed: " + safeMessage(error));
         }
     }
 
-    public static String generate(String payloadJson) {
-        return chatCompletion(payloadJson);
+    public static String generate(String payloadJson, NativeInferenceCallback callback) {
+        return chatCompletion(payloadJson, callback);
     }
 
     public static String statusJson() {
@@ -76,6 +78,14 @@ public final class NativeInferenceRuntime {
             return out.toString();
         } catch (Exception error) {
             return "{\"libraryLoaded\":false,\"available\":false}";
+        }
+    }
+
+    public static void cancelGeneration() {
+        if (!ensureLoaded()) return;
+        try {
+            nativeCancelGeneration();
+        } catch (Throwable ignored) {
         }
     }
 
@@ -108,6 +118,11 @@ public final class NativeInferenceRuntime {
         return message == null || message.isEmpty() ? error.toString() : message;
     }
 
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     private static native boolean nativeIsAvailable();
-    private static native String nativeChatCompletion(String modelPath, String prompt, float temperature, float topP, int maxTokens);
+    private static native void nativeCancelGeneration();
+    private static native String nativeChatCompletion(String modelPath, String prompt, float temperature, float topP, int maxTokens, int threads, NativeInferenceCallback callback);
 }

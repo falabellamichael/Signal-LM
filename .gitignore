@@ -21,3 +21,6 @@ local.properties
 .DS_Store
 Thumbs.db
 *.log
+
+# Android C++ build folder
+SignalLM-Android/app/.cxx/

@@ -60,6 +60,7 @@ const STORAGE_KEYS = {
     const MAX_WORKSPACE_SCAN_FILES = 220;
     const MAX_WORKSPACE_CONTEXT_FILES = 28;
     const MAX_WORKSPACE_TOTAL_CONTEXT_CHARS = 150000;
+    const MAX_WORKSPACE_GENERAL_CONTEXT_CHARS = 18000;
     const MAX_WORKSPACE_FILE_CONTEXT_CHARS = 45000;
     const MAX_CHAT_HISTORY_WITH_WORKSPACE = 4;
 
@@ -617,6 +618,9 @@ const STORAGE_KEYS = {
         outputTokensSource: 'estimated',
         inputTokensSource: 'estimated',
         firstTokenMs: null,
+        firstOutputAtMs: null,
+        lastOutputAtMs: null,
+        outputUpdateCount: 0,
         durationMs: 0,
         maxTokens: Number(settings.maxTokens),
         temperature: Number(settings.temperature),
@@ -648,13 +652,45 @@ const STORAGE_KEYS = {
       activeInferenceTelemetry.durationMs = Math.max(0, now - started);
       if (outputTokens > 0 && activeInferenceTelemetry.firstTokenMs === null) {
         activeInferenceTelemetry.firstTokenMs = activeInferenceTelemetry.durationMs;
+        activeInferenceTelemetry.firstOutputAtMs = now;
+      }
+      if (outputTokens > 0) {
+        activeInferenceTelemetry.lastOutputAtMs = now;
+        activeInferenceTelemetry.outputUpdateCount = Math.max(1, Math.round(Number(activeInferenceTelemetry.outputUpdateCount) || 0) + 1);
       }
       const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
-      if (activeInferenceTelemetry.tokensPerSecondSource !== 'lm-studio') {
+      if (activeInferenceTelemetry.tokensPerSecondSource === 'estimated') {
         activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / seconds).toFixed(2));
       }
       updateActiveInferenceTelemetryView();
       scheduleInferenceTelemetryPublish();
+    }
+
+    function generationDurationMsForTelemetry(telemetry) {
+      if (!telemetry) return null;
+      const firstOutput = finiteNumber(telemetry.firstOutputAtMs);
+      const lastOutput = finiteNumber(telemetry.lastOutputAtMs);
+      if (firstOutput !== null && lastOutput !== null && lastOutput > firstOutput) {
+        return Math.max(1, lastOutput - firstOutput);
+      }
+      const duration = finiteNumber(telemetry.durationMs);
+      const firstToken = finiteNumber(telemetry.firstTokenMs);
+      if (duration !== null && firstToken !== null && duration > firstToken) {
+        return Math.max(1, duration - firstToken);
+      }
+      return null;
+    }
+
+    function applyServerUsageTelemetrySpeed() {
+      if (!activeInferenceTelemetry || activeInferenceTelemetry.tokensPerSecondSource !== 'estimated') return false;
+      if (activeInferenceTelemetry.outputTokensSource !== 'lm-studio') return false;
+      const outputTokens = finiteNumber(activeInferenceTelemetry.outputTokens);
+      const generationMs = generationDurationMsForTelemetry(activeInferenceTelemetry);
+      const outputUpdates = Math.round(Number(activeInferenceTelemetry.outputUpdateCount) || 0);
+      if (outputTokens === null || outputTokens <= 0 || generationMs === null || generationMs < 250 || outputUpdates < 2) return false;
+      activeInferenceTelemetry.tokensPerSecond = Number((outputTokens / (generationMs / 1000)).toFixed(2));
+      activeInferenceTelemetry.tokensPerSecondSource = 'server-usage';
+      return true;
     }
 
     function applyInferenceTelemetryStats(payload, source = null) {
@@ -678,6 +714,7 @@ const STORAGE_KEYS = {
       if (stats.firstTokenMs !== null) {
         activeInferenceTelemetry.firstTokenMs = Math.max(0, Math.round(stats.firstTokenMs));
       }
+      applyServerUsageTelemetrySpeed();
 
       updateActiveInferenceTelemetryView();
       scheduleInferenceTelemetryPublish();
@@ -689,11 +726,13 @@ const STORAGE_KEYS = {
       const hasFinalText = text !== null && text !== undefined && String(text).length > 0;
       if (hasFinalText) {
         updateInferenceTelemetryOutput(text, activeInferenceTelemetry.source);
+        applyServerUsageTelemetrySpeed();
       } else {
         const now = Date.now();
         const started = Date.parse(activeInferenceTelemetry.startedAt) || now;
         activeInferenceTelemetry.durationMs = Math.max(0, now - started);
-        if (activeInferenceTelemetry.tokensPerSecondSource !== 'lm-studio') {
+        applyServerUsageTelemetrySpeed();
+        if (activeInferenceTelemetry.tokensPerSecondSource === 'estimated') {
           const seconds = Math.max(0.001, activeInferenceTelemetry.durationMs / 1000);
           activeInferenceTelemetry.tokensPerSecond = Number(((activeInferenceTelemetry.outputTokens || 0) / seconds).toFixed(2));
         }
@@ -732,12 +771,14 @@ const STORAGE_KEYS = {
       const time = formatTelemetrySeconds(telemetry.durationMs);
       const speed = formatTelemetrySpeed(telemetry.tokensPerSecond);
       const tokens = Math.max(0, Math.round(Number(telemetry.outputTokens) || 0));
+      const inputTokens = Math.max(0, Math.round(Number(telemetry.inputTokens) || 0));
       return `
         <span class="chat-telemetry-rule"></span>
         <span class="chat-telemetry-items">
           <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⏳</span><strong>Time:</strong> ${escapeHtml(time)}</span>
           <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">⚡</span><strong>Speed:</strong> ${escapeHtml(speed)}</span>
           <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">◎</span><strong>Tokens:</strong> ${tokens}</span>
+          <span class="chat-telemetry-item"><span class="chat-telemetry-icon" aria-hidden="true">↳</span><strong>Prompt:</strong> ${inputTokens}</span>
         </span>
         <span class="sr-only">Inference status: ${escapeHtml(status)}</span>`;
     }
@@ -822,7 +863,7 @@ const STORAGE_KEYS = {
       return response && (response.status === 404 || response.status === 405);
     }
 
-    function buildChatCompletionBody(requestMessages, stream) {
+    function buildChatCompletionBody(requestMessages, stream, options = {}) {
       const isAuto = (settings.model === 'auto-detect' || !settings.model);
       const resolved = getResolvedModelName();
       const modelName = isAuto ? resolved : settings.model;
@@ -831,6 +872,7 @@ const STORAGE_KEYS = {
         messages: requestMessages,
         stream
       };
+      if (stream && options.includeUsage !== false) body.stream_options = { include_usage: true };
       if (!isAuto || !resolved) {
         body.temperature = Number(settings.temperature);
         body.top_p = Number(settings.topP);
@@ -862,6 +904,23 @@ const STORAGE_KEYS = {
 
         const errorText = await response.text().catch(() => '');
         lastError = new Error(errorText || `LM Studio API error: HTTP ${response.status}`);
+        if (stream && (response.status === 400 || response.status === 422)) {
+          try {
+            const retryResponse = await fetch(url, {
+              method: 'POST',
+              headers: getHeaders(),
+              signal,
+              body: JSON.stringify(buildChatCompletionBody(requestMessages, stream, { includeUsage: false }))
+            });
+            if (retryResponse.ok) return retryResponse;
+            const retryErrorText = await retryResponse.text().catch(() => '');
+            lastError = new Error(retryErrorText || errorText || `LM Studio API error: HTTP ${retryResponse.status}`);
+            response = retryResponse;
+          } catch (error) {
+            lastError = error;
+            if (error?.name === 'AbortError' || url === urls[urls.length - 1]) throw error;
+          }
+        }
         if (url === urls[urls.length - 1] || !shouldTryConfiguredChatEndpoint(response)) throw lastError;
       }
 
@@ -1017,16 +1076,14 @@ const STORAGE_KEYS = {
         apiKey: settings.apiKey || '',
         mode: isHybridRuntime() ? 'hybrid-helper' : 'android-vulkan'
       };
-      if (!isAuto || !resolved) {
-        payload.runtime = getAndroidRuntimeOptions();
-        payload.temperature = Number(settings.temperature);
-        payload.top_p = Number(settings.topP);
-        payload.max_tokens = Number(settings.maxTokens);
-      }
+      payload.runtime = getAndroidRuntimeOptions();
+      payload.temperature = Number(settings.temperature);
+      payload.top_p = Number(settings.topP);
+      payload.max_tokens = Number(settings.maxTokens);
       return payload;
     }
 
-    async function runNativeCompletionText(requestMessages) {
+    async function runNativeCompletionText(requestMessages, onChunk = null) {
       setInferenceTelemetrySource('Android native');
       const bridge = getNativeInferenceBridge();
       if (!bridge) throw new Error('Android Vulkan runtime bridge is not available in this app build. Use server mode or rebuild the Android wrapper with the native inference bridge.');
@@ -1040,19 +1097,65 @@ const STORAGE_KEYS = {
       }
 
       let result;
-      if (bridge.chatCompletion) result = await callNativeBridgeMethod(bridge, 'chatCompletion', payload);
+      if (bridge.chatCompletionAsync) {
+        result = await new Promise((resolve, reject) => {
+          const reqId = 'req_' + Math.random().toString(36).substring(2, 9);
+          const cleanup = () => {
+            delete window['__httpResolve_' + reqId];
+            delete window['__httpReject_' + reqId];
+            if (onChunk) delete window['__httpChunk_' + reqId];
+          };
+          if (onChunk) {
+            window['__httpChunk_' + reqId] = onChunk;
+          }
+          window['__httpResolve_' + reqId] = (resStr) => {
+            cleanup();
+            resolve(resStr);
+          };
+          window['__httpReject_' + reqId] = (message) => {
+            cleanup();
+            reject(new Error(message || 'Android native inference failed.'));
+          };
+          try {
+            bridge.chatCompletionAsync(JSON.stringify(payload), reqId);
+          } catch (e) {
+            cleanup();
+            reject(e);
+          }
+        });
+      } else if (bridge.chatCompletion) result = await callNativeBridgeMethod(bridge, 'chatCompletion', payload);
       else if (bridge.generate) result = await callNativeBridgeMethod(bridge, 'generate', payload);
       else throw new Error('The Android runtime bridge must expose chatCompletion(payload) or generate(payload).');
 
       return extractNativeCompletionText(result) || '(No content returned.)';
     }
 
+    async function runNativeChatCompletionStream(requestMessages, assistantUi) {
+      let fullResponse = '';
+      const onChunk = (token) => {
+        if (!token) return;
+        fullResponse += token;
+        updateInferenceTelemetryOutput(fullResponse, 'Android native');
+        if (assistantUi) {
+            assistantUi.setContent(fullResponse);
+            scrollToBottom();
+        }
+      };
+
+      const finalResult = await runNativeCompletionText(requestMessages, onChunk);
+      // In case onChunk wasn't called or missed pieces
+      if (!fullResponse) fullResponse = finalResult;
+
+      if (assistantUi) {
+        assistantUi.setContent(fullResponse);
+        assistantUi.streamingFinished();
+        scrollToBottom();
+      }
+      return fullResponse;
+    }
+
     async function runNativeChatCompletion(requestMessages, assistantUi) {
-      const text = await runNativeCompletionText(requestMessages);
-      assistantUi.setContent(text);
-      assistantUi.streamingFinished();
-      scrollToBottom();
-      return text;
+      return await runNativeChatCompletionStream(requestMessages, assistantUi);
     }
 
     function extractOpenAiCompletionText(payload) {
@@ -1076,10 +1179,10 @@ const STORAGE_KEYS = {
       return content;
     }
 
-    async function runServerChatCompletion(requestMessages, assistantUi) {
+    async function runServerChatCompletion(requestMessages, assistantUi, onChunk = null, signal = null) {
       setInferenceTelemetrySource('LM Studio server');
       let fullResponse = '';
-      const response = await fetchServerChatCompletion(requestMessages, true, abortController.signal);
+      const response = await fetchServerChatCompletion(requestMessages, true, signal || abortController?.signal);
 
       if (!response.body) throw new Error('This browser does not support streamed responses.');
 
@@ -1091,19 +1194,27 @@ const STORAGE_KEYS = {
         if (!data || data === '[DONE]') return;
         try {
           const json = JSON.parse(data);
+          const delta = extractDelta(json);
           const finalText = json.type === 'chat.end' ? extractOpenAiCompletionText(json) : '';
+
           if (finalText) {
             fullResponse = finalText;
-            updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
-            assistantUi.setContent(fullResponse);
-            scrollToBottom();
-          }
-          const delta = extractDelta(json);
-          if (delta) {
+            if (onChunk) {
+              onChunk(fullResponse);
+            } else if (assistantUi) {
+              updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
+              assistantUi.setContent(fullResponse);
+              scrollToBottom();
+            }
+          } else if (delta) {
             fullResponse += delta;
-            updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
-            assistantUi.setContent(fullResponse);
-            scrollToBottom();
+            if (onChunk) {
+              onChunk(fullResponse);
+            } else if (assistantUi) {
+              updateInferenceTelemetryOutput(fullResponse, 'LM Studio server');
+              assistantUi.setContent(fullResponse);
+              scrollToBottom();
+            }
           }
           applyInferenceTelemetryStats(json, 'LM Studio server');
         } catch {}
@@ -1117,7 +1228,9 @@ const STORAGE_KEYS = {
       }
 
       if (buffer.trim()) parseSseEvents(buffer + '\n\n', handleData);
-      assistantUi.streamingFinished();
+      if (assistantUi && !onChunk) {
+          assistantUi.streamingFinished();
+      }
       return fullResponse;
     }
 
@@ -1146,7 +1259,7 @@ const STORAGE_KEYS = {
       });
     }
 
-    async function runHybridChatCompletion(requestMessages, assistantUi) {
+    async function runHybridChatCompletion(requestMessages, assistantUi, requestContent) {
       setInferenceTelemetrySource('Hybrid');
       const strategy = getHybridStrategy();
       if (strategy === 'off') {
@@ -1159,8 +1272,8 @@ const STORAGE_KEYS = {
         return await runServerChatCompletion(requestMessages, assistantUi);
       }
 
-      if (strategy === 'race') {
-        assistantUi.setContent('Hybrid boost running PC + phone. Using the first completed answer…');
+      if (strategy === 'split') {
+        assistantUi.setContent('Hybrid boost running Task Split (PC + phone)...');
         const pcController = new AbortController();
         const relayAbort = () => {
           pcController.abort();
@@ -1168,24 +1281,148 @@ const STORAGE_KEYS = {
         };
         abortController?.signal?.addEventListener('abort', relayAbort, { once: true });
 
-        const pcPromise = runServerChatCompletionText(requestMessages, pcController.signal)
-          .then(text => ({ source: 'PC server', text }));
-        const phonePromise = runNativeCompletionText(requestMessages)
+        // Clone and modify messages for PC (Raw Answer)
+        const pcMessages = JSON.parse(JSON.stringify(requestMessages));
+        const pcSystemPrompt = 'IMPORTANT: Provide ONLY the raw exact answer, data, or code. Do not include any conversational filler, pleasantries, or explanations. Just the core facts/code. ALL code must be properly enclosed in markdown code blocks (e.g. ```language ... ```).';
+        pcMessages.push({ role: 'system', content: pcSystemPrompt });
+
+        // Clone and modify messages for Phone (Summary)
+        const phoneMessages = JSON.parse(JSON.stringify(requestMessages));
+        phoneMessages.push({ role: 'system', content: 'IMPORTANT: Do not output any raw code or lengthy data. Write a very brief, friendly 1-2 sentence summary explaining the answer to the user\'s prompt.' });
+
+        let phoneText = '';
+        let pcText = '';
+        let isDone = false;
+
+        const updateUI = () => {
+          if (isDone) return;
+          let combined = '';
+          if (phoneText) {
+            combined += '### 📱 Summary (Phone)\n' + phoneText + '\n\n';
+          }
+          if (pcText) {
+            combined += '### 💻 Detailed Answer (PC)\n' + pcText;
+          }
+          assistantUi.setContent(combined || 'Generating tasks...');
+          updateInferenceTelemetryOutput(combined, 'Hybrid (Task Split)');
+          scrollToBottom();
+        };
+
+        const handlePhoneChunk = (token) => {
+          phoneText += token;
+          updateUI();
+        };
+
+        const handlePcChunk = (accumulatedText) => {
+          pcText = accumulatedText;
+          updateUI();
+        };
+
+        let pcPromise;
+        if (settings.mcpEnabled) {
+          const mcpContent = String(requestContent || '') + '\n\n' + pcSystemPrompt;
+          pcPromise = runNativeMcpChatCompletion(mcpContent, null, true).then(text => {
+            handlePcChunk(text);
+            return { source: 'PC server (MCP)', text };
+          });
+        } else {
+          pcPromise = runServerChatCompletion(pcMessages, null, handlePcChunk, pcController.signal)
+            .then(text => ({ source: 'PC server', text }));
+        }
+        const phonePromise = runNativeCompletionText(phoneMessages, handlePhoneChunk)
+          .then(text => ({ source: 'Android phone', text }));
+
+        await Promise.all([pcPromise, phonePromise].map(p => p.catch(e => console.error(e))));
+        isDone = true;
+        setInferenceTelemetrySource('Hybrid (Task Split)');
+
+        // Final fallback just in case the stream missed the end
+        const finalPcText = await pcPromise.then(r => r.text).catch(() => pcText);
+        const finalPhoneText = await phonePromise.then(r => r.text).catch(() => phoneText);
+
+        let finalText = '';
+        if (finalPhoneText) finalText += '### 📱 Summary (Phone)\n' + finalPhoneText + '\n\n';
+        if (finalPcText) finalText += '### 💻 Detailed Answer (PC)\n' + finalPcText;
+
+        assistantUi.setContent(finalText);
+        updateInferenceTelemetryOutput(finalText, 'Hybrid (Task Split)');
+        assistantUi.streamingFinished();
+        scrollToBottom();
+        showToast('Task Splitting complete.');
+        return finalText;
+      }
+
+      if (strategy === 'race') {
+        assistantUi.setContent('Hybrid boost running PC + phone...');
+        const pcController = new AbortController();
+        const relayAbort = () => {
+          pcController.abort();
+          try { bridge.cancelGeneration?.(); } catch {}
+        };
+        abortController?.signal?.addEventListener('abort', relayAbort, { once: true });
+
+        let currentActiveSource = 'Android phone';
+        let phoneText = '';
+        let pcText = '';
+        let isDone = false;
+
+        const handlePhoneChunk = (token) => {
+          if (isDone || currentActiveSource !== 'Android phone') return;
+          phoneText += token;
+          assistantUi.setContent(phoneText);
+          updateInferenceTelemetryOutput(phoneText, 'Android phone');
+          scrollToBottom();
+        };
+
+        const handlePcChunk = (accumulatedText) => {
+          if (isDone) return;
+          pcText = accumulatedText;
+          if (currentActiveSource === 'Android phone' && pcText.length > phoneText.length) {
+            currentActiveSource = 'PC server';
+            showToast('⚡ Hybrid Boost activated!');
+            try { bridge.cancelGeneration?.(); } catch {}
+          }
+          if (currentActiveSource === 'PC server') {
+            assistantUi.setContent(pcText);
+            updateInferenceTelemetryOutput(pcText, 'PC server');
+            scrollToBottom();
+          }
+        };
+
+        let pcPromise;
+        if (settings.mcpEnabled) {
+          pcPromise = runNativeMcpChatCompletion(requestContent, null, true).then(text => {
+            handlePcChunk(text);
+            return { source: 'PC server (MCP)', text };
+          });
+        } else {
+          pcPromise = runServerChatCompletion(requestMessages, null, handlePcChunk, pcController.signal)
+            .then(text => ({ source: 'PC server', text }));
+        }
+        const phonePromise = runNativeCompletionText(requestMessages, handlePhoneChunk)
           .then(text => ({ source: 'Android phone', text }));
 
         const winner = await firstFulfilled([pcPromise, phonePromise]);
+        isDone = true;
         setInferenceTelemetrySource(winner.source);
-        if (winner.source === 'PC server') {
+        const pcWon = winner.source.startsWith('PC server');
+        if (pcWon) {
           try { bridge.cancelGeneration?.(); } catch {}
         } else {
           pcController.abort();
         }
-        assistantUi.setContent(winner.text);
-        updateInferenceTelemetryOutput(winner.text, winner.source);
+
+        // Final fallback just in case the final promise text is larger than the buffered chunks
+        if (pcWon && winner.text.length > pcText.length) pcText = winner.text;
+        if (winner.source === 'Android phone' && winner.text.length > phoneText.length) phoneText = winner.text;
+
+        const finalText = pcWon ? pcText : phoneText;
+        assistantUi.setContent(finalText);
+        updateInferenceTelemetryOutput(finalText, winner.source);
         assistantUi.streamingFinished();
         scrollToBottom();
-        showToast(`Hybrid boost used ${winner.source}.`);
-        return winner.text;
+        showToast(`Hybrid boost finished using ${winner.source}.`);
+        return finalText;
       }
 
       const timeoutMs = Math.max(1000, parseInt(settings.hybridFallbackMs, 10) || DEFAULT_SETTINGS.hybridFallbackMs);
@@ -1202,7 +1439,10 @@ const STORAGE_KEYS = {
             reject(new Error('PC server timed out before phone fallback.'));
           }, timeoutMs);
         });
-        const text = await Promise.race([runServerChatCompletionText(requestMessages, pcController.signal), timeoutPromise]);
+        const pcTask = settings.mcpEnabled
+          ? runNativeMcpChatCompletion(requestContent, null, true)
+          : runServerChatCompletionText(requestMessages, pcController.signal);
+        const text = await Promise.race([pcTask, timeoutPromise]);
         clearTimeout(timeoutId);
         setInferenceTelemetrySource('PC server');
         assistantUi.setContent(text);
@@ -1247,7 +1487,7 @@ const STORAGE_KEYS = {
       }).filter(Boolean);
     }
 
-    async function runNativeMcpChatCompletion(userInput, assistantUi) {
+    async function runNativeMcpChatCompletion(userInput, assistantUi, headless = false) {
       setInferenceTelemetrySource('Native MCP API');
       const integrations = buildMcpIntegrations();
 
@@ -1307,11 +1547,13 @@ const STORAGE_KEYS = {
       }
 
       const result = text || '(Tool executed, no message returned.)';
-      assistantUi.setContent(result);
-      updateInferenceTelemetryOutput(result, 'Native MCP API');
-      applyInferenceTelemetryStats(payload, 'Native MCP API');
-      assistantUi.streamingFinished();
-      scrollToBottom();
+      if (!headless && assistantUi) {
+        assistantUi.setContent(result);
+        updateInferenceTelemetryOutput(result, 'Native MCP API');
+        applyInferenceTelemetryStats(payload, 'Native MCP API');
+        assistantUi.streamingFinished();
+        scrollToBottom();
+      }
       return result;
     }
 
@@ -1356,6 +1598,7 @@ const STORAGE_KEYS = {
       els.maxTokensInput.value = settings.maxTokens;
       els.systemPrompt.value = settings.systemPrompt || '';
       if (els.runtimeMode) els.runtimeMode.value = settings.runtimeMode || DEFAULT_SETTINGS.runtimeMode;
+      if (els.androidModelPath) els.androidModelPath.value = settings.androidModelPath || '';
       if (els.hybridStrategy) els.hybridStrategy.value = settings.hybridStrategy || DEFAULT_SETTINGS.hybridStrategy;
       if (els.hybridFallbackMs) els.hybridFallbackMs.value = settings.hybridFallbackMs || DEFAULT_SETTINGS.hybridFallbackMs;
       if (els.androidThreads) els.androidThreads.value = settings.androidThreads || DEFAULT_SETTINGS.androidThreads;
@@ -2089,7 +2332,9 @@ const STORAGE_KEYS = {
       const mode = getContextHelperMode();
       const selected = workspaceSelectedPaths.size || workspaceFiles.length;
       const details = report
-        ? `${report.filesConsidered} checked · ${report.filesIncluded} included · ${report.snippets} snippet${report.snippets === 1 ? '' : 's'} · ${report.characters.toLocaleString()} chars sent`
+        ? report.skippedReason
+          ? `workspace context skipped · ${report.skippedReason}`
+          : `${report.filesConsidered} checked · ${report.filesIncluded} included · ${report.snippets} snippet${report.snippets === 1 ? '' : 's'} · ${report.characters.toLocaleString()} chars sent`
         : enabled
           ? `${mode === 'full' ? 'full selected-file mode' : 'smart snippets mode'} · ${selected} selected file${selected === 1 ? '' : 's'} ready`
           : 'disabled · selected files will be sent with the older full-context path';
@@ -2132,7 +2377,11 @@ const STORAGE_KEYS = {
     }
 
     function isLikelyEditRequest(text) {
-      return / (add|edit|change|fix|update|replace|remove|implement|create|wire|hook|style|polish|restore|convert|rename) /i.test(String(text || ''));
+      return /\b(add|edit|change|fix|update|replace|remove|implement|create|wire|hook|style|polish|restore|convert|rename)\b/i.test(String(text || ''));
+    }
+
+    function isSpeedBenchmarkRequest(text) {
+      return /\b(benchmark|bench|speed\s*test|tok\/s|tokens?\s*per\s*second|t\/s|generation\s*speed|throughput|performance\s*test)\b/i.test(String(text || ''));
     }
 
     function countOccurrences(haystack, needle) {
@@ -2212,6 +2461,19 @@ const STORAGE_KEYS = {
 
     async function collectWorkspaceContextForPrompt(userText) {
       if (!workspaceFiles.length) return '';
+      if (isSpeedBenchmarkRequest(userText)) {
+        lastContextScoutReport = {
+          filesConsidered: 0,
+          filesIncluded: 0,
+          snippets: 0,
+          characters: 0,
+          terms: [],
+          failed: [],
+          skippedReason: 'speed/benchmark prompt'
+        };
+        renderContextHelperStatus();
+        return '';
+      }
 
       let targetEntry = null;
       let targetContent = null;
@@ -2255,7 +2517,9 @@ const STORAGE_KEYS = {
       const nonzero = ranked.filter(item => item.score > 0);
       const chosen = (nonzero.length ? nonzero : ranked).slice(0, Math.min(contextHelperMaxSnippets(), MAX_WORKSPACE_CONTEXT_FILES));
       const fullFileBudget = editRequest ? 2 : 0;
-      const maxChars = Math.min(contextHelperMaxChars(), MAX_WORKSPACE_TOTAL_CONTEXT_CHARS);
+      const maxChars = editRequest
+        ? Math.min(contextHelperMaxChars(), MAX_WORKSPACE_TOTAL_CONTEXT_CHARS)
+        : Math.min(contextHelperMaxChars(), MAX_WORKSPACE_GENERAL_CONTEXT_CHARS);
       const blocks = [];
       const snippetsUsed = [];
       let used = 0;
@@ -2521,16 +2785,20 @@ Workspace context is present in the latest user message. Treat those files as at
         inputTokens: settings.mcpEnabled ? estimateTokenCount(requestContent) : estimateRequestTokens(requestMessages),
         source: inferenceRuntimeLabel()
       });
+      const estimatedInputTokens = estimateRequestTokens(requestMessages);
+      if (estimatedInputTokens > 6000) {
+        showToast(`Large prompt: ~${estimatedInputTokens.toLocaleString()} input tokens. This can lower LM Studio tok/s.`);
+      }
 
       try {
-        if (settings.mcpEnabled) {
+        if (isHybridRuntime()) {
+          fullResponse = await runHybridChatCompletion(requestMessages, assistantUi, requestContent);
+        } else if (settings.mcpEnabled) {
           fullResponse = await runNativeMcpChatCompletion(requestContent, assistantUi);
+        } else if (isAndroidRuntime()) {
+          fullResponse = await runNativeChatCompletion(requestMessages, assistantUi);
         } else {
-          fullResponse = isHybridRuntime()
-            ? await runHybridChatCompletion(requestMessages, assistantUi)
-            : isAndroidRuntime()
-              ? await runNativeChatCompletion(requestMessages, assistantUi)
-              : await runServerChatCompletion(requestMessages, assistantUi);
+          fullResponse = await runServerChatCompletion(requestMessages, assistantUi);
         }
 
         if (!fullResponse.trim()) {

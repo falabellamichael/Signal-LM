@@ -1,3 +1,9 @@
 [submodule "android-vulkan-runtime/android/llama.cpp"]
 	path = android-vulkan-runtime/android/llama.cpp
 	url = https://github.com/ggerganov/llama.cpp.git
+[submodule "SignalLM-Android/app/src/main/cpp/third_party/SPIRV-Headers"]
+	path = SignalLM-Android/app/src/main/cpp/third_party/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
+[submodule "SignalLM-Android/app/src/main/cpp/third_party/llama.cpp"]
+	path = SignalLM-Android/app/src/main/cpp/third_party/llama.cpp
+	url = https://github.com/ggerganov/llama.cpp.git

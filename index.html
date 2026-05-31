@@ -148,7 +148,8 @@
           <select id="hybrid-strategy">
             <option value="off">Off - PC server only</option>
             <option value="fallback">PC first, phone fallback on slow/fail</option>
-            <option value="race">Run PC + phone in parallel, use first reply</option>
+            <option value="race">Race - PC + phone in parallel, use first</option>
+            <option value="split">Task Splitting - PC generates raw answer, phone generates summary</option>
           </select>
           <p class="runtime-status-line">Off keeps every request on the LM Studio server. Fallback and race use the phone through the native Android inference bridge.</p>
         </div>
@@ -545,7 +546,7 @@
 
           <div class="button-row">
             <button type="button" onclick="saveConnection()">Save Connection</button>
-            <button class="ghost-btn" type="button" onclick="testConnection()">Test + Load Models</button>
+            <button class="ghost-btn" type="button" onclick="testConnection()">Test PC Connection + Load Models</button>
           </div>
         </section>
 
@@ -558,7 +559,7 @@
               <option value="hybrid">Hybrid boost · PC primary + Android support</option>
               <option value="android-vulkan">Android Vulkan local only</option>
             </select>
-            <p class="hint">Hybrid uses the PC server first and can use the phone as a fallback or parallel helper through the native Android bridge. It does not combine PC and phone VRAM into one model.</p>
+            <p class="hint">Server and hybrid PC requests use the Connection Base URL/API key as the host and control point. Android local only uses the phone model path.</p>
           </div>
 
           <div class="input-group">
@@ -566,7 +567,8 @@
             <select id="settings-hybrid-strategy">
               <option value="off">Off - PC server only</option>
               <option value="fallback">PC first, phone fallback on slow/fail</option>
-              <option value="race">Run PC + phone in parallel, use first reply</option>
+              <option value="race">Race - PC + phone in parallel, use first</option>
+              <option value="split">Task Splitting - PC generates raw answer, phone generates summary</option>
             </select>
             <p class="hint">Off keeps every request on the LM Studio server. Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
           </div>

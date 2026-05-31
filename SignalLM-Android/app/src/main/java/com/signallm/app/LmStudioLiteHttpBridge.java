@@ -148,12 +148,61 @@ public class LmStudioLiteHttpBridge {
     public String chatCompletion(String payloadJson) {
         try {
             if (NativeInferenceRuntime.isAvailable()) {
-                return NativeInferenceRuntime.chatCompletion(payloadJson);
+                return NativeInferenceRuntime.chatCompletion(payloadJson, null);
             }
         } catch (Throwable nativeError) {
             Log.w(TAG, "Native inference unavailable, using HTTP fallback: " + nativeError.getMessage());
         }
         return chatCompletionViaHttp(payloadJson);
+    }
+
+    @JavascriptInterface
+    public void chatCompletionAsync(final String payloadJson, final String requestId) {
+        if (activity != null) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        final String result;
+                        if (NativeInferenceRuntime.isAvailable()) {
+                            NativeInferenceCallback callback = new NativeInferenceCallback() {
+                                @Override
+                                public void onToken(final String token) {
+                                    String tokenJson = JSONObject.quote(token == null ? "" : token);
+                                    activity.evaluateJavascript("if(window['__httpChunk_" + requestId + "']) { window['__httpChunk_" + requestId + "'](" + tokenJson + "); }");
+                                }
+                            };
+                            result = NativeInferenceRuntime.chatCompletion(payloadJson, callback);
+                        } else {
+                            result = chatCompletionViaHttp(payloadJson);
+                        }
+                        activity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                activity.resolveHttpRequest(requestId, result);
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in chatCompletionAsync", e);
+                        try {
+                            final JSONObject out = new JSONObject();
+                            out.put("content", "Native inference async error: " + e.getMessage());
+                            activity.runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    activity.resolveHttpRequest(requestId, out.toString());
+                                }
+                            });
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }).start();
+        }
+    }
+
+    @JavascriptInterface
+    public void cancelGeneration() {
+        NativeInferenceRuntime.cancelGeneration();
     }
 
     @JavascriptInterface

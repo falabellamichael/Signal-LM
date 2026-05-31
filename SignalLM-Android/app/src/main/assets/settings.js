@@ -264,11 +264,7 @@ const STORAGE_KEYS = {
     async function testConnection() {
       saveConnection();
       const mode = settings.runtimeMode || DEFAULT_SETTINGS.runtimeMode;
-      if (mode === 'android-vulkan') {
-        await testNativeRuntime();
-        return;
-      }
-      setStatus('checking', 'Checking', hybridPhoneSupportEnabled() ? `Testing PC server plus Android inference bridge` : `Testing ${nativeApiBaseUrl()}/models`);
+      setStatus('checking', 'Checking PC', `Testing ${nativeApiBaseUrl()}/models from Connection`);
       els.modelList.innerHTML = '';
 
       try {
@@ -287,7 +283,9 @@ const STORAGE_KEYS = {
           ? payload.models.map(model => typeof model === 'string' ? model : (model.id || model.key || model.name || model.model)).filter(Boolean)
           : [];
 
-        if (mode === 'hybrid' && getHybridStrategy() === 'off') {
+        if (mode === 'android-vulkan') {
+          setStatus('connected', 'PC Connection', `${models.length} PC model${models.length === 1 ? '' : 's'} returned. Android local runtime still uses its own native model path.`);
+        } else if (mode === 'hybrid' && getHybridStrategy() === 'off') {
           setStatus('connected', 'PC only', `${models.length} PC model${models.length === 1 ? '' : 's'} returned. Phone boost is off.`);
         } else if (mode === 'hybrid') {
           const bridge = getNativeInferenceBridge();

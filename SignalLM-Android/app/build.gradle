@@ -5,6 +5,8 @@ plugins {
 import java.nio.file.Files
 import org.gradle.process.ExecOperations
 
+def signalLmEnableVulkan = providers.gradleProperty('SIGNAL_LM_ENABLE_VULKAN').orElse('AUTO')
+
 android {
     namespace 'com.signallm.app'
     compileSdk 36
@@ -17,7 +19,7 @@ android {
 
     defaultConfig {
         applicationId 'com.signallm.app'
-        minSdk 23
+        minSdk 24
         targetSdk 36
         versionCode 12
         versionName '1.0.5.7'
@@ -25,6 +27,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags '-std=c++17'
+                arguments "-DSIGNAL_LM_ENABLE_VULKAN=${signalLmEnableVulkan.get()}"
             }
         }
     }

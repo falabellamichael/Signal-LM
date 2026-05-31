@@ -94,7 +94,6 @@
   <link rel="stylesheet" href="mcp.css">
   <link rel="stylesheet" href="settings.css">
   <link rel="stylesheet" href="signal-lm-app-shell.css?v=10">
-  <link rel="stylesheet" href="system-sidebar.css?v=2">
 </head>
 <body>
   <div class="mobile-scrim" id="mobile-scrim" onclick="toggleSidebar(false)"></div>
@@ -148,7 +147,8 @@
           <select id="hybrid-strategy">
             <option value="off">Off - PC server only</option>
             <option value="fallback">PC first, phone fallback on slow/fail</option>
-            <option value="race">Run PC + phone in parallel, use first reply</option>
+            <option value="race">Race - PC + phone in parallel, use first</option>
+            <option value="split">Task Splitting - PC generates raw answer, phone generates summary</option>
           </select>
           <p class="runtime-status-line">Off keeps every request on the LM Studio server. Fallback and race use the phone through the native Android inference bridge.</p>
         </div>
@@ -209,7 +209,6 @@
       <button class="ghost-btn" type="button" onclick="exportChat()">Export</button>
       <button class="danger-btn" type="button" onclick="clearChat()">Clear</button>
     </div>
-    <button class="sidebar-resize-handle" id="sidebar-resize-handle" type="button" aria-label="Resize sidebar" title="Drag to resize sidebar"></button>
   </aside>
 
   <button class="mobile-toggle" type="button" onclick="toggleSidebar()">☰</button>
@@ -545,7 +544,7 @@
 
           <div class="button-row">
             <button type="button" onclick="saveConnection()">Save Connection</button>
-            <button class="ghost-btn" type="button" onclick="testConnection()">Test + Load Models</button>
+            <button class="ghost-btn" type="button" onclick="testConnection()">Test PC Connection + Load Models</button>
           </div>
         </section>
 
@@ -558,7 +557,7 @@
               <option value="hybrid">Hybrid boost · PC primary + Android support</option>
               <option value="android-vulkan">Android Vulkan local only</option>
             </select>
-            <p class="hint">Hybrid uses the PC server first and can use the phone as a fallback or parallel helper through the native Android bridge. It does not combine PC and phone VRAM into one model.</p>
+            <p class="hint">Server and hybrid PC requests use the Connection Base URL/API key as the host and control point. Android local only uses the phone model path.</p>
           </div>
 
           <div class="input-group">
@@ -566,7 +565,8 @@
             <select id="settings-hybrid-strategy">
               <option value="off">Off - PC server only</option>
               <option value="fallback">PC first, phone fallback on slow/fail</option>
-              <option value="race">Run PC + phone in parallel, use first reply</option>
+              <option value="race">Race - PC + phone in parallel, use first</option>
+              <option value="split">Task Splitting - PC generates raw answer, phone generates summary</option>
             </select>
             <p class="hint">Off keeps every request on the LM Studio server. Fallback keeps the PC primary. Race starts both runtimes and uses whichever completes first.</p>
           </div>
@@ -704,56 +704,11 @@
       </div>
     </main>
 
-  <aside class="system-sidebar" id="system-sidebar" aria-label="System status">
-    <div class="system-sidebar-header">
-      <div class="system-sidebar-title">
-        <span class="system-sidebar-icon" aria-hidden="true">⌁</span>
-        <span>System Status</span>
-      </div>
-      <button class="system-sidebar-menu" type="button" aria-label="More system options" title="More system options">•••</button>
-    </div>
-
-    <div class="system-tabs" role="tablist" aria-label="System sidebar sections">
-      <button class="system-tab active" type="button" data-system-tab="overview" role="tab" aria-selected="true">Status</button>
-      <button class="system-tab" type="button" data-system-tab="history" role="tab" aria-selected="false">History</button>
-      <button class="system-tab" type="button" data-system-tab="devices" role="tab" aria-selected="false">Devices</button>
-    </div>
-
-    <section class="system-tab-panel active" data-system-panel="overview" role="tabpanel">
-      <div class="system-section-heading">
-        <span class="system-section-icon" aria-hidden="true">ⓘ</span>
-        <h2>Telemetry</h2>
-      </div>
-      <div class="system-metrics-grid" id="system-metrics-grid"></div>
-    </section>
-
-    <section class="system-tab-panel" data-system-panel="history" role="tabpanel">
-      <div class="system-section-heading">
-        <span class="system-section-icon" aria-hidden="true">📜</span>
-        <h2>Chat History</h2>
-      </div>
-      <div class="system-sidebar-history-container">
-        <button class="new-chat-btn" id="new-chat-btn" type="button">+ New Chat</button>
-        <div class="system-history-list" id="system-history-list"></div>
-      </div>
-    </section>
-
-    <section class="system-tab-panel" data-system-panel="devices" role="tabpanel">
-      <div class="system-section-heading">
-        <span class="system-section-icon" aria-hidden="true">▣</span>
-        <h2>Device Snapshot</h2>
-      </div>
-      <div class="system-device-list" id="system-device-list"></div>
-    </section>
-    <button class="system-sidebar-resize-handle" id="system-sidebar-resize-handle" type="button" aria-label="Resize system status sidebar" title="Drag to resize system status sidebar"></button>
-  </aside>
-
   <div class="toast" id="toast"></div>
 
   <script src="libs/prism.js"></script>
   <script src="shared.js?v=11"></script>
   <script src="index.js?v=17"></script>
-  <script src="system-sidebar.js?v=3"></script>
   <script src="signal-lm-commands.js?v=5"></script>
 
   <script src="editor.js"></script>

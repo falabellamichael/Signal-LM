@@ -85,8 +85,7 @@
   function nativeHttpBridgeEnabled() {
     const settings = readSettings();
     const mode = settings.runtimeMode || 'server';
-    const hybridStrategy = settings.hybridStrategy || 'off';
-    return mode === 'hybrid' && hybridStrategy !== 'off';
+    return mode === 'server' || mode === 'hybrid';
   }
 
   function bridgeCanRequest(url) {

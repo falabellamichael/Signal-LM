@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <atomic>
 #include <android/log.h>
 #include <algorithm>
 
@@ -40,6 +41,7 @@ std::mutex g_mutex;
 std::string g_model_path;
 llama_model* g_model = nullptr;
 bool g_backend_initialized = false;
+std::atomic<bool> g_cancel_requested(false);
 #endif
 }
 
@@ -52,14 +54,22 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeIsAvailable(JNIEnv*, jclass) 
 #endif
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_signallm_app_NativeInferenceRuntime_nativeCancelGeneration(JNIEnv*, jclass) {
+#ifdef SIGNAL_LM_HAS_LLAMA
+    g_cancel_requested.store(true);
+#endif
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, jclass, 
-    jstring jmodelPath, jstring jprompt, jfloat temperature, jfloat topP, jint maxTokens) {
+    jstring jmodelPath, jstring jprompt, jfloat temperature, jfloat topP, jint maxTokens, jint threads, jobject callback) {
 
 #ifndef SIGNAL_LM_HAS_LLAMA
     return make_json(env, "Native inference scaffold is present, but no Android model backend is linked yet.", false);
 #else
     std::lock_guard<std::mutex> lock(g_mutex);
+    g_cancel_requested.store(false);
 
     const char* c_modelPath = env->GetStringUTFChars(jmodelPath, nullptr);
     std::string modelPath = c_modelPath ? c_modelPath : "";
@@ -111,6 +121,9 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
     ctx_params.n_ctx = n_prompt + maxTokens + 32;
     ctx_params.n_batch = n_prompt;
     ctx_params.no_perf = true;
+    const int safeThreads = std::max(1, std::min(static_cast<int>(threads), 16));
+    ctx_params.n_threads = safeThreads;
+    ctx_params.n_threads_batch = safeThreads;
 
     llama_context* ctx = llama_init_from_model(g_model, ctx_params);
     if (ctx == nullptr) {
@@ -143,7 +156,18 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
     int n_decode = 0;
     llama_token new_token_id;
 
+    jclass callbackClass = nullptr;
+    jmethodID onTokenMethod = nullptr;
+    if (callback != nullptr) {
+        callbackClass = env->GetObjectClass(callback);
+        onTokenMethod = env->GetMethodID(callbackClass, "onToken", "(Ljava/lang/String;)V");
+    }
+
     for (int n_pos = 0; n_pos + batch.n_tokens < n_prompt + maxTokens; ) {
+        if (g_cancel_requested.load()) {
+            break;
+        }
+
         if (llama_decode(ctx, batch)) {
             LOGE("llama_decode failed");
             break;
@@ -160,7 +184,14 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
         char buf[128];
         int n = llama_token_to_piece(vocab, new_token_id, buf, sizeof(buf), 0, true);
         if (n >= 0) {
-            response += std::string(buf, n);
+            std::string piece(buf, n);
+            response += piece;
+
+            if (callback != nullptr && onTokenMethod != nullptr) {
+                jstring jpiece = env->NewStringUTF(piece.c_str());
+                env->CallVoidMethod(callback, onTokenMethod, jpiece);
+                env->DeleteLocalRef(jpiece);
+            }
         }
 
         batch = llama_batch_get_one(&new_token_id, 1);
@@ -169,6 +200,7 @@ Java_com_signallm_app_NativeInferenceRuntime_nativeChatCompletion(JNIEnv* env, j
 
     llama_sampler_free(smpl);
     llama_free(ctx);
+    g_cancel_requested.store(false);
 
     return make_json(env, response, true);
 #endif
