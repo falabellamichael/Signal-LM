@@ -123,11 +123,26 @@ public class MainActivity extends Activity {
                         "    });\n" +
                         "  };\n" +
                         "  window.lmStudioLiteNative.httpRequest = function(payload) {\n" +
+                        "    var payloadObj = null;\n" +
                         "    var json = typeof payload === 'string' ? payload : JSON.stringify(payload || {});\n" +
+                        "    try {\n" +
+                        "      payloadObj = typeof payload === 'string' ? JSON.parse(payload || '{}') : (payload || {});\n" +
+                        "      if (!payloadObj || typeof payloadObj !== 'object') payloadObj = {};\n" +
+                        "    } catch (e) { payloadObj = null; }\n" +
+                        "    var requestId = payloadObj && (payloadObj.requestId || payloadObj._requestId);\n" +
+                        "    if (!requestId) requestId = 'req_' + Math.random().toString(36).slice(2);\n" +
+                        "    if (payloadObj) {\n" +
+                        "      payloadObj.requestId = requestId;\n" +
+                        "      payloadObj._requestId = requestId;\n" +
+                        "      json = JSON.stringify(payloadObj);\n" +
+                        "    }\n" +
                         "    return new Promise(function(resolve, reject) {\n" +
-                        "      var requestId = 'req_' + Math.random().toString(36).slice(2);\n" +
-                        "      window['__httpResolve_' + requestId] = resolve;\n" +
-                        "      window['__httpReject_' + requestId] = reject;\n" +
+                        "      var cleanup = function() {\n" +
+                        "        delete window['__httpResolve_' + requestId];\n" +
+                        "        delete window['__httpReject_' + requestId];\n" +
+                        "      };\n" +
+                        "      window['__httpResolve_' + requestId] = function(result) { cleanup(); resolve(result); };\n" +
+                        "      window['__httpReject_' + requestId] = function(message) { cleanup(); reject(new Error(message || 'Native HTTP bridge failed.')); };\n" +
                         "      window.lmStudioLiteNative.triggerHttpRequest(json, requestId);\n" +
                         "    });\n" +
                         "  };\n" +

@@ -6,4 +6,4 @@
 	url = https://github.com/KhronosGroup/SPIRV-Headers.git
 [submodule "SignalLM-Android/app/src/main/cpp/third_party/llama.cpp"]
 	path = SignalLM-Android/app/src/main/cpp/third_party/llama.cpp
-	url = https://github.com/ggerganov/llama.cpp.git
+	url = https://github.com/falabellamichael/llama.cpp.git

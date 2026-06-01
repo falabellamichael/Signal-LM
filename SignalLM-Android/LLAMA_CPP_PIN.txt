@@ -1,4 +1,4 @@
 repo=https://github.com/ggml-org/llama.cpp.git
 ref=master
-commit=d4c8e2c29ce2fb9a251a0a4a16d6c857b4f70f8c
+commit=399739d5c5978351f39e3454bfbfbab4f369088f
 path=app/src/main/cpp/third_party/llama.cpp

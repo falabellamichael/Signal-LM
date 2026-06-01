@@ -14,13 +14,18 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class LmStudioLiteHttpBridge {
     private static final String TAG = "LmStudioBridge";
     private MainActivity activity;
+    private final Map<String, HttpURLConnection> activeHttpConnections = new ConcurrentHashMap<>();
+    private final Set<String> cancelledHttpRequests = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
     public LmStudioLiteHttpBridge(MainActivity activity) {
         this.activity = activity;
@@ -118,7 +123,7 @@ public class LmStudioLiteHttpBridge {
                 @Override
                 public void run() {
                     try {
-                        final String result = httpRequest(payloadJson);
+                        final String result = httpRequestInternal(payloadJson, requestId);
                         activity.runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -202,7 +207,24 @@ public class LmStudioLiteHttpBridge {
 
     @JavascriptInterface
     public void cancelGeneration() {
+        cancelAllHttpRequests();
         NativeInferenceRuntime.cancelGeneration();
+    }
+
+    @JavascriptInterface
+    public void cancelHttpRequest(String requestId) {
+        if (requestId == null || requestId.trim().isEmpty()) return;
+        if ("__all__".equals(requestId)) {
+            cancelAllHttpRequests();
+            return;
+        }
+
+        String cleanRequestId = requestId.trim();
+        cancelledHttpRequests.add(cleanRequestId);
+        HttpURLConnection connection = activeHttpConnections.remove(cleanRequestId);
+        if (connection != null) {
+            connection.disconnect();
+        }
     }
 
     @JavascriptInterface
@@ -262,9 +284,18 @@ public class LmStudioLiteHttpBridge {
 
     @JavascriptInterface
     public String httpRequest(String payloadJson) {
+        return httpRequestInternal(payloadJson, null);
+    }
+
+    private String httpRequestInternal(String payloadJson, String explicitRequestId) {
         HttpURLConnection connection = null;
+        String requestId = null;
         try {
             JSONObject payload = new JSONObject(payloadJson == null ? "{}" : payloadJson);
+            requestId = firstNonEmpty(explicitRequestId, payload.optString("requestId", payload.optString("_requestId", "")));
+            if (requestId == null || requestId.trim().isEmpty()) {
+                requestId = "internal_" + Thread.currentThread().getId() + "_" + System.nanoTime();
+            }
             String urlText = payload.optString("url", "");
             String method = payload.optString("method", "GET").toUpperCase();
             Log.d(TAG, "httpRequest: " + method + " " + urlText);
@@ -274,6 +305,10 @@ public class LmStudioLiteHttpBridge {
 
             URL url = new URL(urlText);
             connection = (HttpURLConnection) url.openConnection();
+            activeHttpConnections.put(requestId, connection);
+            if (isHttpRequestCancelled(requestId)) {
+                throw new java.io.IOException("Request cancelled");
+            }
             connection.setRequestMethod(method);
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(120000);
@@ -301,10 +336,14 @@ public class LmStudioLiteHttpBridge {
                 stream.close();
             }
 
+            if (isHttpRequestCancelled(requestId)) {
+                throw new java.io.IOException("Request cancelled");
+            }
+
             int status = connection.getResponseCode();
             Log.d(TAG, "HTTP Response Code: " + status);
             InputStream responseStream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-            String responseBody = readStream(responseStream);
+            String responseBody = readStream(responseStream, requestId);
 
             JSONObject out = new JSONObject();
             out.put("status", status);
@@ -326,13 +365,17 @@ public class LmStudioLiteHttpBridge {
             try {
                 JSONObject out = new JSONObject();
                 out.put("status", 0);
-                out.put("error", error.getMessage() == null ? error.toString() : error.getMessage());
+                out.put("error", isHttpRequestCancelled(requestId) ? "Request cancelled" : (error.getMessage() == null ? error.toString() : error.getMessage()));
                 out.put("body", "");
                 return out.toString();
             } catch (Exception ignored) {
                 return "{\"status\":0,\"error\":\"Native HTTP bridge failed\",\"body\":\"\"}";
             }
         } finally {
+            if (requestId != null) {
+                activeHttpConnections.remove(requestId);
+                cancelledHttpRequests.remove(requestId);
+            }
             if (connection != null) connection.disconnect();
         }
     }
@@ -380,16 +423,35 @@ public class LmStudioLiteHttpBridge {
         return base + "/v1/chat/completions";
     }
 
-    private String readStream(InputStream stream) throws Exception {
+    private String readStream(InputStream stream, String requestId) throws Exception {
         if (stream == null) return "";
         StringBuilder builder = new StringBuilder();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, "UTF-8"));
         char[] buffer = new char[8192];
         int read;
         while ((read = reader.read(buffer)) != -1) {
+            if (isHttpRequestCancelled(requestId)) {
+                throw new java.io.IOException("Request cancelled");
+            }
             builder.append(buffer, 0, read);
         }
         reader.close();
         return builder.toString();
+    }
+
+    private void cancelAllHttpRequests() {
+        for (String requestId : activeHttpConnections.keySet()) {
+            cancelHttpRequest(requestId);
+        }
+    }
+
+    private boolean isHttpRequestCancelled(String requestId) {
+        return requestId != null && cancelledHttpRequests.contains(requestId);
+    }
+
+    private String firstNonEmpty(String first, String second) {
+        if (first != null && !first.trim().isEmpty()) return first.trim();
+        if (second != null && !second.trim().isEmpty()) return second.trim();
+        return "";
     }
 }

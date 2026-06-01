@@ -70,6 +70,31 @@
     'session_id'
   ]);
 
+  function createAbortError() {
+    try {
+      return new DOMException('The request was stopped.', 'AbortError');
+    } catch {
+      const error = new Error('The request was stopped.');
+      error.name = 'AbortError';
+      return error;
+    }
+  }
+
+  function throwIfAborted(signal) {
+    if (signal && signal.aborted) throw createAbortError();
+  }
+
+  function nativeRequestId() {
+    return 'req_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+  }
+
+  function cancelBridgeRequest(bridge, requestId) {
+    try {
+      if (bridge && typeof bridge.cancelHttpRequest === 'function') bridge.cancelHttpRequest(requestId);
+      else if (bridge && typeof bridge.cancelGeneration === 'function') bridge.cancelGeneration();
+    } catch {}
+  }
+
   function getBridge() {
     return window.SignalLMNativeBridge || window.lmStudioLiteNative || window.NativeFileBridge || window.AndroidBridge || window.AndroidFileBridge || window.AndroidWorkspaceBridge || null;
   }
@@ -95,7 +120,7 @@
 
   function isLmStudioChatRequest(url) {
     const clean = String(url || '').split('?')[0].replace(/\/+$/, '');
-    return /\/(?:v1\/chat\/completions|api\/v1\/chat)$/i.test(clean);
+    return /\/(?:v\d+\/chat\/completions|api\/v\d+\/chat(?:\/completions)?)$/i.test(clean);
   }
 
   function sanitizeLmStudioRequestBody(url, body) {
@@ -138,25 +163,109 @@
     return headers;
   }
 
+  function callTriggerHttpRequest(bridge, payload, signal) {
+    const requestId = payload.requestId || nativeRequestId();
+    payload.requestId = requestId;
+    payload._requestId = requestId;
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let abortHandler = null;
+      const resolveName = '__httpResolve_' + requestId;
+      const rejectName = '__httpReject_' + requestId;
+
+      const cleanup = () => {
+        delete window[resolveName];
+        delete window[rejectName];
+        if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+      };
+
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+
+      abortHandler = () => {
+        cancelBridgeRequest(bridge, requestId);
+        finish(reject, createAbortError());
+      };
+
+      if (signal && signal.aborted) {
+        abortHandler();
+        return;
+      }
+
+      window[resolveName] = result => finish(resolve, result);
+      window[rejectName] = message => finish(reject, new Error(message || 'Native HTTP bridge failed.'));
+      if (signal) signal.addEventListener('abort', abortHandler, { once: true });
+
+      try {
+        bridge.triggerHttpRequest(JSON.stringify(payload), requestId);
+      } catch (error) {
+        finish(reject, error);
+      }
+    });
+  }
+
+  async function callBridgeHttpMethod(bridge, payload, signal) {
+    throwIfAborted(signal);
+    const requestId = payload.requestId;
+    let abortHandler = null;
+    const request = Promise.resolve().then(() => {
+      const json = JSON.stringify(payload);
+      if (bridge.httpRequest) return bridge.httpRequest(json);
+      if (bridge.request) return bridge.request(json);
+      return bridge.fetchJson(json);
+    });
+
+    if (!signal) return await request;
+
+    const abort = new Promise((_, reject) => {
+      abortHandler = () => {
+        cancelBridgeRequest(bridge, requestId);
+        reject(createAbortError());
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
+    });
+
+    try {
+      return await Promise.race([request, abort]);
+    } finally {
+      if (abortHandler) signal.removeEventListener('abort', abortHandler);
+    }
+  }
+
+  async function callNativeHttpBridge(bridge, payload, signal) {
+    throwIfAborted(signal);
+    if (bridge && typeof bridge.triggerHttpRequest === 'function') {
+      return await callTriggerHttpRequest(bridge, payload, signal);
+    }
+    return await callBridgeHttpMethod(bridge, payload, signal);
+  }
+
   async function nativeFetch(input, init) {
     const options = init || {};
     const url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
     const method = options.method || (input && input.method) || 'GET';
     const headers = mergeHeaders(input && input.headers, options.headers);
+    const signal = options.signal || (input && input.signal) || null;
     let body = options.body || null;
     if (body && typeof body !== 'string') body = String(body);
     body = sanitizeLmStudioRequestBody(url, body);
 
-    const payload = JSON.stringify({ url, method, headers, body });
+    const requestId = nativeRequestId();
+    const payload = { url, method, headers, body, requestId, _requestId: requestId };
     const bridge = getBridge();
-    const raw = await (bridge.httpRequest
-      ? bridge.httpRequest(payload)
-      : bridge.request
-        ? bridge.request(payload)
-        : bridge.fetchJson(payload));
+    const raw = await callNativeHttpBridge(bridge, payload, signal);
+    throwIfAborted(signal);
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!parsed || typeof parsed !== 'object') throw new Error('Native HTTP bridge returned an empty response.');
-    if (parsed.error) throw new Error(parsed.error);
+    if (parsed.error) {
+      if (/aborted|cancelled|canceled|stopped/i.test(parsed.error)) throw createAbortError();
+      throw new Error(parsed.error);
+    }
 
     const responseHeaders = new Headers(parsed.headers || {});
     if (!responseHeaders.has('content-type')) responseHeaders.set('content-type', parsed.contentType || 'application/json');

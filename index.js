@@ -882,6 +882,8 @@ const STORAGE_KEYS = {
     }
 
     async function fetchServerChatCompletion(requestMessages, stream, signal) {
+      const activeSignal = getActiveAbortSignal(signal);
+      throwIfAborted(activeSignal);
       const urls = chatCompletionUrls();
       let lastError = null;
 
@@ -891,15 +893,16 @@ const STORAGE_KEYS = {
           response = await fetch(url, {
             method: 'POST',
             headers: getHeaders(),
-            signal,
+            signal: activeSignal,
             body: JSON.stringify(buildChatCompletionBody(requestMessages, stream))
           });
         } catch (error) {
           lastError = error;
-          if (error?.name === 'AbortError' || url === urls[urls.length - 1]) throw error;
+          if (isAbortError(error) || url === urls[urls.length - 1]) throw error;
           continue;
         }
 
+        throwIfAborted(activeSignal);
         if (response.ok) return response;
 
         const errorText = await response.text().catch(() => '');
@@ -909,16 +912,17 @@ const STORAGE_KEYS = {
             const retryResponse = await fetch(url, {
               method: 'POST',
               headers: getHeaders(),
-              signal,
+              signal: activeSignal,
               body: JSON.stringify(buildChatCompletionBody(requestMessages, stream, { includeUsage: false }))
             });
+            throwIfAborted(activeSignal);
             if (retryResponse.ok) return retryResponse;
             const retryErrorText = await retryResponse.text().catch(() => '');
             lastError = new Error(retryErrorText || errorText || `LM Studio API error: HTTP ${retryResponse.status}`);
             response = retryResponse;
           } catch (error) {
             lastError = error;
-            if (error?.name === 'AbortError' || url === urls[urls.length - 1]) throw error;
+            if (isAbortError(error) || url === urls[urls.length - 1]) throw error;
           }
         }
         if (url === urls[urls.length - 1] || !shouldTryConfiguredChatEndpoint(response)) throw lastError;
@@ -1089,45 +1093,64 @@ const STORAGE_KEYS = {
       if (!bridge) throw new Error('Android Vulkan runtime bridge is not available in this app build. Use server mode or rebuild the Android wrapper with the native inference bridge.');
 
       const payload = buildNativeCompletionPayload(requestMessages);
-
-      if (abortController?.signal && bridge.cancelGeneration) {
-        abortController.signal.addEventListener('abort', () => {
-          try { bridge.cancelGeneration(); } catch {}
-        }, { once: true });
-      }
+      const activeSignal = getActiveAbortSignal();
+      throwIfAborted(activeSignal);
+      const cancelNative = () => {
+        try { bridge.cancelGeneration?.(); } catch {}
+        try { bridge.cancelHttpRequest?.('__all__'); } catch {}
+      };
+      const removeCancelListener = addAbortListener(activeSignal, cancelNative);
 
       let result;
-      if (bridge.chatCompletionAsync) {
-        result = await new Promise((resolve, reject) => {
-          const reqId = 'req_' + Math.random().toString(36).substring(2, 9);
-          const cleanup = () => {
-            delete window['__httpResolve_' + reqId];
-            delete window['__httpReject_' + reqId];
-            if (onChunk) delete window['__httpChunk_' + reqId];
-          };
-          if (onChunk) {
-            window['__httpChunk_' + reqId] = onChunk;
-          }
-          window['__httpResolve_' + reqId] = (resStr) => {
-            cleanup();
-            resolve(resStr);
-          };
-          window['__httpReject_' + reqId] = (message) => {
-            cleanup();
-            reject(new Error(message || 'Android native inference failed.'));
-          };
-          try {
-            bridge.chatCompletionAsync(JSON.stringify(payload), reqId);
-          } catch (e) {
-            cleanup();
-            reject(e);
-          }
-        });
-      } else if (bridge.chatCompletion) result = await callNativeBridgeMethod(bridge, 'chatCompletion', payload);
-      else if (bridge.generate) result = await callNativeBridgeMethod(bridge, 'generate', payload);
-      else throw new Error('The Android runtime bridge must expose chatCompletion(payload) or generate(payload).');
+      try {
+        if (bridge.chatCompletionAsync) {
+          result = await new Promise((resolve, reject) => {
+            const reqId = 'req_' + Math.random().toString(36).substring(2, 9);
+            let removeAbortListener = null;
+            const cleanup = () => {
+              if (removeAbortListener) removeAbortListener();
+              delete window['__httpResolve_' + reqId];
+              delete window['__httpReject_' + reqId];
+              if (onChunk) delete window['__httpChunk_' + reqId];
+            };
+            const rejectAbort = () => {
+              cancelNative();
+              cleanup();
+              reject(createAbortError());
+            };
+            if (activeSignal?.aborted) {
+              rejectAbort();
+              return;
+            }
+            removeAbortListener = addAbortListener(activeSignal, rejectAbort);
+            if (onChunk) {
+              window['__httpChunk_' + reqId] = onChunk;
+            }
+            window['__httpResolve_' + reqId] = (resStr) => {
+              cleanup();
+              if (activeSignal?.aborted) reject(createAbortError());
+              else resolve(resStr);
+            };
+            window['__httpReject_' + reqId] = (message) => {
+              cleanup();
+              reject(new Error(message || 'Android native inference failed.'));
+            };
+            try {
+              bridge.chatCompletionAsync(JSON.stringify(payload), reqId);
+            } catch (e) {
+              cleanup();
+              reject(e);
+            }
+          });
+        } else if (bridge.chatCompletion) result = await callNativeBridgeMethod(bridge, 'chatCompletion', payload);
+        else if (bridge.generate) result = await callNativeBridgeMethod(bridge, 'generate', payload);
+        else throw new Error('The Android runtime bridge must expose chatCompletion(payload) or generate(payload).');
 
-      return extractNativeCompletionText(result) || '(No content returned.)';
+        throwIfAborted(activeSignal);
+        return extractNativeCompletionText(result) || '(No content returned.)';
+      } finally {
+        removeCancelListener();
+      }
     }
 
     async function runNativeChatCompletionStream(requestMessages, assistantUi) {
@@ -1142,7 +1165,13 @@ const STORAGE_KEYS = {
         }
       };
 
-      const finalResult = await runNativeCompletionText(requestMessages, onChunk);
+      let finalResult;
+      try {
+        finalResult = await runNativeCompletionText(requestMessages, onChunk);
+      } catch (error) {
+        if (isAbortError(error)) throw attachPartialAbort(error, fullResponse);
+        throw error;
+      }
       // In case onChunk wasn't called or missed pieces
       if (!fullResponse) fullResponse = finalResult;
 
@@ -1182,13 +1211,16 @@ const STORAGE_KEYS = {
     async function runServerChatCompletion(requestMessages, assistantUi, onChunk = null, signal = null) {
       setInferenceTelemetrySource('LM Studio server');
       let fullResponse = '';
-      const response = await fetchServerChatCompletion(requestMessages, true, signal || abortController?.signal);
+      const activeSignal = getActiveAbortSignal(signal);
+      throwIfAborted(activeSignal);
+      const response = await fetchServerChatCompletion(requestMessages, true, activeSignal);
 
       if (!response.body) throw new Error('This browser does not support streamed responses.');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let removeAbortListener = () => {};
 
       const handleData = (data) => {
         if (!data || data === '[DONE]') return;
@@ -1220,25 +1252,42 @@ const STORAGE_KEYS = {
         } catch {}
       };
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        buffer = parseSseEvents(buffer, handleData);
-      }
+      try {
+        removeAbortListener = addAbortListener(activeSignal, () => {
+          try { reader.cancel(); } catch {}
+        });
 
-      if (buffer.trim()) parseSseEvents(buffer + '\n\n', handleData);
-      if (assistantUi && !onChunk) {
-          assistantUi.streamingFinished();
+        while (true) {
+          throwIfAborted(activeSignal);
+          const { done, value } = await reader.read();
+          throwIfAborted(activeSignal);
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          buffer = parseSseEvents(buffer, handleData);
+        }
+
+        if (buffer.trim()) parseSseEvents(buffer + '\n\n', handleData);
+        throwIfAborted(activeSignal);
+        if (assistantUi && !onChunk) {
+            assistantUi.streamingFinished();
+        }
+        return fullResponse;
+      } catch (error) {
+        if (isAbortError(error) || activeSignal?.aborted) throw attachPartialAbort(createAbortError(), fullResponse);
+        throw error;
+      } finally {
+        removeAbortListener();
       }
-      return fullResponse;
     }
 
     async function runServerChatCompletionText(requestMessages, signal = null) {
       setInferenceTelemetrySource('PC server');
-      const response = await fetchServerChatCompletion(requestMessages, false, signal || abortController?.signal);
+      const activeSignal = getActiveAbortSignal(signal);
+      throwIfAborted(activeSignal);
+      const response = await fetchServerChatCompletion(requestMessages, false, activeSignal);
 
       const payload = await response.json();
+      throwIfAborted(activeSignal);
       const text = extractOpenAiCompletionText(payload) || '(No content returned.)';
       updateInferenceTelemetryOutput(text, 'PC server');
       applyInferenceTelemetryStats(payload, 'PC server');
@@ -1332,7 +1381,12 @@ const STORAGE_KEYS = {
         const phonePromise = runNativeCompletionText(phoneMessages, handlePhoneChunk)
           .then(text => ({ source: 'Android phone', text }));
 
-        await Promise.all([pcPromise, phonePromise].map(p => p.catch(e => console.error(e))));
+        await Promise.all([pcPromise, phonePromise].map(p => p.catch(e => {
+          if (isAbortError(e)) throw attachPartialAbort(e, [phoneText, pcText].filter(Boolean).join('\n\n'));
+          console.error(e);
+          return null;
+        })));
+        throwIfAborted(abortController?.signal);
         isDone = true;
         setInferenceTelemetrySource('Hybrid (Task Split)');
 
@@ -1402,7 +1456,14 @@ const STORAGE_KEYS = {
         const phonePromise = runNativeCompletionText(requestMessages, handlePhoneChunk)
           .then(text => ({ source: 'Android phone', text }));
 
-        const winner = await firstFulfilled([pcPromise, phonePromise]);
+        let winner;
+        try {
+          winner = await firstFulfilled([pcPromise, phonePromise]);
+        } catch (error) {
+          if (isAbortError(error)) throw attachPartialAbort(error, pcText || phoneText);
+          throw error;
+        }
+        throwIfAborted(abortController?.signal);
         isDone = true;
         setInferenceTelemetrySource(winner.source);
         const pcWon = winner.source.startsWith('PC server');
@@ -2693,6 +2754,50 @@ Workspace context is present in the latest user message. Treat those files as at
         ?? '';
     }
 
+    function createAbortError(message = 'Generation stopped.') {
+      try {
+        return new DOMException(message, 'AbortError');
+      } catch {
+        const error = new Error(message);
+        error.name = 'AbortError';
+        return error;
+      }
+    }
+
+    function isAbortError(error) {
+      return Boolean(error && (error.name === 'AbortError' || /aborted|cancelled|canceled|stopped/i.test(error.message || '')));
+    }
+
+    function throwIfAborted(signal) {
+      if (signal && signal.aborted) throw createAbortError();
+    }
+
+    function getActiveAbortSignal(signal = null) {
+      return signal || abortController?.signal || null;
+    }
+
+    function addAbortListener(signal, handler) {
+      if (!signal || typeof handler !== 'function') return () => {};
+      if (signal.aborted) {
+        handler();
+        return () => {};
+      }
+      signal.addEventListener('abort', handler, { once: true });
+      return () => signal.removeEventListener('abort', handler);
+    }
+
+    function attachPartialAbort(error, partialContent) {
+      if (isAbortError(error) && partialContent) error.partialContent = partialContent;
+      return error;
+    }
+
+    function stopNativeBridgeGeneration() {
+      const bridge = getNativeInferenceBridge();
+      if (!bridge) return;
+      try { bridge.cancelGeneration?.(); } catch {}
+      try { bridge.cancelHttpRequest?.('__all__'); } catch {}
+    }
+
     function setStreamingUI(active) {
       isStreaming = active;
       if (active) {
@@ -2818,8 +2923,8 @@ Workspace context is present in the latest user message. Treat those files as at
         messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
         saveMessages();
       } catch (error) {
-        if (error.name === 'AbortError') {
-          fullResponse = fullResponse || '(Generation stopped.)';
+        if (isAbortError(error)) {
+          fullResponse = error.partialContent || fullResponse || '(Generation stopped.)';
           assistantUi.setContent(fullResponse);
           const finalTelemetry = finishInferenceTelemetry('stopped', fullResponse, error);
           messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
@@ -2838,7 +2943,8 @@ Workspace context is present in the latest user message. Treat those files as at
     }
 
     function stopGeneration() {
-      if (abortController) abortController.abort();
+      if (abortController && !abortController.signal.aborted) abortController.abort();
+      stopNativeBridgeGeneration();
     }
 
     function clearChat() {

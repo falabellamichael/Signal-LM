@@ -8,6 +8,8 @@ app/build/
 # Node / browser test dependencies
 node_modules/
 dist/
+dist_new/
+SimpleSignal.exe
 
 # Android Studio / IntelliJ IDEA
 .idea/
