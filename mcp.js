@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
       model: 'auto-detect',
+      defaultModel: '',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -24,6 +25,9 @@ const STORAGE_KEYS = {
     };
 
     let settings = loadSettings();
+    const MCP_CONTEXT_MIN_TOKENS = 1024;
+    const MCP_REQUEST_OVERHEAD_TOKENS = 768;
+    const MCP_MIN_OUTPUT_TOKENS = 128;
 
     const els = {
       enabled: document.getElementById('mcp-enabled'),
@@ -77,6 +81,26 @@ const STORAGE_KEYS = {
       const headers = { 'Content-Type': 'application/json' };
       if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
       return headers;
+    }
+
+    function estimateTokenCount(value) {
+      const clean = String(value || '').trim();
+      if (!clean) return 0;
+      return Math.max(1, Math.round(clean.length / 4));
+    }
+
+    function configuredMcpContextLength() {
+      return Math.max(MCP_CONTEXT_MIN_TOKENS, parseInt(settings.mcpContextLength, 10) || DEFAULT_SETTINGS.mcpContextLength || 8000);
+    }
+
+    function previewMcpMaxOutputTokens(input = 'Your message here') {
+      const contextLength = configuredMcpContextLength();
+      const requested = Math.max(1, parseInt(settings.maxTokens, 10) || DEFAULT_SETTINGS.maxTokens || 500);
+      const systemTokens = estimateTokenCount(settings.systemPrompt || '');
+      const inputTokens = estimateTokenCount(input);
+      const fractionCap = Math.max(MCP_MIN_OUTPUT_TOKENS, Math.floor(contextLength * 0.25));
+      const contextCap = Math.max(1, contextLength - inputTokens - systemTokens - MCP_REQUEST_OVERHEAD_TOKENS);
+      return Math.max(1, Math.min(requested, fractionCap, contextCap));
     }
 
     function showToast(message) {
@@ -143,17 +167,25 @@ const STORAGE_KEYS = {
       }).filter(Boolean);
     }
 
+    function resolveAutoModel(placeholder = '') {
+      const loaded = window.__signalLmLoadedModels?.[0] || '';
+      if (loaded) return loaded;
+      const fallback = String(settings.defaultModel || '').trim();
+      if (fallback) return fallback;
+      return placeholder;
+    }
+
     function buildPreviewRequest() {
       const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
-        ? (window.__signalLmLoadedModels?.[0] || 'auto-detect')
+        ? resolveAutoModel('auto-detect')
         : settings.model;
       const body = {
         model: resolvedModel,
         input: 'Your message here',
         integrations: buildMcpIntegrations(),
-        context_length: Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000),
+        context_length: configuredMcpContextLength(),
         temperature: Number(settings.temperature) || 0.7,
-        max_output_tokens: parseInt(settings.maxTokens, 10) || 500,
+        max_output_tokens: previewMcpMaxOutputTokens('Your message here'),
         store: true
       };
 
@@ -448,7 +480,7 @@ const STORAGE_KEYS = {
         }
       }
       const resolvedModel = (settings.model === 'auto-detect' || !settings.model)
-        ? (window.__signalLmLoadedModels?.[0] || '')
+        ? resolveAutoModel('')
         : settings.model;
       if (!resolvedModel) {
         showToast('No active model loaded. Start LM Studio or select a model first.');

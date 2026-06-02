@@ -24,7 +24,7 @@
   if (window.__signalLmThemeLoader) return;
   window.__signalLmThemeLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-theme.js';
+  script.src = 'signal-lm-theme.js?v=2';
   script.defer = false;
   script.onerror = function () { console.warn('Signal-LM theme helper was not found.'); };
   document.head.appendChild(script);
@@ -35,7 +35,7 @@
   window.__signalLmMcpDarkCssLoader = true;
   var link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'signal-lm-mcp-dark.css?v=2';
+  link.href = 'signal-lm-mcp-dark.css?v=3';
   link.onerror = function () { console.warn('Signal-LM MCP dark stylesheet was not found.'); };
   document.head.appendChild(link);
 })();
@@ -344,7 +344,7 @@
   if (window.__signalLmJsonEditEnforcerLoader) return;
   window.__signalLmJsonEditEnforcerLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-json-edit-enforcer.js?v=write-create-1';
+  script.src = 'signal-lm-json-edit-enforcer.js?v=write-create-2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM JSON edit enforcer was not found.'); };
   document.head.appendChild(script);
@@ -354,7 +354,7 @@
   if (window.__signalLmWriteCommandFixLoader) return;
   window.__signalLmWriteCommandFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-write-command-fix.js?v=2';
+  script.src = 'signal-lm-write-command-fix.js?v=3';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM write command fix was not found.'); };
   document.head.appendChild(script);
@@ -364,7 +364,7 @@
   if (window.__signalLmMcpWriteFileFixLoader) return;
   window.__signalLmMcpWriteFileFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-mcp-write-file-fix.js?v=2';
+  script.src = 'signal-lm-mcp-write-file-fix.js?v=3';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM MCP write_file schema guard was not found.'); };
   document.head.appendChild(script);
@@ -384,9 +384,19 @@
   if (window.__signalLmChatbotSafetyFixLoader) return;
   window.__signalLmChatbotSafetyFixLoader = true;
   var script = document.createElement('script');
-  script.src = 'signal-lm-chatbot-safety-fix.js?v=1';
+  script.src = 'signal-lm-chatbot-safety-fix.js?v=2';
   script.defer = true;
   script.onerror = function () { console.warn('Signal-LM chatbot safety guard was not found.'); };
+  document.head.appendChild(script);
+})();
+
+(function () {
+  if (window.__signalLmPcFileAccessFixLoader) return;
+  window.__signalLmPcFileAccessFixLoader = true;
+  var script = document.createElement('script');
+  script.src = 'signal-lm-pc-file-access-fix.js?v=2';
+  script.defer = true;
+  script.onerror = function () { console.warn('Signal-LM PC file access guard was not found.'); };
   document.head.appendChild(script);
 })();
 

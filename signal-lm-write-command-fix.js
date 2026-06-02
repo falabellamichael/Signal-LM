@@ -51,7 +51,6 @@
   function inferTargetPath(request) {
     var explicit = explicitPath(request);
     if (explicit && !weakPath(explicit)) return explicit;
-    if (/\bsudoku\b/i.test(request)) return 'sudoku.html';
     if (/\bcalculator\b/i.test(request)) return 'calculator.html';
     if (/\btodo\b|\bto-do\b/i.test(request)) return 'todo.html';
     if (/\btimer\b/i.test(request)) return 'timer.html';
@@ -107,7 +106,7 @@
       if (!/^\/write(?:\s|$)/i.test(raw)) return previous.apply(this, arguments);
       var request = commandRequest(raw);
       if (!request) {
-        addResult('<strong>Usage:</strong> <code>/write a sudoku game</code><br>Creates a new file draft. Review it, then tap <strong>Apply</strong>. Use <code>/replace</code> to replace content in an existing file.');
+        addResult('<strong>Usage:</strong> <code>/write calculator.html a calculator page</code><br>Creates a new file draft. Review it, then tap <strong>Apply</strong>. Use <code>/replace</code> to replace content in an existing file.');
         return true;
       }
       var targetPath = inferTargetPath(request);

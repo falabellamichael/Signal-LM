@@ -240,16 +240,24 @@
       var lang = match[1] || 'json';
       var code = String(match[2] || '').trim();
       if (!code) continue;
-      var shouldPreserve = true;
+      var shouldPreserve = false;
       try {
         var parsed = JSON.parse(code);
-        shouldPreserve = Boolean(parsed && (Array.isArray(parsed.files) || Array.isArray(parsed.changes) || parsed.tool || parsed.arguments || parsed.file_path || parsed.content));
+        shouldPreserve = isToolOrEditJson(parsed);
       } catch (error) {
-        shouldPreserve = true;
+        shouldPreserve = false;
       }
       if (shouldPreserve) blocks.push({ lang: lang, code: code });
     }
     return blocks;
+  }
+
+  function isToolOrEditJson(parsed) {
+    if (!parsed || typeof parsed !== 'object') return false;
+    if (Array.isArray(parsed)) return parsed.some(isToolOrEditJson);
+    if (Array.isArray(parsed.files) || Array.isArray(parsed.changes)) return true;
+    if (parsed.type === 'tool_use' || parsed.tool || parsed.tool_name || parsed.name || parsed.function_call || parsed.arguments) return true;
+    return false;
   }
 
   function makeJsonBlock(block, index) {
@@ -257,7 +265,7 @@
     outer.className = JSON_CLASS;
     outer.open = true;
     outer.dataset.jsonIndex = String(index);
-    outer.innerHTML = '<summary>Original ' + escapeHtml(block.lang) + ' block used by chatbot/tools</summary>' +
+    outer.innerHTML = '<summary>Original tool/edit ' + escapeHtml(block.lang) + ' block</summary>' +
       '<pre><code class="language-json">' + escapeHtml(block.code) + '</code></pre>';
     return outer;
   }

@@ -5,7 +5,8 @@
     ['system', 'System'],
     ['light', 'Light'],
     ['dark', 'Midnight'],
-    ['classic-dark', 'Classic Dark']
+    ['classic-dark', 'Classic Dark'],
+    ['matrix', 'Matrix']
   ];
 
   function readSettings() {
@@ -24,7 +25,7 @@
 
   function resolveTheme(preference) {
     const pref = normalizePreference(preference);
-    if (pref === 'dark' || pref === 'classic-dark') return 'dark';
+    if (pref === 'dark' || pref === 'classic-dark' || pref === 'matrix') return 'dark';
     if (pref === 'light') return 'light';
     return media && media.matches ? 'dark' : 'light';
   }
@@ -33,7 +34,22 @@
     const pref = normalizePreference(preference);
     if (resolved !== 'dark') return '';
     if (pref === 'classic-dark') return 'classic-dark';
+    if (pref === 'matrix') return 'matrix';
     return 'midnight';
+  }
+
+  function getThemeLabel(resolved, variant) {
+    if (resolved !== 'dark') return 'Light';
+    if (variant === 'classic-dark') return 'Classic Dark';
+    if (variant === 'matrix') return 'Matrix';
+    return 'Midnight';
+  }
+
+  function getThemeColor(resolved, variant) {
+    if (resolved !== 'dark') return '#f5f3ef';
+    if (variant === 'classic-dark') return '#0f0f11';
+    if (variant === 'matrix') return '#001106';
+    return '#090a0d';
   }
 
   function ensureThemeOptions() {
@@ -59,12 +75,13 @@
     document.documentElement.dataset.theme = resolved;
     if (variant) document.documentElement.dataset.themeVariant = variant;
     else delete document.documentElement.dataset.themeVariant;
-    document.documentElement.style.colorScheme = resolved;
-    document.documentElement.style.backgroundColor = resolved === 'dark' ? '#090a0d' : '';
+    const themeColor = getThemeColor(resolved, variant);
+    document.documentElement.style.colorScheme = resolved === 'dark' ? 'dark' : 'light';
+    document.documentElement.style.backgroundColor = resolved === 'dark' ? themeColor : '';
     ensureThemeOptions();
     document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = pref; });
     document.querySelectorAll('[data-theme-label]').forEach(label => {
-      label.textContent = resolved === 'dark' ? (variant === 'classic-dark' ? 'Classic Dark' : 'Midnight') : 'Light';
+      label.textContent = getThemeLabel(resolved, variant);
     });
     let meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
@@ -72,7 +89,7 @@
       meta.name = 'theme-color';
       document.head.appendChild(meta);
     }
-    meta.content = resolved === 'dark' ? (variant === 'classic-dark' ? '#0f0f11' : '#090a0d') : '#f5f3ef';
+    meta.content = themeColor;
     return resolved;
   }
 
@@ -88,7 +105,7 @@
     setTheme(current === 'dark' ? 'light' : 'dark');
   }
 
-  window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, applyTheme, setTheme, toggleTheme };
+  window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, resolveVariant, applyTheme, setTheme, toggleTheme };
   applyTheme();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => applyTheme());
   else applyTheme();

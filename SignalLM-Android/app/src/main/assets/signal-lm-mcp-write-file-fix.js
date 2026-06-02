@@ -32,6 +32,66 @@
     return String(value || '').indexOf(MARKER) !== -1;
   }
 
+  function textFromContent(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.map(function (part) {
+        if (!part) return '';
+        if (typeof part === 'string') return part;
+        return part.text || part.content || '';
+      }).join('\n');
+    }
+    return '';
+  }
+
+  function latestUserTextFromTranscript(text) {
+    var value = String(text || '');
+    var re = /(?:^|\n)USER:\s*([\s\S]*?)(?=\n+\s*(?:USER|ASSISTANT|SYSTEM):|$)/gi;
+    var match;
+    var latest = '';
+    while ((match = re.exec(value))) latest = String(match[1] || '').trim();
+    return latest || value;
+  }
+
+  function latestUserTextFromBody(body) {
+    if (!body || typeof body !== 'object') return '';
+    if (typeof body.input !== 'undefined') return latestUserTextFromTranscript(textFromContent(body.input));
+    if (Array.isArray(body.messages)) {
+      for (var i = body.messages.length - 1; i >= 0; i--) {
+        if (body.messages[i] && body.messages[i].role === 'user') {
+          return textFromContent(body.messages[i].content);
+        }
+      }
+    }
+    return '';
+  }
+
+  function isApplyPrompt(text) {
+    var value = String(text || '').toLowerCase();
+    return value.indexOf('apply these reviewed staged edits') !== -1
+      || value.indexOf('use the mcp write_file tool directly') !== -1
+      || value.indexOf('target file_path:') !== -1
+      || value.indexOf('allowed write destination:') !== -1;
+  }
+
+  function explicitlyAsksForWriteTool(text) {
+    return /\b(write_file|edit_file|apply_diff)\b/i.test(String(text || ''));
+  }
+
+  function asksToPersistFile(text) {
+    var value = String(text || '');
+    var hasWriteVerb = /\b(apply|save|write|overwrite|persist|commit|create|make|edit|replace|update)\b/i.test(value);
+    var hasFileTarget = /\b(file|files|folder|directory|path|workspace|project|disk|drive|selected target|mcp target)\b/i.test(value)
+      || /\b[a-z]:[\\/]/i.test(value)
+      || /\bcontent:\/\//i.test(value);
+    return hasWriteVerb && hasFileTarget;
+  }
+
+  function shouldInjectGuard(bodyOrText) {
+    var text = typeof bodyOrText === 'string' ? bodyOrText : latestUserTextFromBody(bodyOrText);
+    return isApplyPrompt(text) || explicitlyAsksForWriteTool(text) || asksToPersistFile(text);
+  }
+
   function guardText() {
     return [
       MARKER,
@@ -39,7 +99,7 @@
       'Correct write_file call shape:',
       'write_file({ file_path: "FULL_OR_SELECTED_TARGET_PATH/filename.ext", content: "complete file content" })',
       'Do not include format, language, encoding, mime_type, overwrite, create, root, cwd, path, filename, or any extra argument unless the tool schema explicitly lists it.',
-      'If creating a file inside the selected folder, combine the selected folder path with the requested filename, for example Selected Target Path D:/ plus sudoku.html becomes D:/sudoku.html.',
+      'If creating a file inside the selected folder, combine the selected folder path with the requested filename.',
       'If the selected target is an Android content:// URI, do not pass that URI to desktop filesystem MCP tools. Use the app workspace/app bridge path instead, or return a staged file edit for the app to apply.',
       'If a write_file call fails because of argument parsing, retry once with exactly file_path and content and no other keys.',
       '[END MCP WRITE_FILE SCHEMA GUARD]'
@@ -104,7 +164,7 @@
         var rawBody = init && init.body;
         if (typeof rawBody === 'string' && rawBody.trim().charAt(0) === '{') {
           var parsed = JSON.parse(rawBody);
-          if (isNativeMcpChatRequest(resource, parsed)) {
+          if (isNativeMcpChatRequest(resource, parsed) && shouldInjectGuard(parsed)) {
             var injected = injectGuard(parsed);
             return originalFetch(resource, cloneFetchInit(init, injected));
           }
@@ -124,6 +184,7 @@
     window.collectWorkspaceContextForPrompt = async function (userText) {
       var existing = await previous.apply(this, arguments);
       if (!mcpEnabled()) return existing;
+      if (!shouldInjectGuard(userText)) return existing;
       return mergeText(existing, guardText());
     };
     return true;
@@ -137,7 +198,8 @@
   window.SignalLMMcpWriteFileFix = {
     install: install,
     guardText: guardText,
-    injectGuard: injectGuard
+    injectGuard: injectGuard,
+    shouldInjectGuard: shouldInjectGuard
   };
 
   var timer = setInterval(install, 200);

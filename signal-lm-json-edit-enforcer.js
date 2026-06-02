@@ -34,7 +34,7 @@
       '```json',
       '{"files":[{"path":"relative/path/from/workspace-or-best-filename","content":"complete replacement file content"}]}',
       '```',
-      'Use complete file content, not patches. Escape newlines and quotes as valid JSON string content. If no filename is given, choose a clear filename such as index.html, sudoku.html, styles.css, or script.js. Keep any explanation outside the JSON block very short.'
+      'Use complete file content, not patches. Escape newlines and quotes as valid JSON string content. If no filename is given, choose a clear filename such as index.html, styles.css, or script.js. Keep any explanation outside the JSON block very short.'
     ].join('\n');
   }
 
@@ -332,7 +332,7 @@
     var value = String(text || '').trim();
     if (!value) return false;
     if (/^(create|make|build|generate|write|implement|add|fix|update|replace)\b/i.test(value)) return true;
-    return /\b(app|game|page|website|html|css|javascript|js|sudoku|calculator|todo|timer|clock|form|component)\b/i.test(value) && value.length < 500;
+    return /\b(app|game|page|website|html|css|javascript|js|calculator|todo|timer|clock|form|component)\b/i.test(value) && value.length < 500;
   }
 
   function slug(value) {
@@ -344,7 +344,6 @@
     if (explicit && hasUsefulExtension(explicit) && !weakPath(explicit)) return explicit;
     var named = String(request || '').match(/(?:file|path|filename|called|named)\s+`?([\w./-]+\.[a-z0-9]{1,12})`?/i);
     if (named && named[1]) return normalizePath(named[1]);
-    if (/\bsudoku\b/i.test(request)) return 'sudoku.html';
     if (/\bcalculator\b/i.test(request)) return 'calculator.html';
     if (/\btodo\b|\bto-do\b/i.test(request)) return 'todo.html';
     if (/\btimer\b/i.test(request)) return 'timer.html';
@@ -417,8 +416,7 @@
       return edits.map(function (edit) {
         if (!edit || !weakPath(edit.path)) return edit;
         var content = String(edit.content || '');
-        var inferred = /\bsudoku\b/i.test(content + '\n' + text) ? 'sudoku.html'
-          : /<html[\s>]|<!doctype\s+html/i.test(content) ? 'generated.html'
+        var inferred = /<html[\s>]|<!doctype\s+html/i.test(content) ? 'generated.html'
           : extension(edit.path) ? 'generated.' + extension(edit.path)
           : 'generated.html';
         return Object.assign({}, edit, { path: inferred });

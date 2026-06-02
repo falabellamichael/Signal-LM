@@ -1,5 +1,5 @@
 /* Signal-LM final dark theme override.
-   Dark now resolves to Midnight by default. Classic Dark remains available through data-theme-variant="classic-dark". */
+   Dark now resolves to Midnight by default. Classic Dark and Matrix remain available through data-theme-variant. */
 
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -312,4 +312,257 @@ html[data-theme="dark"] .workspace-file-chip span,
 html[data-theme="dark"] .file-chip span,
 html[data-theme="dark"] .edit-chip span {
   color: inherit !important;
+}
+
+/* Matrix terminal variant */
+html[data-theme="dark"][data-theme-variant="matrix"] {
+  color-scheme: dark;
+  background: #001106;
+  --bg-color: #001106;
+  --sidebar-bg: #001409;
+  --surface: #001a0b;
+  --surface-raised: rgba(0, 23, 9, 0.94);
+  --surface-muted: #00220f;
+  --surface-soft: rgba(0, 255, 102, 0.12);
+  --text-primary: #b9ffd2;
+  --text-secondary: #5cff93;
+  --text-muted: #2fcf68;
+  --accent: #00ff66;
+  --accent-soft: rgba(0, 255, 102, 0.16);
+  --on-accent: #001106;
+  --border-color: rgba(0, 255, 102, 0.34);
+  --user-msg-bg: #002211;
+  --ai-msg-bg: #001707;
+  --danger: #ff5a5a;
+  --success: #00ff66;
+  --warning: #d6ff5c;
+  --shadow: 0 0 22px rgba(0, 255, 102, 0.18), inset 0 0 0 1px rgba(0, 255, 102, 0.05);
+
+  --telemetry-bg: rgba(0, 20, 8, 0.94);
+  --telemetry-text: #b9ffd2;
+  --telemetry-border: rgba(0, 255, 102, 0.34);
+  --telemetry-rule: rgba(0, 255, 102, 0.28);
+  --telemetry-icon: #00ff66;
+  --telemetry-glow: 0 0 18px rgba(0, 255, 102, 0.2), inset 0 0 0 1px rgba(0, 255, 102, 0.08);
+  --telemetry-error-text: #ff5a5a;
+  --telemetry-error-border: rgba(255, 90, 90, 0.42);
+  --sidebar-resize-thumb: rgba(0, 255, 102, 0.28);
+  --sidebar-resize-thumb-active: rgba(0, 255, 102, 0.56);
+
+  --ai-pulse-live-shadow: rgba(0, 255, 102, 0.2);
+  --ai-pulse-live-ring: rgba(0, 255, 102, 0.2);
+  --ai-pulse-live-clear: rgba(0, 255, 102, 0);
+  --ai-pulse-finish-ring: rgba(0, 255, 102, 0.48);
+  --ai-pulse-finish-glow: rgba(0, 255, 102, 0.28);
+  --ai-pulse-finish-clear: rgba(0, 255, 102, 0);
+  --ai-pulse-sheen-soft: rgba(0, 255, 102, 0.22);
+  --ai-pulse-sheen-accent: rgba(185, 255, 210, 0.16);
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"],
+html[data-theme="dark"][data-theme-variant="matrix"] body,
+html[data-theme="dark"][data-theme-variant="matrix"] button,
+html[data-theme="dark"][data-theme-variant="matrix"] input,
+html[data-theme="dark"][data-theme-variant="matrix"] textarea,
+html[data-theme="dark"][data-theme-variant="matrix"] select {
+  font-family: "Cascadia Mono", "Consolas", "Lucida Console", monospace !important;
+  letter-spacing: 0.01em;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] body {
+  background-color: var(--bg-color) !important;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 255, 102, 0.045) 0 1px, transparent 1px 18px),
+    radial-gradient(circle at top left, rgba(0, 255, 102, 0.18), transparent 32rem),
+    radial-gradient(circle at bottom right, rgba(0, 132, 51, 0.14), transparent 34rem),
+    linear-gradient(180deg, #001106, #000703) !important;
+  color: var(--text-primary) !important;
+  text-shadow: 0 0 7px rgba(0, 255, 102, 0.3);
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .main-chat,
+html[data-theme="dark"][data-theme-variant="matrix"] #messages {
+  background-color: var(--bg-color) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] #messages {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 255, 102, 0.04) 0 1px, transparent 1px 20px),
+    radial-gradient(circle at 18% 0%, rgba(0, 255, 102, 0.12), transparent 30rem),
+    radial-gradient(circle at 86% 100%, rgba(0, 132, 51, 0.1), transparent 28rem) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .sidebar,
+html[data-theme="dark"][data-theme-variant="matrix"] .chat-header,
+html[data-theme="dark"][data-theme-variant="matrix"] .composer-stack,
+html[data-theme="dark"][data-theme-variant="matrix"] .input-area,
+html[data-theme="dark"][data-theme-variant="matrix"] .editor-topbar,
+html[data-theme="dark"][data-theme-variant="matrix"] .system-sidebar {
+  background: rgba(0, 14, 6, 0.96) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.05), 0 0 24px rgba(0, 255, 102, 0.08) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .card,
+html[data-theme="dark"][data-theme-variant="matrix"] .status-card,
+html[data-theme="dark"][data-theme-variant="matrix"] .status-box,
+html[data-theme="dark"][data-theme-variant="matrix"] .empty-state,
+html[data-theme="dark"][data-theme-variant="matrix"] .sidebar-note,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-strip,
+html[data-theme="dark"][data-theme-variant="matrix"] .context-debug-panel,
+html[data-theme="dark"][data-theme-variant="matrix"] .pending-edits-panel,
+html[data-theme="dark"][data-theme-variant="matrix"] .attachment-item,
+html[data-theme="dark"][data-theme-variant="matrix"] .editor-shell,
+html[data-theme="dark"][data-theme-variant="matrix"] .server-card,
+html[data-theme="dark"][data-theme-variant="matrix"] .model-option,
+html[data-theme="dark"][data-theme-variant="matrix"] .switch-row,
+html[data-theme="dark"][data-theme-variant="matrix"] .change-item,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-row,
+html[data-theme="dark"][data-theme-variant="matrix"] .empty-box,
+html[data-theme="dark"][data-theme-variant="matrix"] .system-card,
+html[data-theme="dark"][data-theme-variant="matrix"] .system-widget {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .brand span,
+html[data-theme="dark"][data-theme-variant="matrix"] button:not(.ghost-btn):not(.danger-btn):not(.meta-btn):not(.chip):not(.mobile-toggle):not(.attach-btn):not(.workspace-file-chip):not(.file-chip):not(.edit-chip):not(.sidebar-resize-handle):not(.system-sidebar-resize-handle),
+html[data-theme="dark"][data-theme-variant="matrix"] .file-label {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  text-shadow: none !important;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.32) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .nav-link.active,
+html[data-theme="dark"][data-theme-variant="matrix"] .nav-link:hover,
+html[data-theme="dark"][data-theme-variant="matrix"] .chip:hover,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-row:hover,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-row.active,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-file-chip.selected,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-chip.selected,
+html[data-theme="dark"][data-theme-variant="matrix"] .edit-chip.selected {
+  background: rgba(0, 255, 102, 0.14) !important;
+  border-color: rgba(0, 255, 102, 0.5) !important;
+  color: var(--accent) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .status-pill,
+html[data-theme="dark"][data-theme-variant="matrix"] .badge,
+html[data-theme="dark"][data-theme-variant="matrix"] .context-helper-badge,
+html[data-theme="dark"][data-theme-variant="matrix"] .chip,
+html[data-theme="dark"][data-theme-variant="matrix"] .meta-btn,
+html[data-theme="dark"][data-theme-variant="matrix"] .ghost-btn,
+html[data-theme="dark"][data-theme-variant="matrix"] .composer-shell,
+html[data-theme="dark"][data-theme-variant="matrix"] input,
+html[data-theme="dark"][data-theme-variant="matrix"] textarea,
+html[data-theme="dark"][data-theme-variant="matrix"] select,
+html[data-theme="dark"][data-theme-variant="matrix"] .commands-dropdown,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-file-chip,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-chip,
+html[data-theme="dark"][data-theme-variant="matrix"] .edit-chip,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-toggle-all {
+  background: var(--surface-muted) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 102, 0.04) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] input::placeholder,
+html[data-theme="dark"][data-theme-variant="matrix"] textarea::placeholder {
+  color: rgba(92, 255, 147, 0.55) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .model-display,
+html[data-theme="dark"][data-theme-variant="matrix"] .hint,
+html[data-theme="dark"][data-theme-variant="matrix"] .microcopy,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-mini,
+html[data-theme="dark"][data-theme-variant="matrix"] .change-mini,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-context-status,
+html[data-theme="dark"][data-theme-variant="matrix"] .context-helper-status,
+html[data-theme="dark"][data-theme-variant="matrix"] .workspace-strip span,
+html[data-theme="dark"][data-theme-variant="matrix"] .pending-edits-panel span,
+html[data-theme="dark"][data-theme-variant="matrix"] .context-debug-panel span,
+html[data-theme="dark"][data-theme-variant="matrix"] .page-header p,
+html[data-theme="dark"][data-theme-variant="matrix"] .switch-row p,
+html[data-theme="dark"][data-theme-variant="matrix"] .file-title span {
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] #view-chat .user .bubble {
+  background: var(--user-msg-bg) !important;
+  border-color: rgba(0, 255, 102, 0.42) !important;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.1) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] #view-chat .ai .bubble {
+  --ai-rest-shadow: 0 0 18px rgba(0, 255, 102, 0.16), inset 0 0 0 1px rgba(0, 255, 102, 0.08);
+  background: var(--ai-msg-bg) !important;
+  border-color: rgba(0, 255, 102, 0.34) !important;
+  box-shadow: var(--ai-rest-shadow) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .bubble pre,
+html[data-theme="dark"][data-theme-variant="matrix"] .preview,
+html[data-theme="dark"][data-theme-variant="matrix"] .context-preview,
+html[data-theme="dark"][data-theme-variant="matrix"] textarea.code-editor {
+  background: #000b04 !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+  text-shadow: 0 0 6px rgba(0, 255, 102, 0.26);
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] code,
+html[data-theme="dark"][data-theme-variant="matrix"] pre,
+html[data-theme="dark"][data-theme-variant="matrix"] kbd {
+  background: rgba(0, 255, 102, 0.08);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .code-copy-btn,
+html[data-theme="dark"][data-theme-variant="matrix"] .copy-btn {
+  background: rgba(0, 255, 102, 0.12) !important;
+  color: var(--accent) !important;
+  border-color: rgba(0, 255, 102, 0.36) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .code-copy-btn:hover,
+html[data-theme="dark"][data-theme-variant="matrix"] .copy-btn:hover {
+  background: rgba(0, 255, 102, 0.2) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .send-btn {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  border-color: rgba(185, 255, 210, 0.48) !important;
+  box-shadow: 0 0 18px rgba(0, 255, 102, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .send-btn:hover {
+  border-color: rgba(185, 255, 210, 0.72) !important;
+  box-shadow: 0 0 24px rgba(0, 255, 102, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .send-btn.streaming {
+  background: rgba(255, 90, 90, 0.12) !important;
+  color: var(--danger) !important;
+  border-color: rgba(255, 90, 90, 0.38) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .toast {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  border-color: rgba(185, 255, 210, 0.5) !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] ::selection {
+  background: rgba(0, 255, 102, 0.32);
+  color: #001106;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 102, 0.36) !important;
+  border: 2px solid #001106;
 }

@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
       model: 'auto-detect',
+      defaultModel: '',
       temperature: 0.7,
       topP: 1,
       maxTokens: 500,
@@ -120,7 +121,7 @@ const STORAGE_KEYS = {
       if (els.contextHelperMode) els.contextHelperMode.value = settings.contextHelperMode || DEFAULT_SETTINGS.contextHelperMode;
       if (els.contextHelperMaxSnippets) els.contextHelperMaxSnippets.value = settings.contextHelperMaxSnippets || DEFAULT_SETTINGS.contextHelperMaxSnippets;
       if (els.contextHelperMaxChars) els.contextHelperMaxChars.value = settings.contextHelperMaxChars || DEFAULT_SETTINGS.contextHelperMaxChars;
-      els.defaultModel.value = settings.model || '';
+      els.defaultModel.value = settings.defaultModel || '';
       els.temperature.value = settings.temperature;
       els.topP.value = settings.topP;
       els.maxTokens.value = settings.maxTokens;
@@ -219,11 +220,6 @@ const STORAGE_KEYS = {
         const detail = `Native bridge ready${status?.gpu ? ` · GPU: ${status.gpu}` : ''}${status?.ram ? ` · RAM: ${status.ram}` : ''}. ${models.length} model${models.length === 1 ? '' : 's'} returned.`;
         setStatus('connected', 'Android Runtime', detail);
         renderModels(models);
-        if (!settings.model && models[0]) {
-          settings.model = models[0];
-          saveSettings();
-          fillForm();
-        }
       } catch (error) {
         console.error(error);
         setStatus('error', 'Runtime error', error.message || 'Could not use Android native runtime.');
@@ -242,7 +238,7 @@ const STORAGE_KEYS = {
     }
 
     function saveDefaults() {
-      settings.model = els.defaultModel.value.trim();
+      settings.defaultModel = els.defaultModel.value.trim();
       settings.temperature = clamp(Number(els.temperature.value), 0, 2, DEFAULT_SETTINGS.temperature);
       settings.topP = clamp(Number(els.topP.value), 0, 1, DEFAULT_SETTINGS.topP);
       settings.maxTokens = Math.max(1, parseInt(els.maxTokens.value, 10) || DEFAULT_SETTINGS.maxTokens);
@@ -296,11 +292,6 @@ const STORAGE_KEYS = {
         }
         renderModels(models);
 
-        if (!settings.model && models[0]) {
-          settings.model = models[0];
-          saveSettings();
-          fillForm();
-        }
       } catch (error) {
         console.error(error);
         setStatus('error', 'Offline', `Could not reach the server. ${error.message || ''}`.trim());
@@ -320,10 +311,10 @@ const STORAGE_KEYS = {
 
       const autoBtn = document.createElement('button');
       autoBtn.type = 'button';
-      autoBtn.textContent = settings.model === 'auto-detect' ? 'Selected' : 'Use';
-      autoBtn.disabled = settings.model === 'auto-detect';
+      autoBtn.textContent = !settings.defaultModel ? 'Selected' : 'Use';
+      autoBtn.disabled = !settings.defaultModel;
       autoBtn.addEventListener('click', () => {
-        settings.model = 'auto-detect';
+        settings.defaultModel = '';
         saveSettings();
         fillForm();
         renderModels(models);
@@ -351,10 +342,10 @@ const STORAGE_KEYS = {
 
         const useBtn = document.createElement('button');
         useBtn.type = 'button';
-        useBtn.textContent = settings.model === model ? 'Selected' : 'Use';
-        useBtn.disabled = settings.model === model;
+        useBtn.textContent = settings.defaultModel === model ? 'Selected' : 'Use';
+        useBtn.disabled = settings.defaultModel === model;
         useBtn.addEventListener('click', () => {
-          settings.model = model;
+          settings.defaultModel = model;
           saveSettings();
           fillForm();
           renderModels(models);

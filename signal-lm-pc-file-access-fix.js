@@ -55,6 +55,28 @@
     return '';
   }
 
+  function latestUserTextFromTranscript(text) {
+    var value = String(text || '');
+    var re = /(?:^|\n)USER:\s*([\s\S]*?)(?=\n+\s*(?:USER|ASSISTANT|SYSTEM):|$)/gi;
+    var match;
+    var latest = '';
+    while ((match = re.exec(value))) latest = String(match[1] || '').trim();
+    return latest || value;
+  }
+
+  function latestUserIntent(body) {
+    if (body && Array.isArray(body.messages)) {
+      for (var i = body.messages.length - 1; i >= 0; i--) {
+        if (body.messages[i] && body.messages[i].role === 'user') {
+          var content = body.messages[i].content;
+          if (Array.isArray(content)) return content.map(function (part) { return part && (part.text || part.content || ''); }).join('\n');
+          return String(content || '');
+        }
+      }
+    }
+    return latestUserTextFromTranscript(inputText(body));
+  }
+
   function isDraftOnlyPrompt(text) {
     return /^\s*create\s+draft\s+only\s+for\s+/i.test(String(text || ''));
   }
@@ -110,6 +132,28 @@
   function messagesFromMcpInput(body) {
     var system = String(body.system_prompt || '').trim();
     var input = inputText(body);
+    var parsedMessages = [];
+    var systemMatch = input.match(/(?:^|\n)System instructions:\s*([\s\S]*?)(?=\n+\s*(?:USER|ASSISTANT):|$)/i);
+    if (systemMatch && systemMatch[1]) {
+      var parsedSystem = String(systemMatch[1] || '').trim();
+      if (parsedSystem) parsedMessages.push({ role: 'system', content: parsedSystem });
+    }
+
+    var turnRe = /(?:^|\n)(USER|ASSISTANT):\s*([\s\S]*?)(?=\n+\s*(?:USER|ASSISTANT|SYSTEM):|$)/gi;
+    var match;
+    while ((match = turnRe.exec(input))) {
+      var role = String(match[1] || '').toLowerCase() === 'assistant' ? 'assistant' : 'user';
+      var content = String(match[2] || '').trim();
+      if (content) parsedMessages.push({ role: role, content: content });
+    }
+
+    if (parsedMessages.length) {
+      if (system && !parsedMessages.some(function (message) { return message.role === 'system'; })) {
+        parsedMessages.unshift({ role: 'system', content: system });
+      }
+      return parsedMessages;
+    }
+
     var messages = [];
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: input });
@@ -219,7 +263,7 @@
     window.fetch = function signalLmHybridMcpRouterFetch(resource, init) {
       var body = parseBody(init);
       if (isNativeMcpChatRequest(resource, body)) {
-        var text = inputText(body);
+        var text = latestUserIntent(body);
         if (!shouldKeepMcpForPcAccess(text)) {
           return runHybridPlainChat(originalFetch, body).then(responseForText).catch(function (error) {
             return responseForText('Error from hybrid/plain-chat route: ' + (error && error.message || error));

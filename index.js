@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
       baseUrl: 'http://localhost:1234/v1',
       apiKey: '',
       model: 'auto-detect',
+      defaultModel: '',
       androidModelPath: '',
       temperature: 0.7,
       topP: 1,
@@ -63,6 +64,9 @@ const STORAGE_KEYS = {
     const MAX_WORKSPACE_GENERAL_CONTEXT_CHARS = 18000;
     const MAX_WORKSPACE_FILE_CONTEXT_CHARS = 45000;
     const MAX_CHAT_HISTORY_WITH_WORKSPACE = 4;
+    const MCP_CONTEXT_MIN_TOKENS = 1024;
+    const MCP_REQUEST_OVERHEAD_TOKENS = 768;
+    const MCP_MIN_OUTPUT_TOKENS = 128;
 
     let settings = loadSettings();
     let chatHistory = [];
@@ -418,6 +422,58 @@ const STORAGE_KEYS = {
       return requestMessages.reduce((total, message) => total + estimateTokenCount(message?.content || ''), 0);
     }
 
+    function configuredMcpContextLength() {
+      return Math.max(MCP_CONTEXT_MIN_TOKENS, parseInt(settings.mcpContextLength, 10) || DEFAULT_SETTINGS.mcpContextLength || 8000);
+    }
+
+    function configuredMaxOutputTokens() {
+      return Math.max(1, parseInt(settings.maxTokens, 10) || DEFAULT_SETTINGS.maxTokens || 500);
+    }
+
+    function clipTextToEstimatedTokenBudget(value, maxTokens) {
+      const text = String(value || '');
+      const maxChars = Math.max(1200, Math.floor(Math.max(1, maxTokens) * 4));
+      if (text.length <= maxChars) return text;
+      const marker = '\n\n[MCP input clipped by Signal-LM to fit the configured context budget. Reduce selected workspace files or raise MCP Context Length only if the loaded model actually supports it.]\n\n';
+      const available = Math.max(800, maxChars - marker.length);
+      const headChars = Math.floor(available * 0.62);
+      const tailChars = Math.max(0, available - headChars);
+      return text.slice(0, headChars) + marker + (tailChars ? text.slice(-tailChars) : '');
+    }
+
+    function prepareMcpRequestBudget(inputString) {
+      const contextLength = configuredMcpContextLength();
+      const requestedOutputTokens = configuredMaxOutputTokens();
+      const systemTokens = estimateTokenCount(settings.systemPrompt || '');
+      const rawInputTokens = estimateTokenCount(inputString);
+      const fractionOutputCap = Math.max(MCP_MIN_OUTPUT_TOKENS, Math.floor(contextLength * 0.25));
+      let maxOutputTokens = Math.min(requestedOutputTokens, fractionOutputCap);
+      let inputBudget = contextLength - maxOutputTokens - systemTokens - MCP_REQUEST_OVERHEAD_TOKENS;
+
+      if (inputBudget < 512) {
+        maxOutputTokens = Math.max(1, contextLength - systemTokens - MCP_REQUEST_OVERHEAD_TOKENS - 512);
+        inputBudget = Math.max(256, contextLength - maxOutputTokens - systemTokens - MCP_REQUEST_OVERHEAD_TOKENS);
+      }
+
+      const clippedInput = rawInputTokens > inputBudget
+        ? clipTextToEstimatedTokenBudget(inputString, inputBudget)
+        : String(inputString || '');
+      const finalInputTokens = estimateTokenCount(clippedInput);
+      const finalOutputCeiling = Math.max(1, contextLength - finalInputTokens - systemTokens - MCP_REQUEST_OVERHEAD_TOKENS);
+      maxOutputTokens = Math.max(1, Math.min(maxOutputTokens, finalOutputCeiling));
+
+      return {
+        input: clippedInput,
+        contextLength,
+        maxOutputTokens,
+        rawInputTokens,
+        finalInputTokens,
+        requestedOutputTokens,
+        clipped: clippedInput !== String(inputString || ''),
+        outputClamped: maxOutputTokens < requestedOutputTokens
+      };
+    }
+
     function compactUnique(values) {
       return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
     }
@@ -429,14 +485,30 @@ const STORAGE_KEYS = {
       return id.replace(/:\d+$/, '');
     }
 
+    function modelEntryIsLoaded(model) {
+      if (!model || typeof model !== 'object') return false;
+      if (typeof model.loaded === 'boolean') return model.loaded;
+      if (typeof model.is_loaded === 'boolean') return model.is_loaded;
+      if (typeof model.active === 'boolean') return model.active;
+      if (typeof model.in_memory === 'boolean') return model.in_memory;
+      const state = String(model.state || model.status || model.load_status || '').toLowerCase();
+      return /loaded|active|running|ready|in[-_ ]memory/.test(state);
+    }
+
     function loadedModelIdsFromEntry(model) {
       if (!model || typeof model !== 'object') return [];
       const loadedInstances = Array.isArray(model.loaded_instances) ? model.loaded_instances : [];
-      return compactUnique(loadedInstances.map(instance => {
+      const fromInstances = compactUnique(loadedInstances.map(instance => {
         if (typeof instance === 'string') return instance;
         const id = instance?.id || instance?.key || instance?.name || model.id || model.key || model.name || model.model || model.path || '';
         return id;
       }));
+      if (fromInstances.length) return fromInstances;
+      if (modelEntryIsLoaded(model)) {
+        const id = modelIdFromEntry(model);
+        return id ? [id] : [];
+      }
+      return [];
     }
 
     function extractModelIds(payload) {
@@ -448,10 +520,11 @@ const STORAGE_KEYS = {
             ? payload
             : [];
       const llmModels = rawModels.filter(model => !model || typeof model !== 'object' || model.type !== 'embedding');
-      const supportsLoadedInstances = llmModels.some(model => model && typeof model === 'object' && 'loaded_instances' in model);
-      const loaded = supportsLoadedInstances
-        ? compactUnique(llmModels.flatMap(loadedModelIdsFromEntry))
-        : (llmModels.length ? [modelIdFromEntry(llmModels[0])] : []);
+      let loaded = compactUnique(llmModels.flatMap(loadedModelIdsFromEntry));
+      if (!loaded.length && llmModels.length === 1) {
+        const fallbackId = modelIdFromEntry(llmModels[0]);
+        if (fallbackId) loaded = [fallbackId];
+      }
       const all = compactUnique(llmModels.map(modelIdFromEntry));
       return { all, loaded };
     }
@@ -459,15 +532,16 @@ const STORAGE_KEYS = {
     function getResolvedModelName() {
       const loaded = window.__signalLmLoadedModels || [];
       if (loaded.length > 0) return loaded[0];
+      const fallback = String(settings.defaultModel || '').trim();
+      if (fallback) return fallback;
       return '';
     }
 
-    function chooseModel({ all = [], loaded = [] }) {
-      const candidates = loaded.length ? loaded : all;
-      if (settings.model === 'auto-detect') return 'auto-detect';
-      if (!candidates.length) return settings.model || 'auto-detect';
-      if (settings.model && candidates.includes(settings.model)) return settings.model;
-      return 'auto-detect';
+    function getAutoDetectLabel() {
+      const loaded = window.__signalLmLoadedModels || [];
+      if (loaded.length > 0) return `Auto-Detect (${loaded[0]})`;
+      const fallback = String(settings.defaultModel || '').trim();
+      return fallback ? `Auto-Detect (Default: ${fallback})` : 'Auto-Detect';
     }
 
     function finiteNumber(value) {
@@ -1012,8 +1086,7 @@ const STORAGE_KEYS = {
       const suffix = androidOnly ? ' · Android Vulkan' : phoneBoost ? ' · Hybrid boost' : '';
       let modelText = settings.model || 'No model selected';
       if (settings.model === 'auto-detect') {
-        const resolved = getResolvedModelName();
-        modelText = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        modelText = getAutoDetectLabel();
       }
       els.modelDisplay.textContent = modelText + suffix;
     }
@@ -1561,6 +1634,8 @@ const STORAGE_KEYS = {
       const isAuto = (settings.model === 'auto-detect' || !settings.model);
       const resolved = getResolvedModelName();
       const resolvedModel = isAuto ? resolved : settings.model;
+      const mcpBudget = prepareMcpRequestBudget(inputString);
+      inputString = mcpBudget.input;
 
       const body = {
         model: resolvedModel,
@@ -1569,10 +1644,15 @@ const STORAGE_KEYS = {
         store: true
       };
 
-      if (!isAuto || !resolved) {
-        body.context_length = Math.max(1024, parseInt(settings.mcpContextLength, 10) || 8000);
-        body.temperature = Number(settings.temperature);
-        body.max_output_tokens = parseInt(settings.maxTokens, 10) || 500;
+      body.context_length = mcpBudget.contextLength;
+      body.temperature = Number(settings.temperature);
+      body.max_output_tokens = mcpBudget.maxOutputTokens;
+
+      if (!headless && (mcpBudget.clipped || mcpBudget.outputClamped)) {
+        const parts = [];
+        if (mcpBudget.clipped) parts.push(`input clipped from ~${mcpBudget.rawInputTokens.toLocaleString()} to ~${mcpBudget.finalInputTokens.toLocaleString()} tokens`);
+        if (mcpBudget.outputClamped) parts.push(`output capped at ${mcpBudget.maxOutputTokens.toLocaleString()} tokens`);
+        showToast(`MCP budget guard: ${parts.join('; ')}.`);
       }
 
       const responseId = localStorage.getItem(STORAGE_KEYS.nativeResponseId);
@@ -1870,6 +1950,16 @@ const STORAGE_KEYS = {
     function createStreamRenderer(bubble) {
       let pendingText = null;
       let rafId = null;
+      let finished = false;
+
+      function getAiRow() {
+        return bubble.closest('.message-row.ai');
+      }
+
+      function markStreaming() {
+        const row = getAiRow();
+        if (row && !finished) row.classList.add('is-streaming');
+      }
 
       function flush() {
         rafId = null;
@@ -1881,19 +1971,23 @@ const STORAGE_KEYS = {
 
       return {
         update(text) {
+          markStreaming();
           pendingText = text;
           if (!rafId) rafId = requestAnimationFrame(flush);
         },
         finish() {
+          if (finished) return;
+          finished = true;
           if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
           if (pendingText !== null) {
             renderBubbleContent(bubble, pendingText);
             pendingText = null;
           }
-          const row = bubble.closest('.message-row');
+          const row = getAiRow();
           if (row) {
+            row.classList.remove('is-streaming');
             row.classList.add('stream-done');
-            setTimeout(() => row.classList.remove('stream-done'), 800);
+            setTimeout(() => row.classList.remove('stream-done'), 1000);
           }
         }
       };
@@ -1904,6 +1998,7 @@ const STORAGE_KEYS = {
 
       const row = document.createElement('article');
       row.className = `message-row ${role}`;
+      if (role === 'ai' && options.loading) row.classList.add('is-streaming');
 
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
@@ -2244,10 +2339,18 @@ const STORAGE_KEYS = {
             els.modelSelect.appendChild(opt);
           });
 
+          const savedModel = String(settings.model || '').trim();
+          if (savedModel && savedModel !== 'auto-detect' && !names.includes(savedModel)) {
+            const opt = document.createElement('option');
+            opt.value = savedModel;
+            opt.textContent = `${savedModel} (saved)`;
+            els.modelSelect.appendChild(opt);
+          }
+
           window.__signalLmLastModelFetchResult = names;
           window.__signalLmLoadedModels = names;
           window.__signalLmLastModelFetchTime = Date.now();
-          els.modelSelect.value = settings.model || 'auto-detect';
+          els.modelSelect.value = savedModel || 'auto-detect';
           setStatus('connected', 'Android');
           updateRuntimeUi();
         } catch (error) {
@@ -2292,14 +2395,12 @@ const STORAGE_KEYS = {
         const { all: availableModels, loaded: loadedModels } = extractModelIds(payload);
         const models = compactUnique([...loadedModels, ...availableModels]);
         window.__signalLmLoadedModels = loadedModels;
-        const preferredModel = chooseModel({ all: availableModels, loaded: loadedModels });
 
         els.modelSelect.innerHTML = '';
 
         const autoOpt = document.createElement('option');
         autoOpt.value = 'auto-detect';
-        const resolved = getResolvedModelName();
-        autoOpt.textContent = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        autoOpt.textContent = getAutoDetectLabel();
         els.modelSelect.appendChild(autoOpt);
 
         if (models.length) {
@@ -2311,17 +2412,20 @@ const STORAGE_KEYS = {
           });
         }
 
-        if (preferredModel && settings.model !== preferredModel && settings.model !== 'auto-detect') {
-          settings.model = preferredModel;
-          saveSettings();
+        const savedModel = String(settings.model || '').trim();
+        if (savedModel && savedModel !== 'auto-detect' && !models.includes(savedModel)) {
+          const opt = document.createElement('option');
+          opt.value = savedModel;
+          opt.textContent = `${savedModel} (saved)`;
+          els.modelSelect.appendChild(opt);
         }
 
-        els.modelSelect.value = settings.model || preferredModel || 'auto-detect';
+        const selectValue = savedModel || 'auto-detect';
+        els.modelSelect.value = selectValue;
 
-        let modelDisplay = settings.model || preferredModel || 'auto-detect';
+        let modelDisplay = selectValue;
         if (modelDisplay === 'auto-detect') {
-          const resolved = getResolvedModelName();
-          modelDisplay = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+          modelDisplay = getAutoDetectLabel();
         }
         els.modelDisplay.textContent = modelDisplay;
 
@@ -2334,8 +2438,7 @@ const STORAGE_KEYS = {
 
         const autoOpt = document.createElement('option');
         autoOpt.value = 'auto-detect';
-        const resolved = getResolvedModelName();
-        autoOpt.textContent = resolved ? `Auto-Detect (${resolved})` : 'Auto-Detect';
+        autoOpt.textContent = getAutoDetectLabel();
         els.modelSelect.appendChild(autoOpt);
 
         if (settings.model && settings.model !== 'auto-detect') {
@@ -2926,12 +3029,14 @@ Workspace context is present in the latest user message. Treat those files as at
         if (isAbortError(error)) {
           fullResponse = error.partialContent || fullResponse || '(Generation stopped.)';
           assistantUi.setContent(fullResponse);
+          assistantUi.streamingFinished();
           const finalTelemetry = finishInferenceTelemetry('stopped', fullResponse, error);
           messages.push({ role: 'assistant', content: fullResponse, telemetry: finalTelemetry });
           saveMessages();
         } else {
           console.error(error);
           assistantUi.setContent(usesAndroidSupport() ? 'Error from the selected runtime. Check the PC server, Android native bridge, selected model, and runtime settings.' : 'Error connecting to LM Studio. Check Settings, confirm the server is running, and verify the selected model is loaded.');
+          assistantUi.streamingFinished();
           showToast(error.message || 'LM Studio connection error.');
           finishInferenceTelemetry('error', fullResponse, error);
         }

@@ -182,10 +182,19 @@ main.main-app {
 }
 
 #view-chat .ai .bubble {
+  --ai-rest-shadow: var(--shell-shadow-subtle);
+  --ai-live-shadow: var(--ai-pulse-live-shadow);
+  --ai-live-ring: var(--ai-pulse-live-ring);
+  --ai-finish-ring: var(--ai-pulse-finish-ring);
+  --ai-finish-glow: var(--ai-pulse-finish-glow);
   background: var(--ai-msg-bg);
   color: var(--text-primary);
   border-bottom-left-radius: 0;
-  box-shadow: var(--shell-shadow-subtle);
+  box-shadow: var(--ai-rest-shadow);
+}
+
+html[data-theme="dark"] #view-chat .ai .bubble {
+  --ai-rest-shadow: 0 7px 22px rgba(0, 0, 0, 0.22);
 }
 
 #view-chat .message-meta {

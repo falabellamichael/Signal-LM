@@ -24,19 +24,41 @@
 
       function resolveTheme(preference) {
         const pref = preference || readSettings().theme || 'system';
-        if (pref === 'dark' || pref === 'light') return pref;
+        if (pref === 'dark' || pref === 'classic-dark' || pref === 'matrix') return 'dark';
+        if (pref === 'light') return 'light';
         return media && media.matches ? 'dark' : 'light';
+      }
+
+      function resolveVariant(preference, resolved) {
+        const pref = preference || readSettings().theme || 'system';
+        if (resolved !== 'dark') return '';
+        if (pref === 'classic-dark') return 'classic-dark';
+        if (pref === 'matrix') return 'matrix';
+        return 'midnight';
+      }
+
+      function getThemeLabel(resolved, variant) {
+        if (resolved !== 'dark') return 'Light';
+        if (variant === 'classic-dark') return 'Classic Dark';
+        if (variant === 'matrix') return 'Matrix';
+        return 'Midnight';
       }
 
       function applyTheme(preference) {
         const settings = readSettings();
         const pref = preference || settings.theme || 'system';
         const resolved = resolveTheme(pref);
+        const variant = resolveVariant(pref, resolved);
         document.documentElement.dataset.themePreference = pref;
         document.documentElement.dataset.theme = resolved;
-        document.documentElement.style.colorScheme = resolved;
+        if (variant) {
+          document.documentElement.dataset.themeVariant = variant;
+        } else {
+          delete document.documentElement.dataset.themeVariant;
+        }
+        document.documentElement.style.colorScheme = resolved === 'dark' ? 'dark' : 'light';
         document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = pref; });
-        document.querySelectorAll('[data-theme-label]').forEach(label => { label.textContent = resolved === 'dark' ? 'Dark' : 'Light'; });
+        document.querySelectorAll('[data-theme-label]').forEach(label => { label.textContent = getThemeLabel(resolved, variant); });
         return resolved;
       }
 
@@ -62,7 +84,7 @@
         document.documentElement.style.setProperty('--sidebar-width', `${normalizeSidebarWidth(width)}px`);
       }
 
-      window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, applyTheme, setTheme, toggleTheme };
+      window.LmStudioLiteTheme = { readSettings, writeSettings, resolveTheme, resolveVariant, applyTheme, setTheme, toggleTheme };
       applySidebarWidth(readSettings().sidebarWidth);
       applyTheme();
       if (document.readyState === 'loading') {
@@ -85,7 +107,7 @@
   </script>
   
   <link rel="stylesheet" href="shared.css">
-  <link rel="stylesheet" href="index.css?v=6">
+  <link rel="stylesheet" href="index.css?v=7">
   <link rel="stylesheet" href="libs/prism.css">
 
   
@@ -93,7 +115,7 @@
   <link rel="stylesheet" href="editor.css">
   <link rel="stylesheet" href="mcp.css">
   <link rel="stylesheet" href="settings.css">
-  <link rel="stylesheet" href="signal-lm-app-shell.css?v=10">
+  <link rel="stylesheet" href="signal-lm-app-shell.css?v=11">
   <link rel="stylesheet" href="system-sidebar.css?v=2">
 </head>
 <body>
@@ -405,7 +427,7 @@
           <div class="input-group">
             <label for="context-length">Context Length</label>
             <input id="context-length" type="number" min="1024" step="512" />
-            <p class="hint">Higher context is recommended when MCP tools return larger payloads.</p>
+            <p class="hint">Prompt window for MCP. Match the model's actual loaded context; Max Tokens and batch size do not increase this.</p>
           </div>
 
           <div class="button-row">
@@ -510,9 +532,11 @@
             <select id="theme-select" data-theme-select onchange="saveAppearance()">
               <option value="system">System</option>
               <option value="light">Light</option>
-              <option value="dark">Dark</option>
+              <option value="dark">Midnight</option>
+              <option value="classic-dark">Classic Dark</option>
+              <option value="matrix">Matrix</option>
             </select>
-            <p class="hint">System follows the Android or desktop app theme. Light and Dark force the app appearance on every page.</p>
+            <p class="hint">System follows the Android or desktop app theme. Light, Midnight, Classic Dark, and Matrix force the app appearance on every page.</p>
           </div>
           <div class="button-row">
             <button type="button" onclick="saveAppearance()">Save Appearance</button>
@@ -663,6 +687,7 @@
           <div class="input-group">
             <label for="settings-max-tokens">Max Tokens</label>
             <input id="settings-max-tokens" type="number" min="1" step="1" />
+            <p class="hint">Output budget only. Very large values leave less room for prompt/context and can break large MCP requests.</p>
           </div>
 
           <div class="input-group">
@@ -753,7 +778,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="libs/prism.js"></script>
-  <script src="shared.js?v=11"></script>
+  <script src="shared.js?v=12"></script>
   <script src="index.js?v=17"></script>
   <script src="system-sidebar.js?v=3"></script>
   <script src="signal-lm-commands.js?v=5"></script>
