@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
-$ExpectedVersion = '1.0.5-9'
-$ExpectedBuildVersion = '1.0.5.9'
-$ExpectedInstaller = Join-Path $PSScriptRoot 'dist_new\Signal-LM-Setup-v1.0.5.9.exe'
+$ExpectedVersion = '1.0.6'
+$ExpectedBuildVersion = '1.0.6'
+$ExpectedInstaller = Join-Path $PSScriptRoot 'dist_new\Signal-LM-Setup-v1.0.6.exe'
 
 Set-Location $PSScriptRoot
 
-Write-Host 'Signal LM desktop release build v1.0.5.9'
+Write-Host 'Signal LM desktop release build v1.0.6'
 Write-Host "Repo: $PSScriptRoot"
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
@@ -73,4 +73,4 @@ Write-Host $Installer.FullName
 Write-Host "Size: $([Math]::Round($Installer.Length / 1MB, 2)) MB"
 Write-Host "Modified: $($Installer.LastWriteTime)"
 Write-Host ''
-Write-Host 'Next: upload this file to the v1.0.5.9 GitHub Release assets.'
+Write-Host 'Next: upload this file to the v1.0.6 GitHub Release assets.'
