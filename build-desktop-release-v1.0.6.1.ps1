@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$ExpectedVersion = '1.0.6-1'
+$ExpectedVersion = '1.0.7'
 $ExpectedBuildVersion = '1.0.6.1'
 $ExpectedInstaller = Join-Path $PSScriptRoot 'dist_new\Signal-LM-Setup-v1.0.6.1.exe'
 
