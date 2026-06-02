@@ -239,6 +239,20 @@ html[data-theme="dark"] .attach-btn:hover {
   color: var(--accent) !important;
 }
 
+html[data-theme="dark"] .button-link:not(.ghost-link) {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  border-color: rgba(238, 233, 222, 0.35) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34) !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="dark"] .button-link:not(.ghost-link):hover {
+  opacity: 1;
+  box-shadow: 0 0 14px rgba(238, 233, 222, 0.3), 0 8px 24px rgba(0, 0, 0, 0.48) !important;
+  border-color: rgba(238, 233, 222, 0.6) !important;
+}
+
 html[data-theme="dark"] .send-btn {
   background: var(--accent) !important;
   color: var(--on-accent) !important;
@@ -540,6 +554,19 @@ html[data-theme="dark"][data-theme-variant="matrix"] .send-btn {
 }
 
 html[data-theme="dark"][data-theme-variant="matrix"] .send-btn:hover {
+  border-color: rgba(185, 255, 210, 0.72) !important;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .button-link:not(.ghost-link) {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  border-color: rgba(185, 255, 210, 0.48) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  text-shadow: none !important;
+}
+
+html[data-theme="dark"][data-theme-variant="matrix"] .button-link:not(.ghost-link):hover {
   border-color: rgba(185, 255, 210, 0.72) !important;
   box-shadow: 0 0 14px rgba(0, 255, 102, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
 }
