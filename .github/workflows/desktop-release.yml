@@ -33,9 +33,9 @@ jobs:
         with:
           name: signal-lm-windows-installer
           path: |
-            dist/Signal-LM-Setup.exe
-            dist/Signal-LM-Setup.exe.blockmap
-            dist/latest.yml
+            dist_new/Signal-LM-Setup.exe
+            dist_new/Signal-LM-Setup.exe.blockmap
+            dist_new/latest.yml
 
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/')
@@ -43,6 +43,6 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            dist/Signal-LM-Setup.exe
-            dist/Signal-LM-Setup.exe.blockmap
-            dist/latest.yml
+            dist_new/Signal-LM-Setup.exe
+            dist_new/Signal-LM-Setup.exe.blockmap
+            dist_new/latest.yml

@@ -29,7 +29,7 @@
     "directories": {
       "output": "dist_new"
     },
-    "artifactName": "Signal-LM-Setup-v1.0.6.2.exe",
+    "artifactName": "Signal-LM-Setup.exe",
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false

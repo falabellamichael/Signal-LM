@@ -216,7 +216,10 @@
 }
 
 .system-poll-control input[type="range"] {
-  width: 100%;
+  max-width: 34px; /* Constrain to sidebar menu width */
+  min-width: 28px;
+  height: 36px;
+  margin-left: auto;
 }
 
 .system-poll-value {
