@@ -10,6 +10,7 @@ node_modules/
 dist/
 dist_new/
 SimpleSignal.exe
+setup.exe
 
 # Android Studio / IntelliJ IDEA
 .idea/
